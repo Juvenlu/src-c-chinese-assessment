@@ -4,7 +4,17 @@
 
 SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文识字量测评系统。目标用户为5-14岁、中文为第二语言或弱母语的华人青少年。
 
-当前版本 V1 仅开发"稳定识字量测评"模块，包含四个测试部分：字形识别、词汇识别、句子识别、理解测试。
+当前版本 V1 仅开发"稳定识字量测评"模块，包含两种测试模式和四个测试部分。
+
+### 测试模式
+1. **逐字测试（full）**：300字库逐个展示，不限时，全面检测每个字/词的掌握情况
+2. **抽测闯关（sampling）**：限时抽样测试，快速评估识字量水平
+
+### 测试部分（抽测闯关模式）
+1. 字形识别（30%权重）
+2. 词汇识别（30%权重）
+3. 句子识别（20%权重）
+4. 理解测试（20%权重）
 
 ### 技术栈
 
@@ -22,9 +32,10 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 ├── public/                     # 静态资源
 ├── src/
 │   ├── app/                    # 页面路由
-│   │   ├── page.tsx            # 首页（开始测试入口）
-│   │   ├── profile/page.tsx    # 用户信息+等级选择
-│   │   ├── test/page.tsx       # 测试核心页面（四部分测试流程）
+│   │   ├── page.tsx            # 首页（双模式选择+分享入口）
+│   │   ├── profile/page.tsx    # 用户信息+等级选择（支持mode参数）
+│   │   ├── fulltest/page.tsx   # 逐字测试页面（300字/词逐个测试）
+│   │   ├── test/page.tsx       # 抽测闯关核心页面（四部分测试流程）
 │   │   ├── result/page.tsx     # 测试结果页
 │   │   ├── report/page.tsx     # 家长成长报告
 │   │   ├── history/page.tsx    # 历史记录+成长曲线
@@ -40,7 +51,7 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 │   ├── components/ui/          # shadcn/ui 组件
 │   ├── lib/
 │   │   ├── types.ts            # 类型定义+常量配置
-│   │   ├── questions.ts        # 题库种子数据（SRC300/500/800各20题）
+│   │   ├── questions.ts        # 题库种子数据（300字库67题+字表词表）
 │   │   ├── scoring.ts          # 评分算法+游戏化反馈
 │   │   └── utils.ts            # 通用工具
 │   └── storage/database/

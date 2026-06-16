@@ -1,28 +1,45 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { ALL_QUESTIONS } from '@/lib/questions';
+import { getAllQuestions } from '@/lib/questions';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const client = getSupabaseClient();
 
-    // Check if questions already exist
-    const { count, error: countError } = await client
-      .from('question_bank')
-      .select('*', { count: 'exact', head: true });
+    // Check for force rebuild param
+    let forceRebuild = false;
+    try {
+      const body = await request.json();
+      forceRebuild = body?.force === true;
+    } catch {
+      // No body or invalid JSON - ignore
+    }
 
-    if (countError) throw new Error(`查询题库失败: ${countError.message}`);
+    // If force rebuild, delete existing questions first
+    if (forceRebuild) {
+      const { error: deleteError } = await client
+        .from('question_bank')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // delete all
 
-    if (count && count > 0) {
-      return NextResponse.json({ message: `题库已有 ${count} 道题目，跳过导入` });
+      if (deleteError) {
+        console.warn('清空题库警告:', deleteError.message);
+      }
+    } else {
+      // Check if questions already exist
+      const { count, error: countError } = await client
+        .from('question_bank')
+        .select('*', { count: 'exact', head: true });
+
+      if (countError) throw new Error(`查询题库失败: ${countError.message}`);
+
+      if (count && count > 0) {
+        return NextResponse.json({ message: `题库已有 ${count} 道题目，跳过导入` });
+      }
     }
 
     // Seed all questions
-    const allQuestions = [
-      ...ALL_QUESTIONS.SRC300,
-      ...ALL_QUESTIONS.SRC500,
-      ...ALL_QUESTIONS.SRC800,
-    ];
+    const allQuestions = getAllQuestions();
 
     const { error: insertError } = await client
       .from('question_bank')

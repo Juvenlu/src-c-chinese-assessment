@@ -1,11 +1,9 @@
 // Type definitions for SRC-C system
 
 export type Level = 'SRC300' | 'SRC500' | 'SRC800';
-
+export type TestMode = 'full' | 'sampling'; // full = 逐字测试, sampling = 抽测闯关
 export type LanguageEnv = 'chinese_primary' | 'bilingual' | 'english_primary' | 'other';
-
 export type SessionStatus = 'in_progress' | 'completed' | 'abandoned';
-
 export type TestPart = 1 | 2 | 3 | 4;
 
 export interface Child {
@@ -134,3 +132,21 @@ export const LANGUAGE_ENV_LABELS: Record<LanguageEnv, string> = {
   english_primary: '英文为主',
   other: '其他',
 };
+
+// 逐字测试中每个字的测试结果
+export interface CharTestResult {
+  character: string;
+  recognized: boolean;       // 是否认识
+  reaction_time_ms: number;  // 反应时间
+}
+
+// 逐字测试的会话数据
+export interface FullTestSession {
+  childId: string;
+  childName: string;
+  level: Level;
+  results: CharTestResult[];
+  startedAt: number;
+  completedAt?: number;
+  currentIndex: number;
+}

@@ -1,33 +1,63 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { TestResult } from '@/lib/types';
+import { TestResult, Level, LEVEL_CONFIG } from '@/lib/types';
 import { getReadingStars, getStrength, getWeakness, getRecommendation } from '@/lib/scoring';
 
-export default function ResultPage() {
+function ResultContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('sessionId');
+  const mode = searchParams.get('mode') || 'sampling';
+  const fallbackLevel = (searchParams.get('level') || 'SRC300') as Level;
+  const fallbackCharCount = parseInt(searchParams.get('charCount') || '0');
+  const fallbackVocabCount = parseInt(searchParams.get('vocabCount') || '0');
+  const fallbackScore = parseInt(searchParams.get('score') || '0');
+
   const [result, setResult] = useState<TestResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadResult() {
-      if (!sessionId) return;
-      try {
-        const res = await fetch(`/api/results?session_id=${sessionId}`);
-        const { data, error } = await res.json();
-        if (error) throw new Error(error);
-        setResult(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+      if (sessionId) {
+        try {
+          const res = await fetch(`/api/results?session_id=${sessionId}`);
+          const { data, error } = await res.json();
+          if (!error && data) {
+            setResult(data);
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error(err);
+        }
       }
+      // Fallback for full test mode without session
+      if (mode === 'full') {
+        setResult({
+          id: '',
+          session_id: sessionId || '',
+          child_id: '',
+          level: fallbackLevel,
+          character_score: fallbackScore,
+          vocab_score: fallbackScore,
+          reading_score: fallbackScore,
+          comprehension_score: fallbackScore,
+          total_score: fallbackScore,
+          stable_char_count: fallbackCharCount,
+          stable_vocab_count: fallbackVocabCount,
+          character_mastery_rate: fallbackScore / 100,
+          vocab_mastery_rate: fallbackScore / 100,
+          reading_comprehension_rate: fallbackScore / 100,
+          completion_time_seconds: 0,
+          created_at: new Date().toISOString(),
+        });
+      }
+      setLoading(false);
     }
     loadResult();
-  }, [sessionId]);
+  }, [sessionId, mode, fallbackLevel, fallbackCharCount, fallbackVocabCount, fallbackScore]);
 
   if (loading) {
     return (
@@ -68,12 +98,19 @@ export default function ResultPage() {
   const minutes = Math.floor(result.completion_time_seconds / 60);
   const seconds = result.completion_time_seconds % 60;
 
-  const partScores = [
-    { name: '识字得分', score: result.character_score, icon: '👁️', color: 'var(--color-src-primary)' },
-    { name: '词汇得分', score: result.vocab_score, icon: '📖', color: 'var(--color-src-secondary)' },
-    { name: '阅读得分', score: result.reading_score, icon: '💬', color: 'var(--color-src-accent)' },
-    { name: '理解得分', score: result.comprehension_score, icon: '💡', color: 'var(--color-src-success)' },
-  ];
+  const isFullMode = mode === 'full';
+
+  const partScores = isFullMode
+    ? [
+        { name: '识字掌握', score: Math.round(result.character_mastery_rate * 100), icon: '👁️', color: 'var(--color-src-primary)' },
+        { name: '词汇掌握', score: Math.round(result.vocab_mastery_rate * 100), icon: '📖', color: 'var(--color-src-secondary)' },
+      ]
+    : [
+        { name: '识字得分', score: result.character_score, icon: '👁️', color: 'var(--color-src-primary)' },
+        { name: '词汇得分', score: result.vocab_score, icon: '📖', color: 'var(--color-src-secondary)' },
+        { name: '阅读得分', score: result.reading_score, icon: '💬', color: 'var(--color-src-accent)' },
+        { name: '理解得分', score: result.comprehension_score, icon: '💡', color: 'var(--color-src-success)' },
+      ];
 
   return (
     <div className="min-h-screen flex flex-col items-center bg-[var(--color-src-bg)] px-4 py-8">
@@ -82,9 +119,19 @@ export default function ResultPage() {
         <div className="text-center mb-8 animate-bounce-in">
           <div className="text-7xl mb-4">🎊</div>
           <h1 className="font-display text-3xl text-[var(--color-src-text)] mb-2">
-            测试完成！
+            {isFullMode ? '逐字测试完成！' : '测试完成！'}
           </h1>
           <p className="text-[var(--color-src-text-light)]">太棒了，继续加油！</p>
+        </div>
+
+        {/* Mode badge */}
+        <div className="text-center mb-4">
+          <div className="inline-flex items-center gap-2 bg-white/80 px-4 py-2 rounded-full shadow-sm">
+            <span>{isFullMode ? '📝' : '🎮'}</span>
+            <span className="text-sm font-medium text-[var(--color-src-text)]">
+              {isFullMode ? '逐字测试' : '抽测闯关'}
+            </span>
+          </div>
         </div>
 
         {/* Level badge */}
@@ -119,23 +166,27 @@ export default function ResultPage() {
             ))}
           </div>
           <div className="flex justify-between text-sm text-[var(--color-src-text-light)]">
-            <span>完成时间：{minutes}分{seconds}秒</span>
+            {result.completion_time_seconds > 0 && (
+              <span>完成时间：{minutes}分{seconds}秒</span>
+            )}
             <span>综合得分：{result.total_score}分</span>
           </div>
         </div>
 
         {/* Part scores */}
         <div className="card-game mb-4 animate-bounce-in" style={{ animationDelay: '0.5s' }}>
-          <div className="text-sm font-medium text-[var(--color-src-text)] mb-4">各项得分</div>
+          <div className="text-sm font-medium text-[var(--color-src-text)] mb-4">
+            {isFullMode ? '掌握情况' : '各项得分'}
+          </div>
           <div className="space-y-4">
             {partScores.map((part) => (
               <div key={part.name}>
                 <div className="flex justify-between text-sm mb-1">
                   <span>{part.icon} {part.name}</span>
-                  <span className="font-bold">{part.score}分</span>
+                  <span className="font-bold">{part.score}{isFullMode ? '%' : '分'}</span>
                 </div>
                 <div className="progress-bar-game">
-                  <div style={{ width: `${part.score}%`, background: part.color }} />
+                  <div style={{ width: `${Math.min(part.score, 100)}%`, background: part.color }} />
                 </div>
               </div>
             ))}
@@ -172,23 +223,48 @@ export default function ResultPage() {
 
         {/* Actions */}
         <div className="space-y-3 animate-bounce-in" style={{ animationDelay: '0.7s' }}>
-          <Link href={`/report?childId=${result.child_id}`} className="block">
-            <button className="btn-game bg-[var(--color-src-primary)] text-white w-full">
-              📋 查看成长报告
-            </button>
-          </Link>
-          <Link href={`/history?childId=${result.child_id}`} className="block">
-            <button className="btn-game bg-[var(--color-src-secondary)] text-white w-full">
-              📊 查看成长曲线
-            </button>
-          </Link>
+          {result.child_id && (
+            <>
+              <Link href={`/report?childId=${result.child_id}`} className="block">
+                <button
+                  className="w-full rounded-2xl px-8 py-4 font-display text-lg font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg"
+                  style={{ backgroundColor: 'var(--color-src-primary)' }}
+                >
+                  📋 查看成长报告
+                </button>
+              </Link>
+              <Link href={`/history?childId=${result.child_id}`} className="block">
+                <button
+                  className="w-full rounded-2xl px-8 py-4 font-display text-lg font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg"
+                  style={{ backgroundColor: 'var(--color-src-secondary)' }}
+                >
+                  📊 查看成长曲线
+                </button>
+              </Link>
+            </>
+          )}
           <Link href="/" className="block">
-            <button className="btn-game bg-[var(--color-src-text-light)]/10 text-[var(--color-src-text)] w-full">
+            <button
+              className="w-full rounded-2xl px-8 py-4 font-display text-lg font-bold transition-all duration-200 active:scale-95 hover:scale-105"
+              style={{ backgroundColor: 'rgba(99,110,114,0.15)', color: 'var(--color-src-text)' }}
+            >
               🏠 返回首页
             </button>
           </Link>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)]">
+        <div className="text-5xl animate-bounce">🐵</div>
+      </div>
+    }>
+      <ResultContent />
+    </Suspense>
   );
 }

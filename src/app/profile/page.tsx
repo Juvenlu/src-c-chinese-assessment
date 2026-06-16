@@ -1,11 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { LanguageEnv, LANGUAGE_ENV_LABELS, Level, LEVEL_CONFIG } from '@/lib/types';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { LanguageEnv, LANGUAGE_ENV_LABELS, Level, LEVEL_CONFIG, TestMode } from '@/lib/types';
 
-export default function ProfilePage() {
+function ProfileContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode = (searchParams.get('mode') || 'sampling') as TestMode;
+
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [grade, setGrade] = useState('');
@@ -14,6 +17,9 @@ export default function ProfilePage() {
   const [level, setLevel] = useState<Level>('SRC300');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+
+  const modeLabel = mode === 'full' ? '逐字测试' : '抽测闯关';
+  const modeIcon = mode === 'full' ? '📝' : '🎮';
 
   const handleCreateChild = async () => {
     if (!name || !age || !grade || !country) return;
@@ -32,28 +38,49 @@ export default function ProfilePage() {
       });
       const { data, error } = await res.json();
       if (error) throw new Error(error);
-      
-      // Create session
-      const sessionRes = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          child_id: data.id,
-          level,
-        }),
-      });
-      const { data: sessionData, error: sessionError } = await sessionRes.json();
-      if (sessionError) throw new Error(sessionError);
 
-      // Seed questions if needed
-      await fetch('/api/seed', { method: 'POST' });
+      if (mode === 'full') {
+        // 逐字测试 - 不需要创建 session，直接跳转逐字测试页面
+        const params = new URLSearchParams({
+          childId: data.id,
+          childName: name,
+          level: 'SRC300',
+        });
+        router.push(`/fulltest?${params.toString()}`);
+      } else {
+        // 抽测闯关 - 创建 session
+        const sessionRes = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            child_id: data.id,
+            level,
+          }),
+        });
+        const { data: sessionData, error: sessionError } = await sessionRes.json();
+        if (sessionError) throw new Error(sessionError);
 
-      router.push(`/test?sessionId=${sessionData.id}&level=${level}`);
+        // Seed questions if needed
+        await fetch('/api/seed', { method: 'POST' });
+
+        router.push(`/test?sessionId=${sessionData.id}&level=${level}`);
+      }
     } catch (err) {
       console.error(err);
       alert('创建失败，请重试');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // For full test mode, skip level selection step
+  const totalSteps = mode === 'full' ? 1 : 2;
+  const handleNext = () => {
+    if (mode === 'full') {
+      // Full test mode: directly start after step 1
+      handleCreateChild();
+    } else {
+      setStep(2);
     }
   };
 
@@ -63,20 +90,28 @@ export default function ProfilePage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-20 h-20 mx-auto bg-[var(--color-src-accent)] rounded-full flex items-center justify-center mb-4 shadow-md">
-            <span className="text-4xl">🐵</span>
+            <span className="text-4xl">{modeIcon}</span>
           </div>
           <h1 className="font-display text-3xl text-[var(--color-src-text)] mb-1">
             {step === 1 ? '介绍一下自己吧' : '选择测试等级'}
           </h1>
           <p className="text-[var(--color-src-text-light)]">
-            {step === 1 ? '让我们了解你的情况' : '根据你的水平选择合适的等级'}
+            {step === 1
+              ? `当前模式：${modeLabel}`
+              : '根据你的水平选择合适的等级'}
           </p>
         </div>
 
         {/* Progress dots */}
         <div className="flex justify-center gap-2 mb-8">
-          <div className={`w-3 h-3 rounded-full transition-colors ${step === 1 ? 'bg-[var(--color-src-primary)]' : 'bg-[var(--color-src-primary)]/30'}`} />
-          <div className={`w-3 h-3 rounded-full transition-colors ${step === 2 ? 'bg-[var(--color-src-primary)]' : 'bg-[var(--color-src-primary)]/30'}`} />
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <div
+              key={i}
+              className={`w-3 h-3 rounded-full transition-colors ${
+                step === i + 1 ? 'bg-[var(--color-src-primary)]' : 'bg-[var(--color-src-primary)]/30'
+              }`}
+            />
+          ))}
         </div>
 
         {step === 1 ? (
@@ -161,15 +196,19 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* 下一步按钮 - 始终可见 */}
+            {/* Next/Start button */}
             <div className="pt-2">
               <button
-                onClick={() => setStep(2)}
-                disabled={!name || !age || !grade || !country}
+                onClick={handleNext}
+                disabled={!name || !age || !grade || !country || loading}
                 className="w-full rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{ backgroundColor: 'var(--color-src-primary)' }}
               >
-                下一步 →
+                {loading
+                  ? '准备中...'
+                  : mode === 'full'
+                    ? '开始逐字测试 📝'
+                    : '下一步 →'}
               </button>
               {(!name || !age || !grade || !country) && (
                 <p className="text-center text-sm text-[var(--color-src-text-light)] mt-2">
@@ -231,3 +270,17 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)]">
+        <div className="text-2xl animate-bounce">🐵</div>
+      </div>
+    }>
+      <ProfileContent />
+    </Suspense>
+  );
+}
+
+import { Suspense } from 'react';
