@@ -59,7 +59,7 @@ export const testSessions = pgTable(
     status: varchar("status", { length: 16 }).notNull().default("in_progress"), // in_progress, completed, abandoned
     started_at: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     completed_at: timestamp("completed_at", { withTimezone: true }),
-    time_limit_seconds: integer("time_limit_seconds").notNull(), // 300, 480, 600
+    time_limit_seconds: integer("time_limit_seconds").notNull(), // 480, 720, 900
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

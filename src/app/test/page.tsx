@@ -89,7 +89,7 @@ export default function TestPage() {
         setQuestions(data || []);
 
         // Set timer based on level
-        const timeLimits: Record<Level, number> = { SRC300: 300, SRC500: 480, SRC800: 600 };
+        const timeLimits: Record<Level, number> = { SRC300: 480, SRC500: 720, SRC800: 900 };
         setTimeLeft(timeLimits[level]);
       } catch (err) {
         console.error(err);

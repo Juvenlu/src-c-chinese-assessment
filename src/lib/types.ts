@@ -100,9 +100,9 @@ export interface SubmitAnswerInput {
 }
 
 export const LEVEL_CONFIG: Record<Level, { timeLimitSeconds: number; charCount: number; vocabMultiplier: number }> = {
-  SRC300: { timeLimitSeconds: 300, charCount: 300, vocabMultiplier: 2.86 },
-  SRC500: { timeLimitSeconds: 480, charCount: 500, vocabMultiplier: 2.86 },
-  SRC800: { timeLimitSeconds: 600, charCount: 800, vocabMultiplier: 2.86 },
+  SRC300: { timeLimitSeconds: 480, charCount: 300, vocabMultiplier: 2.86 },
+  SRC500: { timeLimitSeconds: 720, charCount: 500, vocabMultiplier: 2.86 },
+  SRC800: { timeLimitSeconds: 900, charCount: 800, vocabMultiplier: 2.86 },
 };
 
 export const PART_WEIGHTS = {
