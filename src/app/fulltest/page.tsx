@@ -92,53 +92,90 @@ function FullTestContent() {
     const stableCharCount = knownCount; // 直接用认识的字数
     const stableVocabCount = wordKnownCount; // 直接用认识的词数
     const totalScore = Math.round((charMasteryRate * 0.5 + vocabMasteryRate * 0.5) * 100);
+    const charMasteryPct = Math.round(charMasteryRate * 100);
+    const vocabMasteryPct = Math.round(vocabMasteryRate * 100);
 
-    // Save to test_results via API
-    try {
-      // Create a session first
-      const sessionRes = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ child_id: childId, level }),
-      });
-      const { data: sessionData } = await sessionRes.json();
-
-      if (sessionData?.id) {
-        // Save result
-        await fetch('/api/results', {
+    // Save to test_results via API in the background (don't wait for it)
+    if (childId) {
+      try {
+        const sessionRes = await fetch('/api/sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: sessionData.id,
-            child_id: childId,
-            level,
-            character_score: Math.round(charMasteryRate * 100),
-            vocab_score: Math.round(vocabMasteryRate * 100),
-            reading_score: totalScore,
-            comprehension_score: totalScore,
-            total_score: totalScore,
-            stable_char_count: stableCharCount,
-            stable_vocab_count: stableVocabCount,
-            character_mastery_rate: charMasteryRate,
-            vocab_mastery_rate: vocabMasteryRate,
-            reading_comprehension_rate: (charMasteryRate + vocabMasteryRate) / 2,
-            completion_time_seconds: 0,
-          }),
+          body: JSON.stringify({ child_id: childId, level }),
         });
+        const { data: sessionData } = await sessionRes.json();
+        if (sessionData?.id) {
+          // Save answers for each item
+          const allAnswers = [
+            ...results.map((r, i) => ({
+              session_id: sessionData.id,
+              question_id: '',
+              part: 'character' as const,
+              is_correct: r.recognized,
+              reaction_time_ms: r.reaction_time_ms,
+              question_index: i,
+              question_content: r.character,
+            })),
+            ...wordResults.map((r, i) => ({
+              session_id: sessionData.id,
+              question_id: '',
+              part: 'vocab' as const,
+              is_correct: r.recognized,
+              reaction_time_ms: r.reaction_time_ms,
+              question_index: i,
+              question_content: r.word,
+            })),
+          ];
+          // Save answers in background
+          fetch('/api/answers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answers: allAnswers }),
+          }).catch(() => {});
 
-        // Complete session
-        await fetch(`/api/sessions?id=${sessionData.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'completed' }),
-        });
+          // Complete session
+          fetch(`/api/sessions?id=${sessionData.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'completed' }),
+          }).catch(() => {});
 
-        router.push(`/result?sessionId=${sessionData.id}&mode=full&level=${level}`);
+          // Save result with pre-calculated values
+          fetch('/api/results', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: sessionData.id,
+              child_id: childId,
+              level,
+              character_score: charMasteryPct,
+              vocab_score: vocabMasteryPct,
+              reading_score: totalScore,
+              comprehension_score: totalScore,
+              total_score: totalScore,
+              stable_char_count: stableCharCount,
+              stable_vocab_count: stableVocabCount,
+              character_mastery_rate: charMasteryPct,
+              vocab_mastery_rate: vocabMasteryPct,
+              reading_comprehension_rate: Math.round((charMasteryPct + vocabMasteryPct) / 2),
+              completion_time_seconds: 0,
+              skip_recalculate: true,
+            }),
+          }).catch(() => {});
+        }
+      } catch {
+        // Background save failed, not critical
       }
-    } catch {
-      // Fallback: go to result with query params
-      router.push(`/result?mode=full&level=${level}&charCount=${stableCharCount}&vocabCount=${stableVocabCount}&score=${totalScore}&charMastery=${Math.round(charMasteryRate*100)}&vocabMastery=${Math.round(vocabMasteryRate*100)}`);
     }
+
+    // Always navigate with URL params to ensure accurate data display
+    router.push(
+      `/result?mode=full&level=${level}` +
+      `&charCount=${stableCharCount}&vocabCount=${stableVocabCount}` +
+      `&score=${totalScore}` +
+      `&charMastery=${charMasteryPct}` +
+      `&vocabMastery=${vocabMasteryPct}`
+    );
   };
 
   // Intro screen

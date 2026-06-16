@@ -11,7 +11,7 @@ import { Level, TestAnswer } from '@/lib/types';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { session_id } = body;
+    const { session_id, skip_recalculate } = body;
 
     if (!session_id) {
       return NextResponse.json({ error: '缺少session_id' }, { status: 400 });
@@ -19,6 +19,53 @@ export async function POST(request: NextRequest) {
 
     const client = getSupabaseClient();
 
+    // If skip_recalculate is true, use the pre-calculated values from the body directly
+    if (skip_recalculate) {
+      const {
+        child_id,
+        level,
+        character_score,
+        vocab_score,
+        reading_score,
+        comprehension_score,
+        total_score,
+        stable_char_count,
+        stable_vocab_count,
+        character_mastery_rate,
+        vocab_mastery_rate,
+        reading_comprehension_rate,
+        completion_time_seconds,
+      } = body;
+
+      const { data: result, error: resultError } = await client
+        .from('test_results')
+        .upsert(
+          {
+            session_id,
+            child_id,
+            level,
+            character_score,
+            vocab_score,
+            reading_score,
+            comprehension_score,
+            total_score,
+            stable_char_count,
+            stable_vocab_count,
+            character_mastery_rate,
+            vocab_mastery_rate,
+            reading_comprehension_rate,
+            completion_time_seconds: completion_time_seconds || 0,
+          },
+          { onConflict: 'session_id' }
+        )
+        .select()
+        .single();
+
+      if (resultError) throw new Error(`保存结果失败: ${resultError.message}`);
+      return NextResponse.json({ data: result });
+    }
+
+    // Default: calculate from answers
     // Get session info
     const { data: session, error: sessionError } = await client
       .from('test_sessions')

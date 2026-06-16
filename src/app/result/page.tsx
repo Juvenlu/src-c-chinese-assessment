@@ -22,23 +22,10 @@ function ResultContent() {
 
   useEffect(() => {
     async function loadResult() {
-      if (sessionId) {
-        try {
-          const res = await fetch(`/api/results?session_id=${sessionId}`);
-          const { data, error } = await res.json();
-          if (!error && data) {
-            setResult(data);
-            setLoading(false);
-            return;
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      }
-      // Fallback for full test mode without session
-      if (mode === 'full') {
-        const charMastery = fallbackCharMastery > 0 ? fallbackCharMastery / 100 : fallbackScore / 100;
-        const vocabMastery = fallbackVocabMastery > 0 ? fallbackVocabMastery / 100 : fallbackScore / 100;
+      // For full test mode, always use URL params directly (most accurate)
+      if (mode === 'full' && fallbackCharCount > 0) {
+        const charMastery = fallbackCharMastery > 0 ? fallbackCharMastery / 100 : 0;
+        const vocabMastery = fallbackVocabMastery > 0 ? fallbackVocabMastery / 100 : 0;
         setResult({
           id: '',
           session_id: sessionId || '',
@@ -54,6 +41,43 @@ function ResultContent() {
           character_mastery_rate: charMastery,
           vocab_mastery_rate: vocabMastery,
           reading_comprehension_rate: (charMastery + vocabMastery) / 2,
+          completion_time_seconds: 0,
+          created_at: new Date().toISOString(),
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (sessionId) {
+        try {
+          const res = await fetch(`/api/results?session_id=${sessionId}`);
+          const { data, error } = await res.json();
+          if (!error && data) {
+            setResult(data);
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      // Fallback for sampling mode without session
+      if (fallbackScore > 0) {
+        setResult({
+          id: '',
+          session_id: sessionId || '',
+          child_id: '',
+          level: fallbackLevel,
+          character_score: fallbackScore,
+          vocab_score: fallbackScore,
+          reading_score: fallbackScore,
+          comprehension_score: fallbackScore,
+          total_score: fallbackScore,
+          stable_char_count: fallbackCharCount,
+          stable_vocab_count: fallbackVocabCount,
+          character_mastery_rate: fallbackScore / 100,
+          vocab_mastery_rate: fallbackScore / 100,
+          reading_comprehension_rate: fallbackScore / 100,
           completion_time_seconds: 0,
           created_at: new Date().toISOString(),
         });
