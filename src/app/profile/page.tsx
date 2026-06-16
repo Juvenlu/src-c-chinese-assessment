@@ -161,13 +161,22 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <button
-              onClick={() => setStep(2)}
-              disabled={!name || !age || !grade || !country}
-              className="btn-game bg-[var(--color-src-primary)] text-white w-full disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              下一步 →
-            </button>
+            {/* 下一步按钮 - 始终可见 */}
+            <div className="pt-2">
+              <button
+                onClick={() => setStep(2)}
+                disabled={!name || !age || !grade || !country}
+                className="w-full rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+                style={{ backgroundColor: 'var(--color-src-primary)' }}
+              >
+                下一步 →
+              </button>
+              {(!name || !age || !grade || !country) && (
+                <p className="text-center text-sm text-[var(--color-src-text-light)] mt-2">
+                  请填写以上所有信息后继续
+                </p>
+              )}
+            </div>
           </div>
         ) : (
           <div className="card-game space-y-5">
@@ -199,17 +208,19 @@ export default function ProfilePage() {
               </button>
             ))}
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setStep(1)}
-                className="btn-game bg-[var(--color-src-text-light)]/20 text-[var(--color-src-text)] flex-1"
+                className="flex-1 rounded-2xl px-6 py-4 font-display text-lg font-bold transition-all duration-200 active:scale-95 hover:scale-105"
+                style={{ backgroundColor: 'rgba(99,110,114,0.15)', color: 'var(--color-src-text)' }}
               >
                 ← 返回
               </button>
               <button
                 onClick={handleCreateChild}
                 disabled={loading}
-                className="btn-game bg-[var(--color-src-primary)] text-white flex-2 disabled:opacity-50"
+                className="flex-[2] rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: 'var(--color-src-primary)' }}
               >
                 {loading ? '准备中...' : '开始测试 🚀'}
               </button>
