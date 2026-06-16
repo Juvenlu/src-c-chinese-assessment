@@ -6,7 +6,11 @@ import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
 
 type AdminTab = 'questions' | 'users' | 'results';
 
-export default function AdminPage() {
+// Admin password - change this to your desired password
+const ADMIN_PASSWORD = 'srcc2026';
+
+// --- Admin Content Component (only rendered after auth) ---
+function AdminContent() {
   const [tab, setTab] = useState<AdminTab>('questions');
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
@@ -483,4 +487,72 @@ export default function AdminPage() {
       )}
     </div>
   );
+}
+
+// --- Main Admin Page with Password Gate ---
+export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('srcc_admin_auth') === '1') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = () => {
+    if (passwordInput === ADMIN_PASSWORD) {
+      setIsAuthenticated(true);
+      setPasswordError(false);
+      sessionStorage.setItem('srcc_admin_auth', '1');
+    } else {
+      setPasswordError(true);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)] px-4">
+        <div className="card-game max-w-sm w-full p-8 text-center">
+          <div className="text-5xl mb-4">🔒</div>
+          <h1 className="font-display text-2xl text-[var(--color-src-text)] mb-2">
+            管理员登录
+          </h1>
+          <p className="text-[var(--color-src-text-light)] text-sm mb-6">
+            请输入管理员密码以访问后台
+          </p>
+          <input
+            type="password"
+            value={passwordInput}
+            onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(); }}
+            placeholder="请输入密码"
+            className={`w-full px-4 py-3 rounded-xl border-2 text-center text-lg outline-none transition-colors ${
+              passwordError
+                ? 'border-[var(--color-src-error)] bg-red-50'
+                : 'border-gray-200 focus:border-[var(--color-src-primary)]'
+            }`}
+          />
+          {passwordError && (
+            <p className="text-[var(--color-src-error)] text-sm mt-2">密码错误，请重试</p>
+          )}
+          <button
+            onClick={handleLogin}
+            className="mt-4 w-full py-3 rounded-xl bg-[var(--color-src-primary)] text-white font-bold text-lg transition-all hover:opacity-90 active:scale-95"
+          >
+            进入后台
+          </button>
+          <Link
+            href="/"
+            className="block mt-4 text-[var(--color-src-text-light)] text-sm hover:text-[var(--color-src-primary)]"
+          >
+            ← 返回首页
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return <AdminContent />;
 }

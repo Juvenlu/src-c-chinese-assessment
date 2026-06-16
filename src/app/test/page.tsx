@@ -1,9 +1,29 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Level, TestPart, QuestionItem, PART_NAMES, SubmitAnswerInput } from '@/lib/types';
 import { getXP, getStarsForPart, getBadgeForPart } from '@/lib/scoring';
+
+// Readable Chinese font stack (KaiTi > Microsoft YaHei > SimHei > sans-serif)
+const CHINESE_READABLE_FONT: React.CSSProperties = {
+  fontFamily: "'KaiTi', 'STKaiti', '楷体', 'Microsoft YaHei', '微软雅黑', 'SimHei', '黑体', 'PingFang SC', 'Hiragino Sans GB', sans-serif",
+};
+
+// Fisher-Yates shuffle with seed for consistent ordering per question
+function shuffleArray<T>(array: T[], seed: number): T[] {
+  const arr = [...array];
+  let s = seed;
+  const random = () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 interface PartProgress {
   completed: boolean;
@@ -38,6 +58,22 @@ export default function TestPage() {
   const xpPopupId = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isFinishing, setIsFinishing] = useState(false);
+
+  // Pre-shuffled options for each question (consistent across re-renders)
+  // Key: `${part}-${questionIndex}`, Value: shuffled options
+  const shuffledOptionsMap = useRef<Record<string, string[]>>({});
+
+  const getShuffledOptions = (key: string, options: string[]): string[] => {
+    if (!shuffledOptionsMap.current[key]) {
+      // Use hash of key as seed for consistent shuffle
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) {
+        hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
+      }
+      shuffledOptionsMap.current[key] = shuffleArray(options, Math.abs(hash) + 1);
+    }
+    return shuffledOptionsMap.current[key];
+  };
 
   // Load questions
   useEffect(() => {
@@ -439,7 +475,7 @@ export default function TestPage() {
                     你认识这个字吗？
                   </div>
                   <div className="w-32 h-32 mx-auto bg-[var(--color-src-accent)]/30 rounded-3xl flex items-center justify-center mb-8">
-                    <span className="font-display text-6xl text-[var(--color-src-text)]">
+                    <span className="text-6xl text-[var(--color-src-text)]" style={CHINESE_READABLE_FONT}>
                       {currentQuestion.character}
                     </span>
                   </div>
@@ -470,13 +506,13 @@ export default function TestPage() {
                     请选择正确意思
                   </div>
                   <div className="w-40 h-20 mx-auto bg-[var(--color-src-secondary)]/20 rounded-2xl flex items-center justify-center mb-4">
-                    <span className="font-display text-4xl text-[var(--color-src-text)]">
+                    <span className="text-4xl text-[var(--color-src-text)]" style={CHINESE_READABLE_FONT}>
                       {currentQuestion.word}
                     </span>
                   </div>
                   <p className="text-[var(--color-src-text)] mb-6">{currentQuestion.meaning_question}</p>
                   <div className="space-y-3">
-                    {currentQuestion.options.map((option: string, idx: number) => (
+                    {getShuffledOptions(`p2-${currentQuestion.id}`, currentQuestion.options).map((option: string, idx: number) => (
                       <button
                         key={idx}
                         onClick={() => handlePart2Answer(option)}
@@ -496,7 +532,7 @@ export default function TestPage() {
                     阅读句子，回答问题
                   </div>
                   <div className="bg-[var(--color-src-secondary)]/10 rounded-2xl p-5 mb-6">
-                    <p className="font-display text-xl text-[var(--color-src-text)] leading-relaxed">
+                    <p className="text-xl text-[var(--color-src-text)] leading-relaxed" style={CHINESE_READABLE_FONT}>
                       {currentQuestion.sentence}
                     </p>
                   </div>
@@ -504,7 +540,7 @@ export default function TestPage() {
                     {currentQuestion.meaning_question}
                   </p>
                   <div className="space-y-3">
-                    {currentQuestion.options.map((option: string, idx: number) => (
+                    {getShuffledOptions(`p3-${currentQuestion.id}`, currentQuestion.options).map((option: string, idx: number) => (
                       <button
                         key={idx}
                         onClick={() => handlePart3Answer(option)}
@@ -524,7 +560,7 @@ export default function TestPage() {
                     📖 阅读理解
                   </div>
                   <div className="bg-[var(--color-src-accent)]/20 rounded-2xl p-5 mb-6 text-left">
-                    <p className="text-[var(--color-src-text)] leading-relaxed text-lg">
+                    <p className="text-[var(--color-src-text)] leading-relaxed text-lg" style={CHINESE_READABLE_FONT}>
                       {currentQuestion.story_text || currentQuestion.sentence}
                     </p>
                   </div>
@@ -532,7 +568,7 @@ export default function TestPage() {
                     {currentQuestion.story_question || currentQuestion.meaning_question}
                   </p>
                   <div className="space-y-3">
-                    {(currentQuestion.story_options || currentQuestion.options).map((option: string, idx: number) => (
+                    {getShuffledOptions(`p4-${currentQuestion.id}`, currentQuestion.story_options || currentQuestion.options).map((option: string, idx: number) => (
                       <button
                         key={idx}
                         onClick={() => handlePart4Answer(option)}

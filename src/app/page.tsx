@@ -153,15 +153,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Admin link */}
-        <div className="mt-2">
-          <Link
-            href="/admin"
-            className="text-[var(--color-src-text-light)] text-sm hover:text-[var(--color-src-primary)] transition-colors"
-          >
-            管理后台 →
-          </Link>
-        </div>
+        {/* Admin link - hidden from regular users, admin accesses via /admin directly */}
 
         {/* Level info */}
         <div className="mt-8 grid grid-cols-3 gap-3">
