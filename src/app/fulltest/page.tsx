@@ -85,12 +85,13 @@ function FullTestContent() {
 
   // Save results to database when done
   const saveAndGoToResult = async () => {
-    const totalKnown = knownCount + wordKnownCount;
-    const totalTested = results.length + wordResults.length;
-    const masteryRate = totalTested > 0 ? totalKnown / totalTested : 0;
-    const stableCharCount = Math.round(masteryRate * LEVEL_CONFIG[level].charCount);
-    const stableVocabCount = Math.round(stableCharCount * LEVEL_CONFIG[level].vocabMultiplier);
-    const totalScore = Math.round(masteryRate * 100);
+    // 逐字测试：识字量 = 字形识别认识的字数，词汇量 = 词汇识别认识的词数
+    // 因为300字库逐个测试了，认识数就是稳定识字量/词汇量
+    const charMasteryRate = results.length > 0 ? knownCount / results.length : 0;
+    const vocabMasteryRate = wordResults.length > 0 ? wordKnownCount / wordResults.length : 0;
+    const stableCharCount = knownCount; // 直接用认识的字数
+    const stableVocabCount = wordKnownCount; // 直接用认识的词数
+    const totalScore = Math.round((charMasteryRate * 0.5 + vocabMasteryRate * 0.5) * 100);
 
     // Save to test_results via API
     try {
@@ -111,16 +112,16 @@ function FullTestContent() {
             session_id: sessionData.id,
             child_id: childId,
             level,
-            character_score: Math.round((knownCount / Math.max(results.length, 1)) * 100),
-            vocab_score: Math.round((wordKnownCount / Math.max(wordResults.length, 1)) * 100),
+            character_score: Math.round(charMasteryRate * 100),
+            vocab_score: Math.round(vocabMasteryRate * 100),
             reading_score: totalScore,
             comprehension_score: totalScore,
             total_score: totalScore,
             stable_char_count: stableCharCount,
             stable_vocab_count: stableVocabCount,
-            character_mastery_rate: knownCount / Math.max(results.length, 1),
-            vocab_mastery_rate: wordKnownCount / Math.max(wordResults.length, 1),
-            reading_comprehension_rate: masteryRate,
+            character_mastery_rate: charMasteryRate,
+            vocab_mastery_rate: vocabMasteryRate,
+            reading_comprehension_rate: (charMasteryRate + vocabMasteryRate) / 2,
             completion_time_seconds: 0,
           }),
         });
@@ -136,7 +137,7 @@ function FullTestContent() {
       }
     } catch {
       // Fallback: go to result with query params
-      router.push(`/result?mode=full&level=${level}&charCount=${stableCharCount}&vocabCount=${stableVocabCount}&score=${totalScore}`);
+      router.push(`/result?mode=full&level=${level}&charCount=${stableCharCount}&vocabCount=${stableVocabCount}&score=${totalScore}&charMastery=${Math.round(charMasteryRate*100)}&vocabMastery=${Math.round(vocabMasteryRate*100)}`);
     }
   };
 
@@ -318,7 +319,7 @@ function FullTestContent() {
               className="text-[var(--color-src-text)] font-bold"
               style={{
                 fontSize: phase === 'chars' ? '96px' : '56px',
-                fontFamily: 'var(--font-display)',
+                fontFamily: "'KaiTi', 'STKaiti', '楷体', 'Microsoft YaHei', '微软雅黑', 'SimHei', '黑体', sans-serif",
               }}
             >
               {currentItem}

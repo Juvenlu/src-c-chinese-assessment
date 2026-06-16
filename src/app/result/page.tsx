@@ -14,6 +14,8 @@ function ResultContent() {
   const fallbackCharCount = parseInt(searchParams.get('charCount') || '0');
   const fallbackVocabCount = parseInt(searchParams.get('vocabCount') || '0');
   const fallbackScore = parseInt(searchParams.get('score') || '0');
+  const fallbackCharMastery = parseInt(searchParams.get('charMastery') || '0');
+  const fallbackVocabMastery = parseInt(searchParams.get('vocabMastery') || '0');
 
   const [result, setResult] = useState<TestResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,21 +37,23 @@ function ResultContent() {
       }
       // Fallback for full test mode without session
       if (mode === 'full') {
+        const charMastery = fallbackCharMastery > 0 ? fallbackCharMastery / 100 : fallbackScore / 100;
+        const vocabMastery = fallbackVocabMastery > 0 ? fallbackVocabMastery / 100 : fallbackScore / 100;
         setResult({
           id: '',
           session_id: sessionId || '',
           child_id: '',
           level: fallbackLevel,
-          character_score: fallbackScore,
-          vocab_score: fallbackScore,
+          character_score: fallbackCharMastery || fallbackScore,
+          vocab_score: fallbackVocabMastery || fallbackScore,
           reading_score: fallbackScore,
           comprehension_score: fallbackScore,
           total_score: fallbackScore,
           stable_char_count: fallbackCharCount,
           stable_vocab_count: fallbackVocabCount,
-          character_mastery_rate: fallbackScore / 100,
-          vocab_mastery_rate: fallbackScore / 100,
-          reading_comprehension_rate: fallbackScore / 100,
+          character_mastery_rate: charMastery,
+          vocab_mastery_rate: vocabMastery,
+          reading_comprehension_rate: (charMastery + vocabMastery) / 2,
           completion_time_seconds: 0,
           created_at: new Date().toISOString(),
         });
