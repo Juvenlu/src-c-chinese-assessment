@@ -121,13 +121,38 @@ export default function TestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, questions.length]);
 
+  // Shuffled question indices per part (stable per session, randomized order)
+  const shuffledPartQuestions = useRef<Record<number, QuestionItem[]>>({});
+
   const getCurrentPartQuestions = useCallback((): QuestionItem[] => {
     if (!questions.length) return [];
-    const perPart = Math.floor(questions.length / 4);
-    const start = (currentPart - 1) * perPart;
-    const end = currentPart === 4 ? questions.length : start + perPart;
-    return questions.slice(start, end);
-  }, [questions, currentPart]);
+
+    // Allocate questions: Part 1 (30%), Part 2 (30%), Part 3 (23%), Part 4 (17%)
+    // Part 4 reduced by ~1/3 compared to equal distribution to fit within time limit
+    const n = questions.length;
+    const p1End = Math.round(n * 0.30);
+    const p2End = p1End + Math.round(n * 0.30);
+    const p3End = p2End + Math.round(n * 0.23);
+    // Part 4 gets the rest (~17%)
+
+    let partQuestions: QuestionItem[];
+    switch (currentPart) {
+      case 1: partQuestions = questions.slice(0, p1End); break;
+      case 2: partQuestions = questions.slice(p1End, p2End); break;
+      case 3: partQuestions = questions.slice(p2End, p3End); break;
+      case 4: partQuestions = questions.slice(p3End); break;
+      default: partQuestions = questions.slice(0, p1End);
+    }
+
+    // Shuffle questions within each part (using session-based seed for consistency)
+    if (!shuffledPartQuestions.current[currentPart] && partQuestions.length > 0) {
+      // Use sessionId as seed base for deterministic but random-looking order
+      const sessionSeed = sessionId ? sessionId.split('').reduce((a, c) => a + c.charCodeAt(0), 0) : 42;
+      shuffledPartQuestions.current[currentPart] = shuffleArray(partQuestions, sessionSeed + currentPart * 1000);
+    }
+
+    return shuffledPartQuestions.current[currentPart] || partQuestions;
+  }, [questions, currentPart, sessionId]);
 
   const currentPartQuestions = getCurrentPartQuestions();
   const currentQuestion = currentPartQuestions[currentQuestionIdx];
