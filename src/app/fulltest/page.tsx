@@ -95,13 +95,17 @@ function FullTestContent() {
     const charMasteryPct = Math.round(charMasteryRate * 100);
     const vocabMasteryPct = Math.round(vocabMasteryRate * 100);
 
+    // Collect known characters for the child's character library
+    const knownChars = results.filter(r => r.recognized).map(r => r.character);
+    const knownWords = wordResults.filter(r => r.recognized).map(r => r.word);
+
     // Save to test_results via API in the background (don't wait for it)
     if (childId) {
       try {
         const sessionRes = await fetch('/api/sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ child_id: childId, level }),
+          body: JSON.stringify({ child_id: childId, level, test_mode: 'full' }),
         });
         const { data: sessionData } = await sessionRes.json();
         if (sessionData?.id) {
@@ -109,20 +113,18 @@ function FullTestContent() {
           const allAnswers = [
             ...results.map((r, i) => ({
               session_id: sessionData.id,
-              question_id: '',
-              part: 'character' as const,
+              question_id: null as string | null,
+              part: 1 as number,
               is_correct: r.recognized,
               reaction_time_ms: r.reaction_time_ms,
-              question_index: i,
               question_content: r.character,
             })),
             ...wordResults.map((r, i) => ({
               session_id: sessionData.id,
-              question_id: '',
-              part: 'vocab' as const,
+              question_id: null as string | null,
+              part: 2 as number,
               is_correct: r.recognized,
               reaction_time_ms: r.reaction_time_ms,
-              question_index: i,
               question_content: r.word,
             })),
           ];
@@ -160,6 +162,7 @@ function FullTestContent() {
               reading_comprehension_rate: Math.round((charMasteryPct + vocabMasteryPct) / 2),
               completion_time_seconds: 0,
               skip_recalculate: true,
+              known_characters: [...knownChars, ...knownWords],
             }),
           }).catch(() => {});
         }

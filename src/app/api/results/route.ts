@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
         vocab_mastery_rate,
         reading_comprehension_rate,
         completion_time_seconds,
+        known_characters,
       } = body;
 
       const { data: result, error: resultError } = await client
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
             vocab_mastery_rate,
             reading_comprehension_rate,
             completion_time_seconds: completion_time_seconds || 0,
+            known_characters: known_characters || null,
           },
           { onConflict: 'session_id' }
         )
@@ -107,6 +109,11 @@ export async function POST(request: NextRequest) {
       (partScores.readingScore + partScores.comprehensionScore) / 2
     );
 
+    // Collect known characters from fulltest answers
+    const knownCharacters = typedAnswers
+      .filter((a) => a.is_correct && a.question_content)
+      .map((a) => a.question_content as string);
+
     // Save results
     const { data: result, error: resultError } = await client
       .from('test_results')
@@ -126,6 +133,7 @@ export async function POST(request: NextRequest) {
           vocab_mastery_rate: vocabMasteryRate,
           reading_comprehension_rate: readingComprehensionRate,
           completion_time_seconds: completionTimeSeconds,
+          known_characters: knownCharacters.length > 0 ? knownCharacters : null,
         },
         { onConflict: 'session_id' }
       )

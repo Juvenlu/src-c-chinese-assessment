@@ -5,7 +5,7 @@ import { Level, LEVEL_CONFIG } from '@/lib/types';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { child_id, level } = body as { child_id: string; level: Level };
+    const { child_id, level, test_mode } = body as { child_id: string; level: Level; test_mode?: string };
 
     if (!child_id || !level) {
       return NextResponse.json({ error: '缺少必要字段' }, { status: 400 });
@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
         child_id,
         level,
         status: 'in_progress',
+        test_mode: test_mode || 'sampling',
         time_limit_seconds: config.timeLimitSeconds,
       })
       .select()

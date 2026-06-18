@@ -57,6 +57,7 @@ export const testSessions = pgTable(
     child_id: varchar("child_id", { length: 36 }).notNull().references(() => children.id),
     level: varchar("level", { length: 16 }).notNull(),
     status: varchar("status", { length: 16 }).notNull().default("in_progress"), // in_progress, completed, abandoned
+    test_mode: varchar("test_mode", { length: 16 }).notNull().default("sampling"), // sampling, full
     started_at: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     completed_at: timestamp("completed_at", { withTimezone: true }),
     time_limit_seconds: integer("time_limit_seconds").notNull(), // 480, 720, 900
@@ -75,12 +76,13 @@ export const testAnswers = pgTable(
   {
     id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
     session_id: varchar("session_id", { length: 36 }).notNull().references(() => testSessions.id),
-    question_id: varchar("question_id", { length: 36 }).notNull().references(() => questionBank.id),
+    question_id: varchar("question_id", { length: 36 }).references(() => questionBank.id), // nullable for fulltest mode
     part: integer("part").notNull(), // 1=character, 2=vocabulary, 3=sentence, 4=comprehension
     is_recognized: boolean("is_recognized"), // for part 1: true=recognized, false=not recognized
     selected_answer: varchar("selected_answer", { length: 64 }),
     is_correct: boolean("is_correct").notNull(),
     reaction_time_ms: integer("reaction_time_ms"), // milliseconds
+    question_content: varchar("question_content", { length: 128 }), // character or word shown (for fulltest)
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -108,6 +110,7 @@ export const testResults = pgTable(
     vocab_mastery_rate: integer("vocab_mastery_rate").notNull(), // 0-100
     reading_comprehension_rate: integer("reading_comprehension_rate").notNull(), // 0-100
     completion_time_seconds: integer("completion_time_seconds").notNull(),
+    known_characters: jsonb("known_characters").$type<string[]>(), // array of recognized characters (fulltest)
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

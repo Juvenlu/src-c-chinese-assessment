@@ -62,6 +62,7 @@ export interface TestAnswer {
   selected_answer?: string;
   is_correct: boolean;
   reaction_time_ms?: number;
+  question_content?: string;
   created_at: string;
 }
 
@@ -81,22 +82,25 @@ export interface TestResult {
   vocab_mastery_rate: number;
   reading_comprehension_rate: number;
   completion_time_seconds: number;
+  known_characters?: string[]; // array of recognized characters (fulltest)
   created_at: string;
 }
 
 export interface CreateSessionInput {
   child_id: string;
   level: Level;
+  test_mode?: 'sampling' | 'full';
 }
 
 export interface SubmitAnswerInput {
   session_id: string;
-  question_id: string;
+  question_id?: string;
   part: TestPart;
   is_recognized?: boolean;
   selected_answer?: string;
   is_correct: boolean;
   reaction_time_ms?: number;
+  question_content?: string;
 }
 
 export const LEVEL_CONFIG: Record<Level, { timeLimitSeconds: number; charCount: number; vocabMultiplier: number }> = {
