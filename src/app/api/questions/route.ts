@@ -10,7 +10,14 @@ export async function GET(request: NextRequest) {
     let query = client.from('question_bank').select('*').order('created_at');
 
     if (level) {
-      query = query.eq('level', level);
+      // Cumulative level: SRC500 includes SRC300, SRC800 includes SRC300+SRC500
+      const levelMap: Record<string, string[]> = {
+        'SRC300': ['SRC300'],
+        'SRC500': ['SRC300', 'SRC500'],
+        'SRC800': ['SRC300', 'SRC500', 'SRC800'],
+      };
+      const levels = levelMap[level] || [level];
+      query = query.in('level', levels);
     }
 
     const { data, error } = await query;

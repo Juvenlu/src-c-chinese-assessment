@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CHAR_LIST_300, WORD_LIST_300 } from '@/lib/questions';
+import { getCharList, getWordList } from '@/lib/questions';
 import { Level, LEVEL_CONFIG, CharTestResult } from '@/lib/types';
 
 function FullTestContent() {
@@ -21,8 +21,10 @@ function FullTestContent() {
   const [questionStartTime, setQuestionStartTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Current list based on phase
-  const currentList = phase === 'chars' ? CHAR_LIST_300 : WORD_LIST_300;
+  // Current list based on phase and level
+  const charList = getCharList(level);
+  const wordList = getWordList(level);
+  const currentList = phase === 'chars' ? charList : wordList;
   const currentItem = currentList[currentIndex];
   const totalItems = currentList.length;
   const progress = ((currentIndex) / totalItems) * 100;
@@ -32,7 +34,7 @@ function FullTestContent() {
   const unknownCount = results.filter(r => !r.recognized).length;
   const wordKnownCount = wordResults.filter(r => r.recognized).length;
 
-  const handleAnswer = useCallback((recognized: boolean) => {
+  const handleAnswer = (recognized: boolean) => {
     if (!currentItem) return;
     const reactionTime = Date.now() - questionStartTime;
 
@@ -67,7 +69,7 @@ function FullTestContent() {
         }
       }
     }, 400);
-  }, [currentItem, currentIndex, totalItems, phase, questionStartTime]);
+  };
 
   // Keyboard support
   useEffect(() => {
@@ -81,7 +83,7 @@ function FullTestContent() {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [phase, handleAnswer]);
+  }, [phase, currentItem, currentIndex, totalItems, questionStartTime]);
 
   // Save results to database when done
   const saveAndGoToResult = async () => {
@@ -191,7 +193,7 @@ function FullTestContent() {
             逐字测试
           </h1>
           <p className="text-[var(--color-src-text-light)] mb-6">
-            将对300字库中的所有字和词逐个测试，了解每个字的掌握情况
+            将对{level}字库中的所有字和词逐个测试，了解每个字的掌握情况
           </p>
 
           <div className="card-game space-y-3 text-left mb-6">
@@ -199,14 +201,14 @@ function FullTestContent() {
               <span className="text-2xl">1️⃣</span>
               <div>
                 <div className="font-medium text-[var(--color-src-text)]">字形识别</div>
-                <div className="text-sm text-[var(--color-src-text-light)]">{CHAR_LIST_300.length}个字逐个展示</div>
+                <div className="text-sm text-[var(--color-src-text-light)]">{charList.length}个字逐个展示</div>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-white rounded-xl">
               <span className="text-2xl">2️⃣</span>
               <div>
                 <div className="font-medium text-[var(--color-src-text)]">词汇识别</div>
-                <div className="text-sm text-[var(--color-src-text-light)]">{WORD_LIST_300.length}个词逐个展示</div>
+                <div className="text-sm text-[var(--color-src-text-light)]">{wordList.length}个词逐个展示</div>
               </div>
             </div>
           </div>

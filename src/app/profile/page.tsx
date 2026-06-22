@@ -44,7 +44,7 @@ function ProfileContent() {
         const params = new URLSearchParams({
           childId: data.id,
           childName: name,
-          level: 'SRC300',
+          level,
         });
         router.push(`/fulltest?${params.toString()}`);
       } else {
@@ -73,15 +73,10 @@ function ProfileContent() {
     }
   };
 
-  // For full test mode, skip level selection step
-  const totalSteps = mode === 'full' ? 1 : 2;
+  // Both modes need level selection
+  const totalSteps = 2;
   const handleNext = () => {
-    if (mode === 'full') {
-      // Full test mode: directly start after step 1
-      handleCreateChild();
-    } else {
-      setStep(2);
-    }
+    setStep(2);
   };
 
   return (
