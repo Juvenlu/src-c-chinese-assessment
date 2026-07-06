@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { TestResult, Child } from '@/lib/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
-export default function HistoryPage() {
+function HistoryContent() {
   const searchParams = useSearchParams();
   const childId = searchParams.get('childId');
   const [results, setResults] = useState<TestResult[]>([]);
@@ -247,5 +247,17 @@ export default function HistoryPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function HistoryPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)]">
+        <div className="text-2xl">加载中...</div>
+      </div>
+    }>
+      <HistoryContent />
+    </Suspense>
   );
 }

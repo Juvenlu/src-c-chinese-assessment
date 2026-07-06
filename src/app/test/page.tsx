@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Level, TestPart, QuestionItem, PART_NAMES, SubmitAnswerInput } from '@/lib/types';
 import { getXP, getStarsForPart, getBadgeForPart } from '@/lib/scoring';
@@ -33,7 +33,7 @@ interface PartProgress {
   badge: string | null;
 }
 
-export default function TestPage() {
+function TestContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('sessionId');
@@ -610,5 +610,17 @@ export default function TestPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TestPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)]">
+        <div className="text-2xl">加载中...</div>
+      </div>
+    }>
+      <TestContent />
+    </Suspense>
   );
 }

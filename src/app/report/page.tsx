@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { TestResult, Child } from '@/lib/types';
 import { getStrength, getWeakness, getRecommendation, getReadingStars } from '@/lib/scoring';
 
-export default function ReportPage() {
+function ReportContent() {
   const searchParams = useSearchParams();
   const childId = searchParams.get('childId');
   const [results, setResults] = useState<TestResult[]>([]);
@@ -234,5 +234,17 @@ export default function ReportPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ReportPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)]">
+        <div className="text-2xl">加载中...</div>
+      </div>
+    }>
+      <ReportContent />
+    </Suspense>
   );
 }
