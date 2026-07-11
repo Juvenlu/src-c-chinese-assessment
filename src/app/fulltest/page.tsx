@@ -19,6 +19,7 @@ function FullTestContent() {
   const [wordResults, setWordResults] = useState<{ word: string; recognized: boolean; reaction_time_ms: number }[]>([]);
   const [showFeedback, setShowFeedback] = useState<'known' | 'unknown' | null>(null);
   const [questionStartTime, setQuestionStartTime] = useState(0);
+  const [testStartTime, setTestStartTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
   // Current list based on phase and level
@@ -101,6 +102,11 @@ function FullTestContent() {
     const knownChars = results.filter(r => r.recognized).map(r => r.character);
     const knownWords = wordResults.filter(r => r.recognized).map(r => r.word);
 
+    // Calculate actual completion time in seconds
+    const completionTimeSeconds = testStartTime > 0
+      ? Math.max(1, Math.round((Date.now() - testStartTime) / 1000))
+      : 0;
+
     // Save to test_results via API in the background (don't wait for it)
     if (childId) {
       try {
@@ -162,7 +168,7 @@ function FullTestContent() {
               character_mastery_rate: charMasteryPct,
               vocab_mastery_rate: vocabMasteryPct,
               reading_comprehension_rate: Math.round((charMasteryPct + vocabMasteryPct) / 2),
-              completion_time_seconds: 0,
+              completion_time_seconds: completionTimeSeconds,
               skip_recalculate: true,
               known_characters: [...knownChars, ...knownWords],
             }),
@@ -179,7 +185,8 @@ function FullTestContent() {
       `&charCount=${stableCharCount}&vocabCount=${stableVocabCount}` +
       `&score=${totalScore}` +
       `&charMastery=${charMasteryPct}` +
-      `&vocabMastery=${vocabMasteryPct}`
+      `&vocabMastery=${vocabMasteryPct}` +
+      `&duration=${completionTimeSeconds}`
     );
   };
 
@@ -224,6 +231,7 @@ function FullTestContent() {
               onClick={() => {
                 setPhase('chars');
                 setQuestionStartTime(Date.now());
+                setTestStartTime(Date.now());
               }}
               className="w-full rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg"
               style={{ backgroundColor: 'var(--color-src-primary)' }}

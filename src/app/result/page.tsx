@@ -16,6 +16,7 @@ function ResultContent() {
   const fallbackScore = parseInt(searchParams.get('score') || '0');
   const fallbackCharMastery = parseInt(searchParams.get('charMastery') || '0');
   const fallbackVocabMastery = parseInt(searchParams.get('vocabMastery') || '0');
+  const fallbackDuration = parseInt(searchParams.get('duration') || '0');
 
   const [result, setResult] = useState<TestResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +42,7 @@ function ResultContent() {
           character_mastery_rate: charMastery,
           vocab_mastery_rate: vocabMastery,
           reading_comprehension_rate: (charMastery + vocabMastery) / 2,
-          completion_time_seconds: 0,
+          completion_time_seconds: fallbackDuration,
           created_at: new Date().toISOString(),
         });
         setLoading(false);
@@ -78,7 +79,7 @@ function ResultContent() {
           character_mastery_rate: fallbackScore / 100,
           vocab_mastery_rate: fallbackScore / 100,
           reading_comprehension_rate: fallbackScore / 100,
-          completion_time_seconds: 0,
+          completion_time_seconds: fallbackDuration,
           created_at: new Date().toISOString(),
         });
       }
