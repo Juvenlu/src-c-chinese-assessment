@@ -128,7 +128,13 @@ function AdminContent() {
       if (data.data) {
         alert('绘本集创建成功！');
         setNewEpisode({ series_name: '西游记', episode_number: newEpisode.episode_number + 1, episode_title: '', page_count: 10 });
-        fetchEpisodes();
+        // 重新获取列表并自动选中新创建的绘本集
+        const res2 = await fetch('/api/books/episodes');
+        const data2 = await res2.json();
+        setEpisodes(data2.data || []);
+        if (data2.data && data2.data.length > 0) {
+          setSelectedEpisode(data2.data[data2.data.length - 1]); // 选中最后一个（刚创建的）
+        }
       }
     } catch (err) {
       console.error(err);
