@@ -1,94 +1,99 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { S3Storage } from "coze-coding-dev-sdk";
-import path from "path";
-import fs from "fs";
+import { NextRequest, NextResponse } from 'next/server';
+import { S3Storage } from 'coze-coding-dev-sdk';
+import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-// Check if S3 is configured
-const hasS3Config = process.env.COZE_BUCKET_ENDPOINT_URL && process.env.COZE_BUCKET_NAME;
+// 初始化 S3 存储客户端
+const storage = new S3Storage({
+  endpointUrl: process.env.COZE_BUCKET_ENDPOINT,
+  accessKey: process.env.COZE_BUCKET_ACCESS_KEY_ID || '',
+  secretKey: process.env.COZE_BUCKET_SECRET_ACCESS_KEY || '',
+  bucketName: process.env.COZE_BUCKET || 'src-c-books',
+  region: 'auto',
+});
 
-let storage: S3Storage | null = null;
-if (hasS3Config) {
-  storage = new S3Storage({
-    endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-    accessKey: "",
-    secretKey: "",
-    bucketName: process.env.COZE_BUCKET_NAME,
-    region: "cn-beijing",
-  });
-}
-
-// POST: upload pages (images + texts) for an episode
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+  const episodeId = parseInt(id);
+
   try {
-    const { id } = await params;
     const formData = await request.formData();
-    const episodeId = id;
-    const imageFiles = formData.getAll("images") as File[];
-    const wordFile = formData.get("word_file") as File | null;
+    const files = formData.getAll('images') as File[];
+    const wordFile = formData.get('word') as File;
 
-    // Parse Word document to extract text (simplified: split by paragraphs)
-    let pageTexts: string[] = [];
+    if (!files || files.length === 0) {
+      return NextResponse.json(
+        { error: '请上传至少一张图片' },
+        { status: 400 }
+      );
+    }
+
+    // 上传所有图片到 S3
+    const imageKeys: string[] = [];
+    for (const file of files) {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const fileName = `books/${episodeId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+      const key = await storage.uploadFile({
+        fileContent: buffer,
+        fileName: fileName,
+        contentType: file.type,
+      });
+
+      imageKeys.push(key);
+    }
+
+    // 生成公开访问 URL（因为 bucket 已启用公开访问）
+    const imageUrls = imageKeys.map(key => 
+      `${process.env.COZE_BUCKET_PUBLIC_URL}/${key}`
+    );
+
+    // 解析 Word 文档获取文本
+    const pageTexts: string[] = [];
     if (wordFile) {
-      // For now, we'll store the raw text content
-      // In production, use mammoth or docx parser
-      const text = await wordFile.text();
-      // Simple split by newlines or paragraphs
-      pageTexts = text.split(/\n+/).filter(t => t.trim());
+      const wordArrayBuffer = await wordFile.arrayBuffer();
+      const wordBuffer = Buffer.from(wordArrayBuffer);
+
+      // 简单的文本提取（实际应使用 mammoth 等库）
+      const text = wordBuffer.toString('utf-8');
+      const paragraphs = text.split(/\n+/).filter(p => p.trim());
+      pageTexts.push(...paragraphs);
     }
 
-    // Upload images to S3 or local storage
-    const pages = [];
-    for (let i = 0; i < imageFiles.length; i++) {
-      const file = imageFiles[i];
-      if (file instanceof File && file.type.startsWith("image/")) {
-        let imageUrl = "";
-        
-        if (storage) {
-          // Upload to S3
-          const buffer = Buffer.from(await file.arrayBuffer());
-          const key = await storage.uploadFile({
-            fileContent: buffer,
-            fileName: `books/${episodeId}/${Date.now()}_${file.name}`,
-            contentType: file.type,
-          });
-          imageUrl = await storage.generatePresignedUrl({ key, expireTime: 315360000 }); // 10 years
-        } else {
-          // Fallback: save to local public directory
-          const buffer = Buffer.from(await file.arrayBuffer());
-          const fileName = `${Date.now()}_${file.name}`;
-          const dir = path.join(process.cwd(), "public", "books", episodeId);
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-          }
-          const filePath = path.join(dir, fileName);
-          fs.writeFileSync(filePath, buffer);
-          imageUrl = `/books/${episodeId}/${fileName}`;
-        }
-        
-        pages.push({
-          episode_id: episodeId,
-          page_number: i + 1,
-          image_url: imageUrl,
-          original_text: pageTexts[i] || "",
-        });
-      }
+    // 保存到数据库
+    const supabase = getSupabaseClient();
+    const pages = imageUrls.map((url, index) => ({
+      episode_id: episodeId,
+      page_number: index + 1,
+      image_url: url,
+      original_text: pageTexts[index] || '',
+    }));
+
+    const { error } = await supabase
+      .from('book_episode_pages')
+      .insert(pages);
+
+    if (error) {
+      console.error('保存页面数据失败:', error);
+      return NextResponse.json(
+        { error: `保存页面数据失败：${error.message}` },
+        { status: 500 }
+      );
     }
 
-    // Save pages to DB
-    const client = getSupabaseClient();
-    const { data, error } = await client
-      .from("book_episode_pages")
-      .insert(pages)
-      .select();
-
-    if (error) throw error;
-    return NextResponse.json({ data });
-  } catch (e: any) {
-    console.error("Pages upload error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      message: `成功上传 ${imageUrls.length} 张图片`,
+      imageUrls,
+    });
+  } catch (error) {
+    console.error('上传失败:', error);
+    return NextResponse.json(
+      { error: `上传失败：${error instanceof Error ? error.message : '未知错误'}` },
+      { status: 500 }
+    );
   }
 }
