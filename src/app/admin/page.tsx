@@ -118,6 +118,16 @@ function AdminContent() {
   };
 
   const handleAddEpisode = async () => {
+    // 验证必填字段
+    if (!newEpisode.series_name.trim()) {
+      alert('请填写系列名');
+      return;
+    }
+    if (!newEpisode.episode_title.trim()) {
+      alert('请填写标题');
+      return;
+    }
+
     try {
       const res = await fetch('/api/books/episodes', {
         method: 'POST',
@@ -125,6 +135,12 @@ function AdminContent() {
         body: JSON.stringify(newEpisode),
       });
       const data = await res.json();
+      
+      if (data.error) {
+        alert('创建失败：' + data.error);
+        return;
+      }
+      
       if (data.data) {
         alert('绘本集创建成功！');
         setNewEpisode({ series_name: '西游记', episode_number: newEpisode.episode_number + 1, episode_title: '', page_count: 10 });
@@ -138,7 +154,7 @@ function AdminContent() {
       }
     } catch (err) {
       console.error(err);
-      alert('创建失败');
+      alert('创建失败：' + (err as Error).message);
     }
   };
 
