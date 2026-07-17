@@ -137,6 +137,23 @@ export default function HomePage() {
           </Link>
         </div>
 
+        {/* Book entry */}
+        <Link href="/book-select" className="block mb-8">
+          <div className="relative bg-gradient-to-r from-orange-400 to-yellow-400 rounded-3xl p-5 shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer">
+            <div className="flex items-center gap-4">
+              <div className="text-4xl">📚</div>
+              <div className="text-left">
+                <h3 className="font-display text-xl text-white mb-1">
+                  定制绘本阅读
+                </h3>
+                <p className="text-sm text-white/80">
+                  根据识字量推送专属绘本，快乐阅读成长
+                </p>
+              </div>
+            </div>
+          </div>
+        </Link>
+
         {/* Share button */}
         <button
           onClick={handleShare}

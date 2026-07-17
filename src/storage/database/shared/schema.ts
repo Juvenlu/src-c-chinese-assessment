@@ -91,6 +91,62 @@ export const testAnswers = pgTable(
   ]
 );
 
+// Picture book episodes (templates)
+export const bookEpisodes = pgTable(
+  "book_episodes",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    series_name: varchar("series_name", { length: 64 }).notNull(), // 西游记, 哈利波特, 传统成语故事
+    episode_number: integer("episode_number").notNull(), // 1, 2, 3...
+    episode_title: varchar("episode_title", { length: 128 }).notNull(), // 大闹天宫
+    page_count: integer("page_count").notNull().default(10),
+    status: varchar("status", { length: 16 }).notNull().default("draft"), // draft, published
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("book_episodes_series_idx").on(table.series_name),
+    index("book_episodes_status_idx").on(table.status),
+  ]
+);
+
+// Episode pages (original content: image + text)
+export const bookEpisodePages = pgTable(
+  "book_episode_pages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    episode_id: varchar("episode_id", { length: 36 }).notNull().references(() => bookEpisodes.id),
+    page_number: integer("page_number").notNull(), // 1, 2, 3...
+    image_url: varchar("image_url", { length: 512 }).notNull(), // uploaded image URL
+    original_text: text("original_text").notNull(), // original story text for this page
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("book_episode_pages_episode_id_idx").on(table.episode_id),
+  ]
+);
+
+// Custom books generated for children
+export const customBooks = pgTable(
+  "custom_books",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+    child_id: varchar("child_id", { length: 36 }).notNull().references(() => children.id),
+    episode_id: varchar("episode_id", { length: 36 }).notNull().references(() => bookEpisodes.id),
+    level_tier: varchar("level_tier", { length: 16 }).notNull(), // <300, 300-500, 500-800, 800+
+    initial_char_count: integer("initial_char_count").notNull(), // child's known chars when generated
+    pages_json: jsonb("pages_json").notNull().$type<Array<{page_number: number, text: string, new_chars: string[]}>>(),
+    new_chars: jsonb("new_chars").$type<string[]>(), // all new chars introduced in this book
+    cumulative_chars: jsonb("cumulative_chars").$type<string[]>(), // cumulative known chars after reading
+    version: integer("version").notNull().default(1), // 1=first, 2=updated, etc.
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("custom_books_child_id_idx").on(table.child_id),
+    index("custom_books_episode_id_idx").on(table.episode_id),
+  ]
+);
+
 // Test results - computed after test completion
 export const testResults = pgTable(
   "test_results",

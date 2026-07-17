@@ -39,14 +39,20 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 │   │   ├── result/page.tsx     # 测试结果页
 │   │   ├── report/page.tsx     # 家长成长报告
 │   │   ├── history/page.tsx    # 历史记录+成长曲线
-│   │   ├── admin/page.tsx      # 管理后台
+│   │   ├── admin/page.tsx      # 管理后台（含绘本工坊）
+│   │   ├── book-select/page.tsx # 绘本系列选择页
+│   │   ├── book/[id]/page.tsx   # 绘本阅读翻页页
 │   │   ├── api/                # API 路由
 │   │   │   ├── children/       # 孩子档案 CRUD
 │   │   │   ├── questions/      # 题库 CRUD
 │   │   │   ├── sessions/       # 测试会话管理
 │   │   │   ├── answers/        # 答案提交
 │   │   │   ├── results/        # 测试结果计算与查询
-│   │   │   └── seed/           # 题库初始化
+│   │   │   ├── seed/           # 题库初始化
+│   │   │   └── books/          # 绘本相关 API
+│   │   │       ├── episodes/   # 绘本集 CRUD + 页上传
+│   │   │       ├── custom/     # 定制绘本查询
+│   │   │       └── generate/   # 绘本生成（i+1 改写）
 │   │   └── layout.tsx          # 根布局
 │   ├── components/ui/          # shadcn/ui 组件
 │   ├── lib/
@@ -84,6 +90,9 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 | test_sessions | 测试会话 | id, child_id, level, status, started_at, completed_at |
 | test_answers | 答案记录 | id, session_id, question_id, part, is_correct, reaction_time_ms |
 | test_results | 测试结果 | id, session_id, child_id, level, *_score, stable_char/vocab_count |
+| book_episodes | 绘本集 | id, series_name, episode_number, episode_title, page_count, status |
+| book_episode_pages | 绘本页 | id, episode_id, page_number, image_url, original_text |
+| custom_books | 定制绘本 | id, child_id, episode_id, level_tier, initial_char_count, pages_json, new_chars, cumulative_chars, version |
 
 ## API 接口
 
@@ -95,6 +104,12 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 | /api/answers | GET/POST | 答案提交与查询 |
 | /api/results | GET/POST | 结果计算与查询 |
 | /api/seed | POST | 初始化题库数据 |
+| /api/books/episodes | GET/POST | 绘本集列表/创建 |
+| /api/books/episodes/[id] | GET/PATCH | 绘本集详情/更新 |
+| /api/books/episodes/[id]/pages | POST | 上传绘本页（图片+文本） |
+| /api/books/generate | POST | 为孩子生成定制绘本（i+1 改写） |
+| /api/books/custom | GET | 查询孩子的定制绘本列表 |
+| /api/books/custom/[id] | GET | 获取单本定制绘本详情 |
 
 ## 测评等级
 

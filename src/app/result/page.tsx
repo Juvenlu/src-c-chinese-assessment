@@ -270,6 +270,14 @@ function ResultContent() {
                   📊 查看成长曲线
                 </button>
               </Link>
+              <Link href={`/book-select?childId=${result.child_id}`} className="block">
+                <button
+                  className="w-full rounded-2xl px-8 py-4 font-display text-lg font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg"
+                  style={{ background: 'linear-gradient(135deg, #FFE66D 0%, #FF6B35 100%)' }}
+                >
+                  📚 推送绘本故事
+                </button>
+              </Link>
             </>
           )}
           <Link href="/" className="block">

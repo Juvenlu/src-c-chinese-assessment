@@ -1,824 +1,627 @@
-'use client';
+"use client";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { BookOpen, Database, Users, FileText, Upload, Trash2, Edit, Plus, LogOut, Eye } from "lucide-react";
+import { getSupabaseClient } from "@/storage/database/supabase-client";
+import type { Level } from "@/lib/types";
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
+const ADMIN_PASSWORD = "srcc2026";
 
-type AdminTab = 'questions' | 'users' | 'results' | 'charlib';
+type Tab = "questions" | "children" | "results" | "wordbank" | "books";
 
-// Admin password - change this to your desired password
-const ADMIN_PASSWORD = 'srcc2026';
-
-// --- Admin Content Component (only rendered after auth) ---
 function AdminContent() {
-  const [tab, setTab] = useState<AdminTab>('results');
-  const [questions, setQuestions] = useState<QuestionItem[]>([]);
-  const [children, setChildren] = useState<Child[]>([]);
-  const [results, setResults] = useState<TestResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterLevel, setFilterLevel] = useState<string>('');
-  const [selectedChildId, setSelectedChildId] = useState<string>('');
-  const [charLibData, setCharLibData] = useState<Record<string, string[]>>({});
-
-  // Edit question state
-  const [editingQuestion, setEditingQuestion] = useState<Partial<QuestionItem> | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [qRes, cRes, rRes] = await Promise.all([
-        fetch(`/api/questions${filterLevel ? `?level=${filterLevel}` : ''}`),
-        fetch('/api/children'),
-        fetch('/api/results'),
-      ]);
-
-      const qData = await qRes.json();
-      const cData = await cRes.json();
-      const rData = await rRes.json();
-
-      if (qData.data) setQuestions(qData.data);
-      if (cData.data) setChildren(cData.data);
-      if (rData.data) setResults(rData.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [filterLevel]);
+  const [tab, setTab] = useState<Tab>("books");
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [children, setChildren] = useState<any[]>([]);
+  const [results, setResults] = useState<any[]>([]);
+  const [wordBank, setWordBank] = useState<any[]>([]);
+  const [episodes, setEpisodes] = useState<any[]>([]);
+  const [selectedChild, setSelectedChild] = useState<any>(null);
+  const [selectedEpisode, setSelectedEpisode] = useState<any>(null);
+  const [editingQuestion, setEditingQuestion] = useState<any>(null);
+  const [newQuestion, setNewQuestion] = useState({
+    level: "SRC300" as Level,
+    character: "",
+    word: "",
+    sentence: "",
+    meaning_question: "",
+    options: ["", "", ""],
+    answer: "",
+    story_text: "",
+    story_question: "",
+    story_options: ["", "", ""],
+    story_answer: "",
+  });
+  const [newEpisode, setNewEpisode] = useState({
+    series_name: "西游记",
+    episode_number: 1,
+    episode_title: "",
+    page_count: 10,
+  });
+  const [episodePages, setEpisodePages] = useState<any[]>([]);
+  const [wordFile, setWordFile] = useState<File | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [customBooks, setCustomBooks] = useState<any[]>([]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (tab === "questions") fetchQuestions();
+    else if (tab === "children") fetchChildren();
+    else if (tab === "results") fetchResults();
+    else if (tab === "wordbank") fetchWordBank();
+    else if (tab === "books") { fetchEpisodes(); fetchCustomBooks(); }
+  }, [tab]);
 
-  // Build character library per child from results
-  useEffect(() => {
-    const lib: Record<string, string[]> = {};
-    results.forEach((r) => {
-      if (r.known_characters && r.known_characters.length > 0) {
-        if (!lib[r.child_id]) lib[r.child_id] = [];
-        // Merge and deduplicate
-        const existing = new Set(lib[r.child_id]);
-        r.known_characters.forEach((c) => {
-          if (!existing.has(c)) {
-            lib[r.child_id].push(c);
-            existing.add(c);
-          }
+  const fetchQuestions = async () => {
+    const res = await fetch("/api/questions");
+    const data = await res.json();
+    setQuestions(data.data || []);
+  };
+
+  const fetchChildren = async () => {
+    const res = await fetch("/api/children");
+    const data = await res.json();
+    setChildren(data.data || []);
+  };
+
+  const fetchResults = async () => {
+    const res = await fetch("/api/results");
+    const data = await res.json();
+    setResults(data.data || []);
+  };
+
+  const fetchWordBank = async () => {
+    const res = await fetch("/api/children");
+    const childrenData = await res.json();
+    const childrenList = childrenData.data || [];
+    const wordBankData: any[] = [];
+    for (const child of childrenList) {
+      const res2 = await fetch(`/api/results?child_id=${child.id}`);
+      const resultsData = await res2.json();
+      const latest = resultsData.data?.[0];
+      if (latest?.known_characters) {
+        wordBankData.push({
+          child_id: child.id,
+          child_name: child.name,
+          level: latest.level,
+          known_count: latest.known_characters.length,
+          known_characters: latest.known_characters,
         });
       }
+    }
+    setWordBank(wordBankData);
+  };
+
+  const fetchEpisodes = async () => {
+    const res = await fetch("/api/books/episodes");
+    const data = await res.json();
+    setEpisodes(data.data || []);
+  };
+
+  const fetchCustomBooks = async () => {
+    const res = await fetch("/api/books/custom?child_id=all");
+    const data = await res.json();
+    setCustomBooks(data.data || []);
+  };
+
+  const addQuestion = async () => {
+    await fetch("/api/questions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newQuestion),
     });
-    setCharLibData(lib);
-  }, [results]);
+    setNewQuestion({
+      level: "SRC300",
+      character: "",
+      word: "",
+      sentence: "",
+      meaning_question: "",
+      options: ["", "", ""],
+      answer: "",
+      story_text: "",
+      story_question: "",
+      story_options: ["", "", ""],
+      story_answer: "",
+    });
+    fetchQuestions();
+  };
 
-  const handleSeedQuestions = async () => {
-    try {
-      const res = await fetch('/api/seed', { method: 'POST' });
-      const data = await res.json();
-      alert(data.message || data.error);
-      loadData();
-    } catch (err) {
-      console.error(err);
+  const updateQuestion = async () => {
+    await fetch(`/api/questions?id=${editingQuestion.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editingQuestion),
+    });
+    setEditingQuestion(null);
+    fetchQuestions();
+  };
+
+  const deleteQuestion = async (id: string) => {
+    await fetch(`/api/questions?id=${id}`, { method: "DELETE" });
+    fetchQuestions();
+  };
+
+  const reseed = async () => {
+    await fetch("/api/seed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force: true }),
+    });
+    alert("题库已重新导入");
+    fetchQuestions();
+  };
+
+  const addEpisode = async () => {
+    const res = await fetch("/api/books/episodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newEpisode),
+    });
+    const data = await res.json();
+    if (data.data) {
+      setSelectedEpisode(data.data);
+      setEpisodePages([]);
+      setNewEpisode({ series_name: "西游记", episode_number: 1, episode_title: "", page_count: 10 });
+      fetchEpisodes();
     }
   };
 
-  const handleDeleteQuestion = async (id: string) => {
-    if (!confirm('确定要删除这道题吗？')) return;
-    try {
-      await fetch(`/api/questions?id=${id}`, { method: 'DELETE' });
-      loadData();
-    } catch (err) {
-      console.error(err);
+  const uploadPages = async () => {
+    if (!selectedEpisode || imageFiles.length === 0) {
+      alert("请先选择集并上传图片");
+      return;
+    }
+    const formData = new FormData();
+    imageFiles.forEach((f) => formData.append("images", f));
+    if (wordFile) formData.append("word_file", wordFile);
+
+    const res = await fetch(`/api/books/episodes/${selectedEpisode.id}/pages`, {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+    if (data.data) {
+      setEpisodePages(data.data);
+      alert(`成功上传 ${data.data.length} 页`);
+      setImageFiles([]);
+      setWordFile(null);
+    } else {
+      alert("上传失败: " + data.error);
     }
   };
 
-  const handleSaveQuestion = async () => {
-    if (!editingQuestion) return;
-    try {
-      const method = editingQuestion.id ? 'PUT' : 'POST';
-      await fetch('/api/questions', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingQuestion),
-      });
-      setShowEditModal(false);
-      setEditingQuestion(null);
-      loadData();
-    } catch (err) {
-      console.error(err);
+  const generateBook = async (childId: string, episodeId: string) => {
+    setGenerating(true);
+    const res = await fetch("/api/books/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ child_id: childId, episode_id: episodeId }),
+    });
+    const data = await res.json();
+    setGenerating(false);
+    if (data.data) {
+      alert("绘本生成成功！");
+      fetchCustomBooks();
+    } else {
+      alert("生成失败: " + data.error);
     }
   };
 
-  const handleExportCSV = () => {
-    if (!results.length) return;
-    const headers = ['日期', '孩子姓名', '等级', '识字量', '词汇量', '综合得分', '识字得分', '词汇得分', '阅读得分', '理解得分', '识字字库'];
-    const childMap = new Map(children.map((c) => [c.id, c.name]));
-    const rows = results.map((r) => [
-      new Date(r.created_at).toLocaleDateString('zh-CN'),
-      childMap.get(r.child_id) || '未知',
-      r.level,
-      r.stable_char_count,
-      r.stable_vocab_count,
-      r.total_score,
-      r.character_score,
-      r.vocab_score,
-      r.reading_score,
-      r.comprehension_score,
-      (r.known_characters || []).join(' '),
+  const exportCSV = () => {
+    const headers = ["child_id", "child_name", "level", "known_count", "known_characters"];
+    const rows = wordBank.map((w) => [
+      w.child_id,
+      w.child_name,
+      w.level,
+      w.known_count,
+      `"${w.known_characters.join(",")}"`,
     ]);
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `src-c-results-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "word_bank.csv";
+    a.click();
   };
 
-  const handleExportCharLib = () => {
-    if (!children.length) return;
-    const headers = ['姓名', '年龄', '国家', '认识汉字数', '认识汉字字库'];
-    const rows = children.map((c) => {
-      const chars = charLibData[c.id] || [];
-      return [
-        c.name,
-        c.age,
-        c.country,
-        chars.length,
-        chars.join(' '),
-      ];
-    });
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `src-c-charlib-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const getChildName = (childId: string) => {
-    return children.find((c) => c.id === childId)?.name || '未知';
-  };
+  const tabs = [
+    { id: "books" as Tab, label: "绘本工坊", icon: BookOpen },
+    { id: "questions" as Tab, label: "题库", icon: Database },
+    { id: "children" as Tab, label: "用户", icon: Users },
+    { id: "results" as Tab, label: "结果", icon: FileText },
+    { id: "wordbank" as Tab, label: "识字字库", icon: FileText },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Admin header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="font-display text-2xl text-gray-800">SRC-C 管理后台</h1>
-              <p className="text-sm text-gray-500">题库管理 · 用户数据 · 测试结果 · 识字字库</p>
-            </div>
-            <Link href="/" className="text-sm text-[var(--color-src-primary)] hover:underline">
-              ← 返回前台
-            </Link>
-          </div>
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-800">SRC-C 管理后台</h1>
+          <button
+            onClick={() => { sessionStorage.removeItem("admin_auth"); window.location.href = "/"; }}
+            className="flex items-center gap-2 text-gray-600 hover:text-red-600"
+          >
+            <LogOut size={18} />
+            退出
+          </button>
         </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {([
-            { key: 'results', label: '📊 测试结果' },
-            { key: 'charlib', label: '📖 识字字库' },
-            { key: 'users', label: '👥 用户数据' },
-            { key: 'questions', label: '📚 题库管理' },
-          ] as { key: AdminTab; label: string }[]).map((t) => (
+        <div className="max-w-7xl mx-auto px-4 flex gap-2 overflow-x-auto">
+          {tabs.map((t) => (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                tab === t.key
-                  ? 'bg-[var(--color-src-primary)] text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-100'
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-4 py-3 border-b-2 transition ${
+                tab === t.id ? "border-orange-500 text-orange-600" : "border-transparent text-gray-600"
               }`}
             >
+              <t.icon size={18} />
               {t.label}
             </button>
           ))}
         </div>
-
-        {loading ? (
-          <div className="text-center py-20 text-gray-500">加载中...</div>
-        ) : (
-          <>
-            {/* Results Tab */}
-            {tab === 'results' && (
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-sm text-gray-500">共 {results.length} 条记录</span>
-                  <button
-                    onClick={handleExportCSV}
-                    className="px-4 py-2 bg-[var(--color-src-secondary)] text-white rounded-lg text-sm hover:opacity-90"
-                  >
-                    📥 导出CSV
-                  </button>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left px-4 py-3 text-gray-600">日期</th>
-                          <th className="text-left px-4 py-3 text-gray-600">姓名</th>
-                          <th className="text-left px-4 py-3 text-gray-600">等级</th>
-                          <th className="text-right px-4 py-3 text-gray-600">识字量</th>
-                          <th className="text-right px-4 py-3 text-gray-600">词汇量</th>
-                          <th className="text-right px-4 py-3 text-gray-600">综合得分</th>
-                          <th className="text-right px-4 py-3 text-gray-600">用时</th>
-                          <th className="text-center px-4 py-3 text-gray-600">识字字库</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {results.map((r) => {
-                          const childName = getChildName(r.child_id);
-                          const minutes = Math.floor(r.completion_time_seconds / 60);
-                          const seconds = r.completion_time_seconds % 60;
-                          const hasLib = r.known_characters && r.known_characters.length > 0;
-                          return (
-                            <tr key={r.id} className="border-t hover:bg-gray-50">
-                              <td className="px-4 py-3 text-gray-500">
-                                {new Date(r.created_at).toLocaleDateString('zh-CN')}
-                              </td>
-                              <td className="px-4 py-3 font-medium">{childName}</td>
-                              <td className="px-4 py-3">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  r.level === 'SRC300' ? 'bg-green-100 text-green-700' :
-                                  r.level === 'SRC500' ? 'bg-blue-100 text-blue-700' :
-                                  'bg-purple-100 text-purple-700'
-                                }`}>
-                                  {r.level}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-[var(--color-src-primary)]">
-                                {r.stable_char_count}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold text-[var(--color-src-secondary)]">
-                                {r.stable_vocab_count}
-                              </td>
-                              <td className="px-4 py-3 text-right font-bold">{r.total_score}</td>
-                              <td className="px-4 py-3 text-right text-gray-500">
-                                {minutes}:{seconds.toString().padStart(2, '0')}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                {hasLib ? (
-                                  <button
-                                    onClick={() => { setSelectedChildId(r.child_id); setTab('charlib'); }}
-                                    className="text-[var(--color-src-secondary)] hover:underline text-xs"
-                                  >
-                                    查看({r.known_characters!.length}字)
-                                  </button>
-                                ) : (
-                                  <span className="text-gray-400 text-xs">无</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Character Library Tab */}
-            {tab === 'charlib' && (
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-500">
-                      逐字测试后，系统自动为每个孩子生成其确认认识的汉字字库
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleExportCharLib}
-                    className="px-4 py-2 bg-[var(--color-src-secondary)] text-white rounded-lg text-sm hover:opacity-90"
-                  >
-                    📥 导出全部字库CSV
-                  </button>
-                </div>
-
-                {/* Child selector */}
-                <div className="mb-4">
-                  <select
-                    value={selectedChildId}
-                    onChange={(e) => setSelectedChildId(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm w-64"
-                  >
-                    <option value="">选择孩子查看识字字库</option>
-                    {children.map((c) => {
-                      const charCount = (charLibData[c.id] || []).length;
-                      return (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({charCount}字)
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                {selectedChildId && (
-                  <div className="space-y-4">
-                    {(() => {
-                      const child = children.find((c) => c.id === selectedChildId);
-                      const chars = charLibData[selectedChildId] || [];
-                      const childResults = results.filter((r) => r.child_id === selectedChildId);
-                      return (
-                        <>
-                          {/* Child info card */}
-                          <div className="bg-white rounded-xl shadow-sm p-6">
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <h3 className="text-xl font-bold text-gray-800">{child?.name}</h3>
-                                <p className="text-sm text-gray-500">
-                                  {child?.age}岁 · {child?.grade} · {child?.country} · 
-                                  {child?.language_env === 'chinese_primary' ? '中文为主' :
-                                   child?.language_env === 'bilingual' ? '双语' :
-                                   child?.language_env === 'english_primary' ? '英文为主' : '其他'}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-3xl font-bold text-[var(--color-src-primary)]">{chars.length}</div>
-                                <div className="text-xs text-gray-500">认识汉字数</div>
-                              </div>
-                            </div>
-                            
-                            {chars.length > 0 ? (
-                              <>
-                                <div className="mb-3 text-sm font-medium text-gray-700">
-                                  确认识字字库（{chars.length}字）
-                                </div>
-                                <div className="flex flex-wrap gap-2 p-4 bg-[var(--color-src-bg)] rounded-xl">
-                                  {chars.map((ch, i) => (
-                                    <span
-                                      key={i}
-                                      className="inline-flex items-center justify-center w-12 h-12 text-xl rounded-lg bg-white shadow-sm border border-gray-100"
-                                      style={{ fontFamily: 'KaiTi, STKaiti, 楷体, "Microsoft YaHei", 微软雅黑, SimHei, sans-serif' }}
-                                    >
-                                      {ch}
-                                    </span>
-                                  ))}
-                                </div>
-                              </>
-                            ) : (
-                              <div className="text-center py-8 text-gray-400">
-                                该孩子尚未完成逐字测试，暂无识字字库数据
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Test history */}
-                          {childResults.length > 0 && (
-                            <div className="bg-white rounded-xl shadow-sm p-6">
-                              <h4 className="text-sm font-medium text-gray-700 mb-3">测试历史</h4>
-                              <div className="space-y-2">
-                                {childResults.map((r) => (
-                                  <div key={r.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-100 last:border-0">
-                                    <span className="text-gray-500">
-                                      {new Date(r.created_at).toLocaleDateString('zh-CN')}
-                                    </span>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      r.level === 'SRC300' ? 'bg-green-100 text-green-700' :
-                                      r.level === 'SRC500' ? 'bg-blue-100 text-blue-700' :
-                                      'bg-purple-100 text-purple-700'
-                                    }`}>
-                                      {r.level}
-                                    </span>
-                                    <span className="text-[var(--color-src-primary)] font-bold">
-                                      识字 {r.stable_char_count}
-                                    </span>
-                                    <span className="text-[var(--color-src-secondary)] font-bold">
-                                      词汇 {r.stable_vocab_count}
-                                    </span>
-                                    <span className="font-bold">得分 {r.total_score}</span>
-                                    {r.known_characters && r.known_characters.length > 0 && (
-                                      <span className="text-xs text-gray-400">
-                                        字库 {r.known_characters.length}字
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {!selectedChildId && (
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <div className="text-center py-8 text-gray-400">
-                      请在上方下拉框选择孩子，查看其识字字库
-                    </div>
-                    {/* Overview of all children's libraries */}
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">全部孩子识字概览</h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="text-left px-4 py-3 text-gray-600">姓名</th>
-                              <th className="text-left px-4 py-3 text-gray-600">年龄</th>
-                              <th className="text-left px-4 py-3 text-gray-600">国家</th>
-                              <th className="text-right px-4 py-3 text-gray-600">认识汉字数</th>
-                              <th className="text-left px-4 py-3 text-gray-600">识字字库预览</th>
-                              <th className="text-center px-4 py-3 text-gray-600">操作</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {children.map((c) => {
-                              const chars = charLibData[c.id] || [];
-                              return (
-                                <tr key={c.id} className="border-t hover:bg-gray-50">
-                                  <td className="px-4 py-3 font-medium">{c.name}</td>
-                                  <td className="px-4 py-3">{c.age}岁</td>
-                                  <td className="px-4 py-3">{c.country}</td>
-                                  <td className="px-4 py-3 text-right font-bold text-[var(--color-src-primary)]">
-                                    {chars.length}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {chars.length > 0 ? (
-                                      <span className="text-gray-600" style={{ fontFamily: 'KaiTi, STKaiti, 楷体, "Microsoft YaHei", sans-serif', letterSpacing: '0.1em' }}>
-                                        {chars.slice(0, 20).join(' ')}{chars.length > 20 ? ' ...' : ''}
-                                      </span>
-                                    ) : (
-                                      <span className="text-gray-400">暂无数据</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <button
-                                      onClick={() => setSelectedChildId(c.id)}
-                                      className="text-[var(--color-src-primary)] hover:underline text-xs"
-                                    >
-                                      查看详情
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Users Tab */}
-            {tab === 'users' && (
-              <div>
-                <div className="mb-4 text-sm text-gray-500">共 {children.length} 个孩子</div>
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left px-4 py-3 text-gray-600">姓名</th>
-                          <th className="text-left px-4 py-3 text-gray-600">年龄</th>
-                          <th className="text-left px-4 py-3 text-gray-600">年级</th>
-                          <th className="text-left px-4 py-3 text-gray-600">国家</th>
-                          <th className="text-left px-4 py-3 text-gray-600">语言环境</th>
-                          <th className="text-right px-4 py-3 text-gray-600">识字字库</th>
-                          <th className="text-left px-4 py-3 text-gray-600">注册时间</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {children.map((c) => {
-                          const charCount = (charLibData[c.id] || []).length;
-                          return (
-                            <tr key={c.id} className="border-t hover:bg-gray-50">
-                              <td className="px-4 py-3 font-medium">{c.name}</td>
-                              <td className="px-4 py-3">{c.age}岁</td>
-                              <td className="px-4 py-3">{c.grade}</td>
-                              <td className="px-4 py-3">{c.country}</td>
-                              <td className="px-4 py-3">
-                                <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100">
-                                  {c.language_env === 'chinese_primary' ? '中文为主' :
-                                   c.language_env === 'bilingual' ? '双语' :
-                                   c.language_env === 'english_primary' ? '英文为主' : '其他'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                {charCount > 0 ? (
-                                  <button
-                                    onClick={() => { setSelectedChildId(c.id); setTab('charlib'); }}
-                                    className="text-[var(--color-src-secondary)] hover:underline text-xs"
-                                  >
-                                    {charCount}字 → 查看
-                                  </button>
-                                ) : (
-                                  <span className="text-gray-400 text-xs">-</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-gray-500">
-                                {new Date(c.created_at).toLocaleDateString('zh-CN')}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Questions Tab */}
-            {tab === 'questions' && (
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex gap-2 items-center">
-                    <select
-                      value={filterLevel}
-                      onChange={(e) => setFilterLevel(e.target.value)}
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    >
-                      <option value="">全部等级</option>
-                      <option value="SRC300">SRC300</option>
-                      <option value="SRC500">SRC500</option>
-                      <option value="SRC800">SRC800</option>
-                    </select>
-                    <span className="text-sm text-gray-500">共 {questions.length} 道题</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSeedQuestions}
-                      className="px-4 py-2 bg-[var(--color-src-secondary)] text-white rounded-lg text-sm hover:opacity-90"
-                    >
-                      导入默认题库
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingQuestion({ level: 'SRC300', character: '', word: '', sentence: '', meaning_question: '', options: ['', '', ''], answer: '' });
-                        setShowEditModal(true);
-                      }}
-                      className="px-4 py-2 bg-[var(--color-src-primary)] text-white rounded-lg text-sm hover:opacity-90"
-                    >
-                      + 新增题目
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left px-4 py-3 text-gray-600">字</th>
-                          <th className="text-left px-4 py-3 text-gray-600">词</th>
-                          <th className="text-left px-4 py-3 text-gray-600">等级</th>
-                          <th className="text-left px-4 py-3 text-gray-600">句子</th>
-                          <th className="text-left px-4 py-3 text-gray-600">问题</th>
-                          <th className="text-left px-4 py-3 text-gray-600">答案</th>
-                          <th className="text-right px-4 py-3 text-gray-600">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {questions.slice(0, 50).map((q) => (
-                          <tr key={q.id} className="border-t hover:bg-gray-50">
-                            <td className="px-4 py-3 font-bold text-lg">{q.character}</td>
-                            <td className="px-4 py-3">{q.word}</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                q.level === 'SRC300' ? 'bg-green-100 text-green-700' :
-                                q.level === 'SRC500' ? 'bg-blue-100 text-blue-700' :
-                                'bg-purple-100 text-purple-700'
-                              }`}>
-                                {q.level}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 max-w-40 truncate">{q.sentence}</td>
-                            <td className="px-4 py-3 max-w-32 truncate">{q.meaning_question}</td>
-                            <td className="px-4 py-3">{q.answer}</td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => {
-                                  setEditingQuestion({ ...q });
-                                  setShowEditModal(true);
-                                }}
-                                className="text-[var(--color-src-primary)] hover:underline mr-3"
-                              >
-                                编辑
-                              </button>
-                              <button
-                                onClick={() => handleDeleteQuestion(q.id)}
-                                className="text-red-500 hover:underline"
-                              >
-                                删除
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {questions.length > 50 && (
-                    <div className="px-4 py-3 text-center text-sm text-gray-500">
-                      显示前50条，共 {questions.length} 条
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </>
-        )}
       </div>
 
-      {/* Edit Modal */}
-      {showEditModal && editingQuestion && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="font-display text-xl mb-4">
-              {editingQuestion.id ? '编辑题目' : '新增题目'}
-            </h3>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+      <div className="max-w-7xl mx-auto p-4">
+        {/* 绘本工坊 */}
+        {tab === "books" && (
+          <div className="space-y-6">
+            {/* 创建新集 */}
+            <div className="bg-white rounded-xl p-6 shadow">
+              <h2 className="text-xl font-bold mb-4">创建新集</h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <input
+                  className="border rounded-lg px-3 py-2"
+                  placeholder="系列名"
+                  value={newEpisode.series_name}
+                  onChange={(e) => setNewEpisode({ ...newEpisode, series_name: e.target.value })}
+                />
+                <input
+                  className="border rounded-lg px-3 py-2"
+                  placeholder="集数"
+                  type="number"
+                  value={newEpisode.episode_number}
+                  onChange={(e) => setNewEpisode({ ...newEpisode, episode_number: parseInt(e.target.value) || 1 })}
+                />
+                <input
+                  className="border rounded-lg px-3 py-2"
+                  placeholder="标题"
+                  value={newEpisode.episode_title}
+                  onChange={(e) => setNewEpisode({ ...newEpisode, episode_title: e.target.value })}
+                />
+                <input
+                  className="border rounded-lg px-3 py-2"
+                  placeholder="页数"
+                  type="number"
+                  value={newEpisode.page_count}
+                  onChange={(e) => setNewEpisode({ ...newEpisode, page_count: parseInt(e.target.value) || 10 })}
+                />
+              </div>
+              <button onClick={addEpisode} className="mt-4 bg-orange-500 text-white px-6 py-2 rounded-lg flex items-center gap-2">
+                <Plus size={18} /> 创建集
+              </button>
+            </div>
+
+            {/* 集列表 */}
+            <div className="bg-white rounded-xl p-6 shadow">
+              <h2 className="text-xl font-bold mb-4">绘本集列表</h2>
+              <div className="space-y-3">
+                {episodes.map((ep) => (
+                  <div key={ep.id} className="border rounded-lg p-4 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold">{ep.series_name} 第{ep.episode_number}集</div>
+                      <div className="text-sm text-gray-500">{ep.episode_title} · {ep.page_count}页 · {ep.status}</div>
+                    </div>
+                    <button
+                      onClick={() => { setSelectedEpisode(ep); fetch(`/api/books/episodes/${ep.id}/pages`).then(r => r.json()).then(d => setEpisodePages(d.data || [])); }}
+                      className="text-blue-600 flex items-center gap-1"
+                    >
+                      <Edit size={16} /> 编辑
+                    </button>
+                  </div>
+                ))}
+                {episodes.length === 0 && <div className="text-gray-500">暂无绘本集</div>}
+              </div>
+            </div>
+
+            {/* 编辑集内容 */}
+            {selectedEpisode && (
+              <div className="bg-white rounded-xl p-6 shadow">
+                <h2 className="text-xl font-bold mb-4">
+                  编辑: {selectedEpisode.series_name} 第{selectedEpisode.episode_number}集 - {selectedEpisode.episode_title}
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">上传插画（支持多张）</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => setImageFiles(Array.from(e.target.files || []))}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                    />
+                    {imageFiles.length > 0 && <div className="text-sm text-gray-500 mt-1">已选择 {imageFiles.length} 张图片</div>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">上传故事文本（Word 格式）</label>
+                    <input
+                      type="file"
+                      accept=".docx,.doc"
+                      onChange={(e) => setWordFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                    />
+                    {wordFile && <div className="text-sm text-gray-500 mt-1">已选择: {wordFile.name}</div>}
+                  </div>
+                  <button onClick={uploadPages} className="bg-green-500 text-white px-6 py-2 rounded-lg flex items-center gap-2">
+                    <Upload size={18} /> 上传并解析
+                  </button>
+                </div>
+
+                {/* 页列表 */}
+                {episodePages.length > 0 && (
+                  <div className="mt-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+                    {episodePages.map((p) => (
+                      <div key={p.id} className="border rounded-lg p-2">
+                        <img src={p.image_url} alt={`第${p.page_number}页`} className="w-full h-32 object-cover rounded" />
+                        <div className="text-xs mt-1 line-clamp-3">{p.original_text}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 生成定制绘本 */}
+            <div className="bg-white rounded-xl p-6 shadow">
+              <h2 className="text-xl font-bold mb-4">生成定制绘本</h2>
+              <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-gray-500">等级</label>
+                  <label className="block text-sm font-medium mb-2">选择孩子</label>
                   <select
-                    value={editingQuestion.level || 'SRC300'}
-                    onChange={(e) => setEditingQuestion({ ...editingQuestion, level: e.target.value as Level })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    className="border rounded-lg px-3 py-2 w-full"
+                    onChange={(e) => setSelectedChild(children.find((c) => c.id === e.target.value))}
                   >
-                    <option value="SRC300">SRC300</option>
-                    <option value="SRC500">SRC500</option>
-                    <option value="SRC800">SRC800</option>
+                    <option value="">请选择</option>
+                    {children.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.age}岁)</option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">汉字</label>
-                  <input
-                    type="text"
-                    value={editingQuestion.character || ''}
-                    onChange={(e) => setEditingQuestion({ ...editingQuestion, character: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                  />
+                  <label className="block text-sm font-medium mb-2">选择绘本集</label>
+                  <select
+                    className="border rounded-lg px-3 py-2 w-full"
+                    onChange={(e) => setSelectedEpisode(episodes.find((ep) => ep.id === e.target.value))}
+                  >
+                    <option value="">请选择</option>
+                    {episodes.map((ep) => (
+                      <option key={ep.id} value={ep.id}>{ep.series_name} 第{ep.episode_number}集 - {ep.episode_title}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">词语</label>
-                <input
-                  type="text"
-                  value={editingQuestion.word || ''}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, word: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">句子</label>
-                <input
-                  type="text"
-                  value={editingQuestion.sentence || ''}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, sentence: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">词义问题</label>
-                <input
-                  type="text"
-                  value={editingQuestion.meaning_question || ''}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, meaning_question: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">选项（逗号分隔）</label>
-                <input
-                  type="text"
-                  value={(editingQuestion.options || []).join(',')}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, options: e.target.value.split(',') })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">答案</label>
-                <input
-                  type="text"
-                  value={editingQuestion.answer || ''}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">理解故事（可选）</label>
-                <textarea
-                  value={editingQuestion.story_text || ''}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, story_text: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
-                  rows={2}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500">故事问题</label>
-                  <input
-                    type="text"
-                    value={editingQuestion.story_question || ''}
-                    onChange={(e) => setEditingQuestion({ ...editingQuestion, story_question: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500">故事答案</label>
-                  <input
-                    type="text"
-                    value={editingQuestion.story_answer || ''}
-                    onChange={(e) => setEditingQuestion({ ...editingQuestion, story_answer: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                  />
-                </div>
+                <button
+                  onClick={() => selectedChild && selectedEpisode && generateBook(selectedChild.id, selectedEpisode.id)}
+                  disabled={generating || !selectedChild || !selectedEpisode}
+                  className="bg-purple-500 text-white px-6 py-2 rounded-lg disabled:opacity-50"
+                >
+                  {generating ? "生成中..." : "生成定制绘本"}
+                </button>
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => { setShowEditModal(false); setEditingQuestion(null); }}
-                className="flex-1 px-4 py-2 border rounded-lg text-sm hover:bg-gray-50"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSaveQuestion}
-                className="flex-1 px-4 py-2 bg-[var(--color-src-primary)] text-white rounded-lg text-sm hover:opacity-90"
-              >
-                保存
-              </button>
+
+            {/* 已生成绘本列表 */}
+            <div className="bg-white rounded-xl p-6 shadow">
+              <h2 className="text-xl font-bold mb-4">已生成绘本</h2>
+              <div className="space-y-3">
+                {customBooks.map((b) => (
+                  <div key={b.id} className="border rounded-lg p-4 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold">{b.episodes?.series_name} 第{b.episodes?.episode_number}集</div>
+                      <div className="text-sm text-gray-500">
+                        {b.children?.name || b.child_id} · {b.level_tier} · {new Date(b.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <a href={`/book/${b.id}`} target="_blank" className="text-blue-600 flex items-center gap-1">
+                      <Eye size={16} /> 阅读
+                    </a>
+                  </div>
+                ))}
+                {customBooks.length === 0 && <div className="text-gray-500">暂无已生成绘本</div>}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* 题库 */}
+        {tab === "questions" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl p-6 shadow">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">题库管理 ({questions.length} 题)</h2>
+                <button onClick={reseed} className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm">
+                  重新导入题库
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left">等级</th>
+                      <th className="px-3 py-2 text-left">字</th>
+                      <th className="px-3 py-2 text-left">词</th>
+                      <th className="px-3 py-2 text-left">句</th>
+                      <th className="px-3 py-2 text-left">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {questions.map((q) => (
+                      <tr key={q.id} className="border-t">
+                        <td className="px-3 py-2">{q.level}</td>
+                        <td className="px-3 py-2">{q.character}</td>
+                        <td className="px-3 py-2">{q.word}</td>
+                        <td className="px-3 py-2 truncate max-w-xs">{q.sentence}</td>
+                        <td className="px-3 py-2 flex gap-2">
+                          <button onClick={() => setEditingQuestion(q)} className="text-blue-600"><Edit size={16} /></button>
+                          <button onClick={() => deleteQuestion(q.id)} className="text-red-600"><Trash2 size={16} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {editingQuestion && (
+              <div className="bg-white rounded-xl p-6 shadow">
+                <h3 className="text-lg font-bold mb-4">编辑题目</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <input className="border rounded px-3 py-2" value={editingQuestion.character} onChange={(e) => setEditingQuestion({ ...editingQuestion, character: e.target.value })} placeholder="字" />
+                  <input className="border rounded px-3 py-2" value={editingQuestion.word} onChange={(e) => setEditingQuestion({ ...editingQuestion, word: e.target.value })} placeholder="词" />
+                  <input className="border rounded px-3 py-2 col-span-2" value={editingQuestion.sentence} onChange={(e) => setEditingQuestion({ ...editingQuestion, sentence: e.target.value })} placeholder="句" />
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button onClick={updateQuestion} className="bg-green-500 text-white px-4 py-2 rounded">保存</button>
+                  <button onClick={() => setEditingQuestion(null)} className="bg-gray-300 px-4 py-2 rounded">取消</button>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white rounded-xl p-6 shadow">
+              <h3 className="text-lg font-bold mb-4">添加新题</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <select className="border rounded px-3 py-2" value={newQuestion.level} onChange={(e) => setNewQuestion({ ...newQuestion, level: e.target.value as Level })}>
+                  <option value="SRC300">SRC300</option>
+                  <option value="SRC500">SRC500</option>
+                  <option value="SRC800">SRC800</option>
+                </select>
+                <input className="border rounded px-3 py-2" value={newQuestion.character} onChange={(e) => setNewQuestion({ ...newQuestion, character: e.target.value })} placeholder="字" />
+                <input className="border rounded px-3 py-2" value={newQuestion.word} onChange={(e) => setNewQuestion({ ...newQuestion, word: e.target.value })} placeholder="词" />
+                <input className="border rounded px-3 py-2 col-span-2" value={newQuestion.sentence} onChange={(e) => setNewQuestion({ ...newQuestion, sentence: e.target.value })} placeholder="句" />
+              </div>
+              <button onClick={addQuestion} className="mt-4 bg-orange-500 text-white px-4 py-2 rounded">添加</button>
+            </div>
+          </div>
+        )}
+
+        {/* 用户 */}
+        {tab === "children" && (
+          <div className="bg-white rounded-xl p-6 shadow">
+            <h2 className="text-xl font-bold mb-4">用户列表 ({children.length})</h2>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr><th className="px-3 py-2 text-left">姓名</th><th className="px-3 py-2 text-left">年龄</th><th className="px-3 py-2 text-left">年级</th><th className="px-3 py-2 text-left">国家</th><th className="px-3 py-2 text-left">语言环境</th></tr>
+              </thead>
+              <tbody>
+                {children.map((c) => (
+                  <tr key={c.id} className="border-t">
+                    <td className="px-3 py-2">{c.name}</td>
+                    <td className="px-3 py-2">{c.age}</td>
+                    <td className="px-3 py-2">{c.grade}</td>
+                    <td className="px-3 py-2">{c.country}</td>
+                    <td className="px-3 py-2">{c.language_env}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 结果 */}
+        {tab === "results" && (
+          <div className="bg-white rounded-xl p-6 shadow">
+            <h2 className="text-xl font-bold mb-4">测试结果 ({results.length})</h2>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr><th className="px-3 py-2 text-left">孩子</th><th className="px-3 py-2 text-left">等级</th><th className="px-3 py-2 text-left">识字量</th><th className="px-3 py-2 text-left">词汇量</th><th className="px-3 py-2 text-left">得分</th><th className="px-3 py-2 text-left">用时</th></tr>
+              </thead>
+              <tbody>
+                {results.map((r) => (
+                  <tr key={r.id} className="border-t">
+                    <td className="px-3 py-2">{r.child_name || r.child_id}</td>
+                    <td className="px-3 py-2">{r.level}</td>
+                    <td className="px-3 py-2">{r.stable_char_count}</td>
+                    <td className="px-3 py-2">{r.stable_vocab_count}</td>
+                    <td className="px-3 py-2">{r.total_score}</td>
+                    <td className="px-3 py-2">{Math.floor((r.completion_time_seconds || 0) / 60)}:{String((r.completion_time_seconds || 0) % 60).padStart(2, "0")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 识字字库 */}
+        {tab === "wordbank" && (
+          <div className="bg-white rounded-xl p-6 shadow">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">识字字库 ({wordBank.length} 个孩子)</h2>
+              <button onClick={exportCSV} className="bg-green-500 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <Upload size={18} /> 导出 CSV
+              </button>
+            </div>
+            <div className="space-y-4">
+              {wordBank.map((w) => (
+                <div key={w.child_id} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <span className="font-bold text-lg">{w.child_name}</span>
+                      <span className="text-gray-500 ml-2">({w.level})</span>
+                    </div>
+                    <span className="text-orange-600 font-bold">认识 {w.known_count} 字</span>
+                  </div>
+                  <div className="text-sm text-gray-600 leading-relaxed" style={{ fontFamily: "KaiTi, STKaiti, 楷体, sans-serif" }}>
+                    {w.known_characters.join(" ")}
+                  </div>
+                </div>
+              ))}
+              {wordBank.length === 0 && <div className="text-gray-500">暂无数据，请先完成逐字测试</div>}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// --- Main Admin Page with Password Gate ---
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
+  const [authed, setAuthed] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (sessionStorage.getItem('srcc_admin_auth') === '1') {
-      setIsAuthenticated(true);
+    if (typeof window !== "undefined" && sessionStorage.getItem("admin_auth") === "1") {
+      setAuthed(true);
     }
   }, []);
 
   const handleLogin = () => {
-    if (passwordInput === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      setPasswordError(false);
-      sessionStorage.setItem('srcc_admin_auth', '1');
+    if (password === ADMIN_PASSWORD) {
+      sessionStorage.setItem("admin_auth", "1");
+      setAuthed(true);
+      setError("");
     } else {
-      setPasswordError(true);
+      setError("密码错误");
     }
   };
 
-  if (!isAuthenticated) {
+  if (!authed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)] px-4">
-        <div className="card-game max-w-sm w-full p-8 text-center">
-          <div className="text-5xl mb-4">🔒</div>
-          <h1 className="font-display text-2xl text-[var(--color-src-text)] mb-2">
-            管理员登录
-          </h1>
-          <p className="text-[var(--color-src-text-light)] text-sm mb-6">
-            请输入管理员密码以访问后台
-          </p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white p-8 rounded-xl shadow-lg w-96">
+          <h1 className="text-2xl font-bold mb-6 text-center">管理员登录</h1>
           <input
             type="password"
-            value={passwordInput}
-            onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(); }}
-            placeholder="请输入密码"
-            className={`w-full px-4 py-3 rounded-xl border-2 text-center text-lg outline-none transition-colors ${
-              passwordError
-                ? 'border-[var(--color-src-error)] bg-red-50'
-                : 'border-gray-200 focus:border-[var(--color-src-primary)]'
-            }`}
+            className="w-full border rounded-lg px-4 py-3 mb-4"
+            placeholder="请输入管理员密码"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
           />
-          {passwordError && (
-            <p className="text-[var(--color-src-error)] text-sm mt-2">密码错误，请重试</p>
-          )}
-          <button
-            onClick={handleLogin}
-            className="mt-4 w-full py-3 rounded-xl bg-[var(--color-src-primary)] text-white font-bold text-lg transition-all hover:opacity-90 active:scale-95"
-          >
-            进入后台
+          {error && <div className="text-red-500 text-sm mb-4">{error}</div>}
+          <button onClick={handleLogin} className="w-full bg-orange-500 text-white py-3 rounded-lg font-bold">
+            登录
           </button>
-          <Link
-            href="/"
-            className="block mt-4 text-[var(--color-src-text-light)] text-sm hover:text-[var(--color-src-primary)]"
-          >
-            ← 返回首页
-          </Link>
         </div>
       </div>
     );
