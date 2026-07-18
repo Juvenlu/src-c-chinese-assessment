@@ -4,10 +4,10 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 // 初始化 S3 存储客户端
 const storage = new S3Storage({
-  endpointUrl: process.env.COZE_BUCKET_ENDPOINT,
+  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
   accessKey: process.env.COZE_BUCKET_ACCESS_KEY_ID || '',
   secretKey: process.env.COZE_BUCKET_SECRET_ACCESS_KEY || '',
-  bucketName: process.env.COZE_BUCKET || 'src-c-books',
+  bucketName: process.env.COZE_BUCKET_NAME || 'src-c-books',
   region: 'auto',
 });
 
@@ -46,10 +46,15 @@ export async function POST(
       imageKeys.push(key);
     }
 
-    // 生成公开访问 URL（因为 bucket 已启用公开访问）
-    const imageUrls = imageKeys.map(key => 
-      `${process.env.COZE_BUCKET_PUBLIC_URL}/${key}`
-    );
+    // 生成公开访问 URL（使用 generatePresignedUrl）
+    const imageUrls: string[] = [];
+    for (const key of imageKeys) {
+      const url = await storage.generatePresignedUrl({
+        key: key,
+        expireTime: 315360000, // 10 年有效期
+      });
+      imageUrls.push(url);
+    }
 
     // 解析 Word 文档获取文本
     const pageTexts: string[] = [];
