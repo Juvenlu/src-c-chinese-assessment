@@ -1,6 +1,11 @@
 import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
+import { loadEnvConfig } from '@next/env';
+
+// Load environment variables from .env.local
+const projectDir = process.cwd();
+loadEnvConfig(projectDir);
 
 const dev = process.env.COZE_PROJECT_ENV !== 'PROD';
 const hostname = process.env.HOSTNAME || 'localhost';
