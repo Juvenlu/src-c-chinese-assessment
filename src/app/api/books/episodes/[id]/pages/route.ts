@@ -5,6 +5,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 // 配置路由段，禁用 body parser 以支持大文件上传
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 分钟超时（支持大文件上传）
+export const fetchCache = 'force-no-store';
 
 // 初始化 S3 存储客户端
 const storage = new S3Storage({
@@ -23,9 +24,15 @@ export async function POST(
   const episodeId = parseInt(id);
 
   try {
+    console.log(`[Upload] 收到上传请求，绘本集 ID: ${episodeId}`);
+    console.log(`[Upload] Content-Type: ${request.headers.get('content-type')}`);
+    console.log(`[Upload] Content-Length: ${request.headers.get('content-length')}`);
+
     const formData = await request.formData();
     const files = formData.getAll('images') as File[];
     const wordFile = formData.get('word_file') as File;
+
+    console.log(`[Upload] 收到 ${files.length} 张图片，Word 文件：${wordFile ? wordFile.name : '无'}`);
 
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -34,7 +41,15 @@ export async function POST(
       );
     }
 
-    console.log(`[Upload] 开始上传 ${files.length} 张图片到绘本集 ${episodeId}`);
+    // 检查文件总大小（限制 50MB）
+    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+    console.log(`[Upload] 文件总大小：${Math.round(totalSize / 1024 / 1024)}MB`);
+    if (totalSize > 50 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: '文件总大小超过 50MB 限制' },
+        { status: 413 }
+      );
+    }
 
     // 上传所有图片到 S3
     const imageUrls: string[] = [];
