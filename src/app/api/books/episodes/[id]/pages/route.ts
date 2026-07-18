@@ -43,6 +43,7 @@ export async function POST(
         contentType: file.type,
       });
 
+      console.log(`[S3 Upload] Success: ${fileName}`, key);
       imageKeys.push(key);
     }
 
@@ -95,7 +96,8 @@ export async function POST(
       imageUrls,
     });
   } catch (error) {
-    console.error('上传失败:', error);
+    console.error('[Books Pages Upload] Error:', error);
+    console.error('[Books Pages Upload] Stack:', error instanceof Error ? error.stack : 'N/A');
     return NextResponse.json(
       { error: `上传失败：${error instanceof Error ? error.message : '未知错误'}` },
       { status: 500 }
