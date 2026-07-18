@@ -51,14 +51,20 @@ export async function POST(
       imageKeys.push(key);
     }
 
-    // 生成公开访问 URL（使用 generatePresignedUrl）
+    // 生成公开访问 URL（使用 Public Development URL 直接拼接）
     const imageUrls: string[] = [];
+    const publicUrl = process.env.COZE_BUCKET_PUBLIC_URL;
     for (const key of imageKeys) {
-      const url = await storage.generatePresignedUrl({
-        key: key,
-        expireTime: 315360000, // 10 年有效期
-      });
-      imageUrls.push(url);
+      // 如果配置了 Public URL，直接拼接；否则使用 presigned URL
+      if (publicUrl) {
+        imageUrls.push(`${publicUrl}/${key}`);
+      } else {
+        const url = await storage.generatePresignedUrl({
+          key: key,
+          expireTime: 315360000, // 10 年有效期
+        });
+        imageUrls.push(url);
+      }
     }
 
     // 解析 Word 文档获取文本
