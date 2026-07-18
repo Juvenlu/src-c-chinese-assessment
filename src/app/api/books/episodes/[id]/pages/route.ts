@@ -25,7 +25,7 @@ export async function POST(
   try {
     const formData = await request.formData();
     const files = formData.getAll('images') as File[];
-    const wordFile = formData.get('word') as File;
+    const wordFile = formData.get('word_file') as File;
 
     if (!files || files.length === 0) {
       return NextResponse.json(
