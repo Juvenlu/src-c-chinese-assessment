@@ -175,43 +175,55 @@ function AdminContent() {
     imageFiles.forEach((f) => formData.append('images', f));
     if (wordFile) formData.append('word_file', wordFile);
 
-    try {
-      // 模拟进度（因为 fetch 不支持上传进度）
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
-      const res = await fetch(`/api/books/episodes/${selectedEpisode.id}/pages`, {
-        method: 'POST',
-        body: formData,
+    // 使用 XMLHttpRequest 实现真实的上传进度监控
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      // 监听上传进度
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(percentComplete);
+        }
       });
 
-      clearInterval(progressInterval);
-      setUploadProgress(100);
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (data.data) {
+              setSuccessMessage(`成功上传 ${data.data.length} 页！`);
+              setShowSuccessDialog(true);
+              setEpisodePages(data.data);
+              setImageFiles([]);
+              setWordFile(null);
+            } else {
+              alert('上传失败：' + data.error);
+            }
+            resolve();
+          } catch (err) {
+            console.error(err);
+            alert('解析响应失败');
+            reject(err);
+          }
+        } else {
+          alert('上传失败：HTTP ' + xhr.status);
+          reject(new Error('Upload failed'));
+        }
+        setUploading(false);
+        setTimeout(() => setUploadProgress(0), 500);
+      });
 
-      const data = await res.json();
-      if (data.data) {
-        setSuccessMessage(`成功上传 ${data.data.length} 页！`);
-        setShowSuccessDialog(true);
-        setEpisodePages(data.data);
-        setImageFiles([]);
-        setWordFile(null);
-      } else {
-        alert('上传失败：' + data.error);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('上传失败：' + (err as Error).message);
-    } finally {
-      setUploading(false);
-      setTimeout(() => setUploadProgress(0), 500);
-    }
+      xhr.addEventListener('error', () => {
+        alert('上传失败：网络错误');
+        setUploading(false);
+        setUploadProgress(0);
+        reject(new Error('Network error'));
+      });
+
+      xhr.open('POST', `/api/books/episodes/${selectedEpisode.id}/pages`);
+      xhr.send(formData);
+    });
   };
 
   const handleGenerateBook = async (childId: string, episodeId: string) => {
