@@ -32,6 +32,10 @@ function AdminContent() {
     page_count: 10,
   });
   const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -164,27 +168,49 @@ function AdminContent() {
       return;
     }
 
+    setUploading(true);
+    setUploadProgress(0);
+
     const formData = new FormData();
     imageFiles.forEach((f) => formData.append('images', f));
     if (wordFile) formData.append('word_file', wordFile);
 
     try {
+      // 模拟进度（因为 fetch 不支持上传进度）
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
       const res = await fetch(`/api/books/episodes/${selectedEpisode.id}/pages`, {
         method: 'POST',
         body: formData,
       });
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
       const data = await res.json();
       if (data.data) {
-        alert(`成功上传 ${data.data.length} 页`);
+        setSuccessMessage(`成功上传 ${data.data.length} 页！`);
+        setShowSuccessDialog(true);
         setEpisodePages(data.data);
         setImageFiles([]);
         setWordFile(null);
       } else {
-        alert('上传失败: ' + data.error);
+        alert('上传失败：' + data.error);
       }
     } catch (err) {
       console.error(err);
-      alert('上传失败');
+      alert('上传失败：' + (err as Error).message);
+    } finally {
+      setUploading(false);
+      setTimeout(() => setUploadProgress(0), 500);
     }
   };
 
@@ -676,10 +702,22 @@ function AdminContent() {
                       </div>
                       <button
                         onClick={handleUploadPages}
-                        className="px-6 py-2 bg-[var(--color-src-secondary)] text-white rounded-lg hover:opacity-90"
+                        disabled={uploading}
+                        className="px-6 py-2 bg-[var(--color-src-secondary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
                       >
-                        上传并解析
+                        {uploading ? '上传中...' : '上传并解析'}
                       </button>
+                      {uploading && (
+                        <div className="mt-4">
+                          <div className="text-sm text-gray-600 mb-2">上传进度：{uploadProgress}%</div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div
+                              className="bg-[var(--color-src-secondary)] h-2.5 rounded-full transition-all duration-300"
+                              style={{ width: `${uploadProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {episodePages.length > 0 && (
@@ -761,6 +799,25 @@ function AdminContent() {
           </>
         )}
       </div>
+
+      {/* 成功对话框 */}
+      {showSuccessDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl animate-bounce-in">
+            <div className="text-center">
+              <div className="text-6xl mb-4">🎉</div>
+              <h3 className="font-display text-2xl text-gray-800 mb-2">上传成功！</h3>
+              <p className="text-gray-600 mb-6">{successMessage}</p>
+              <button
+                onClick={() => setShowSuccessDialog(false)}
+                className="px-6 py-2 bg-[var(--color-src-primary)] text-white rounded-lg hover:opacity-90 font-bold"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
