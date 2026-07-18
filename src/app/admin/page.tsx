@@ -35,6 +35,8 @@ function AdminContent() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [importJson, setImportJson] = useState('');
+  const [importing, setImporting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
   const loadData = useCallback(async () => {
@@ -224,6 +226,42 @@ function AdminContent() {
       xhr.open('POST', `/api/books/episodes/${selectedEpisode.id}/pages`);
       xhr.send(formData);
     });
+  };
+
+  const handleImportPages = async () => {
+    if (!selectedEpisode || !importJson.trim()) {
+      alert('请先选择绘本集并输入 JSON 数据');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const pages = JSON.parse(importJson);
+      if (!Array.isArray(pages) || pages.length === 0) {
+        alert('JSON 格式错误：需要数组格式');
+        return;
+      }
+
+      const res = await fetch(`/api/books/episodes/${selectedEpisode.id}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pages }),
+      });
+      const data = await res.json();
+      if (data.data) {
+        setSuccessMessage(`成功导入 ${data.count} 页！`);
+        setShowSuccessDialog(true);
+        setEpisodePages(data.data);
+        setImportJson('');
+      } else {
+        alert('导入失败：' + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('导入失败：' + (err as Error).message);
+    } finally {
+      setImporting(false);
+    }
   };
 
   const handleGenerateBook = async (childId: string, episodeId: string) => {
@@ -729,6 +767,31 @@ function AdminContent() {
                             />
                           </div>
                         </div>
+                      )}
+                    </div>
+
+                    {/* 导入已上传文件 */}
+                    <div className="mt-6 pt-6 border-t">
+                      <h3 className="font-display text-lg text-gray-800 mb-3">方式二：导入已上传到 Cloudflare 的文件</h3>
+                      <p className="text-sm text-gray-600 mb-3">
+                        如果您已经手动上传文件到 Cloudflare R2，可以直接输入 URL 导入
+                      </p>
+                      <textarea
+                        className="w-full px-3 py-2 border rounded-lg text-sm font-mono"
+                        rows={6}
+                        placeholder={`请输入 JSON 格式：\n[\n  {"page_number": 1, "image_url": "https://pub-xxx.r2.dev/books/2/page_1.png", "original_text": "第一页文本..."},\n  {"page_number": 2, "image_url": "https://pub-xxx.r2.dev/books/2/page_2.png", "original_text": "第二页文本..."}\n]`}
+                        value={importJson}
+                        onChange={(e) => setImportJson(e.target.value)}
+                      />
+                      <button
+                        onClick={handleImportPages}
+                        disabled={importing}
+                        className="mt-3 px-6 py-2 bg-purple-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                      >
+                        {importing ? '导入中...' : '导入 URL 到数据库'}
+                      </button>
+                      {importing && (
+                        <div className="mt-2 text-sm text-gray-600">导入中...</div>
                       )}
                     </div>
 
