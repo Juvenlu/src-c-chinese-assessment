@@ -8,10 +8,10 @@ export const maxDuration = 60; // 60 秒超时
 
 // 初始化 S3 存储客户端
 const storage = new S3Storage({
-  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+  endpointUrl: process.env.COZE_BUCKET_ENDPOINT || '',
   accessKey: process.env.COZE_BUCKET_ACCESS_KEY_ID || '',
   secretKey: process.env.COZE_BUCKET_SECRET_ACCESS_KEY || '',
-  bucketName: process.env.COZE_BUCKET_NAME || 'src-c-books',
+  bucketName: process.env.COZE_BUCKET || 'src-c-books',
   region: 'auto',
 });
 
