@@ -4,7 +4,7 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 
 // 配置路由段，禁用 body parser 以支持大文件上传
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // 60 秒超时
+export const maxDuration = 300; // 5 分钟超时（支持大文件上传）
 
 // 初始化 S3 存储客户端
 const storage = new S3Storage({
@@ -34,9 +34,16 @@ export async function POST(
       );
     }
 
+    console.log(`[Upload] 开始上传 ${files.length} 张图片到绘本集 ${episodeId}`);
+
     // 上传所有图片到 S3
-    const imageKeys: string[] = [];
-    for (const file of files) {
+    const imageUrls: string[] = [];
+    const publicUrl = process.env.COZE_BUCKET_PUBLIC_URL;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      console.log(`[Upload] 上传第 ${i + 1}/${files.length} 张：${file.name}`);
+
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const fileName = `books/${episodeId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
@@ -47,15 +54,9 @@ export async function POST(
         contentType: file.type,
       });
 
-      console.log(`[S3 Upload] Success: ${fileName}`, key);
-      imageKeys.push(key);
-    }
+      console.log(`[Upload] 成功：${fileName}`);
 
-    // 生成公开访问 URL（使用 Public Development URL 直接拼接）
-    const imageUrls: string[] = [];
-    const publicUrl = process.env.COZE_BUCKET_PUBLIC_URL;
-    for (const key of imageKeys) {
-      // 如果配置了 Public URL，直接拼接；否则使用 presigned URL
+      // 生成公开访问 URL
       if (publicUrl) {
         imageUrls.push(`${publicUrl}/${key}`);
       } else {
@@ -70,6 +71,7 @@ export async function POST(
     // 解析 Word 文档获取文本
     const pageTexts: string[] = [];
     if (wordFile) {
+      console.log(`[Upload] 解析 Word 文档：${wordFile.name}`);
       const wordArrayBuffer = await wordFile.arrayBuffer();
       const wordBuffer = Buffer.from(wordArrayBuffer);
 
@@ -88,28 +90,60 @@ export async function POST(
       original_text: pageTexts[index] || '',
     }));
 
-    const { error } = await supabase
+    console.log(`[Upload] 保存 ${pages.length} 页到数据库`);
+
+    const { data, error } = await supabase
       .from('book_episode_pages')
-      .insert(pages);
+      .insert(pages)
+      .select();
 
     if (error) {
-      console.error('保存页面数据失败:', error);
+      console.error('[Upload] 保存页面数据失败:', error);
       return NextResponse.json(
         { error: `保存页面数据失败：${error.message}` },
         { status: 500 }
       );
     }
 
+    console.log(`[Upload] 完成！成功上传 ${imageUrls.length} 页`);
+
     return NextResponse.json({
       success: true,
-      message: `成功上传 ${imageUrls.length} 张图片`,
-      imageUrls,
+      message: `成功上传 ${imageUrls.length} 页`,
+      data: data,
     });
   } catch (error) {
-    console.error('[Books Pages Upload] Error:', error);
-    console.error('[Books Pages Upload] Stack:', error instanceof Error ? error.stack : 'N/A');
+    console.error('[Upload] 错误:', error);
+    console.error('[Upload] 堆栈:', error instanceof Error ? error.stack : 'N/A');
     return NextResponse.json(
       { error: `上传失败：${error instanceof Error ? error.message : '未知错误'}` },
+      { status: 500 }
+    );
+  }
+}
+
+// GET: 获取绘本集的所有页面
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const episodeId = parseInt(id);
+
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('book_episode_pages')
+      .select('*')
+      .eq('episode_id', episodeId)
+      .order('page_number', { ascending: true });
+
+    if (error) throw error;
+    return NextResponse.json({ data });
+  } catch (err: any) {
+    console.error('获取页面数据失败:', err);
+    return NextResponse.json(
+      { error: `获取页面数据失败：${err.message}` },
       { status: 500 }
     );
   }
