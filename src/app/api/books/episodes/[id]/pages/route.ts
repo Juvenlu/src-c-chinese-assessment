@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
+// 配置路由段，禁用 body parser 以支持大文件上传
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // 60 秒超时
+
 // 初始化 S3 存储客户端
 const storage = new S3Storage({
   endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
