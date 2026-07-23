@@ -831,7 +831,10 @@ function AdminContent() {
                       <label className="block text-sm font-medium mb-2">选择绘本集</label>
                       <select
                         className="w-full px-3 py-2 border rounded-lg text-sm"
-                        onChange={(e) => setSelectedEpisode(episodes.find((ep) => ep.id === e.target.value))}
+                        onChange={(e) => {
+                          const epId = e.target.value ? Number(e.target.value) : null;
+                          setSelectedEpisode(episodes.find((ep) => ep.id === epId));
+                        }}
                       >
                         <option value="">请选择</option>
                         {episodes.map((ep) => (
