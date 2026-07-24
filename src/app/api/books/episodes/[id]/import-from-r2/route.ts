@@ -33,11 +33,22 @@ export async function POST(request: NextRequest) {
     console.log(`[Import] 开始从 Cloudflare R2 导入，episode_id: ${episode_id}`);
     console.log(`[Import] 文件夹 URL: ${folder_url}`);
 
-    // 从 URL 中提取 prefix（文件夹路径）
+    // 从 URL 中提取 bucket 名称和 prefix（文件夹路径）
     // URL 格式：https://dash.cloudflare.com/xxx/r2/default/buckets/bucket-name?prefix=path/to/folder
     let prefix = '';
+    let bucketName = process.env.COZE_BUCKET_NAME || process.env.COZE_BUCKET || 'src-c-books';
     try {
       const url = new URL(folder_url);
+      
+      // 从路径中提取 bucket 名称
+      // 路径格式：/a99cb263154947ea7b7a5e508bba09a0/r2/default/buckets/bucket-name
+      const pathParts = url.pathname.split('/');
+      const bucketsIndex = pathParts.indexOf('buckets');
+      if (bucketsIndex !== -1 && bucketsIndex + 1 < pathParts.length) {
+        bucketName = pathParts[bucketsIndex + 1];
+        console.log(`[Import] 从 URL 中提取的 bucket 名称：${bucketName}`);
+      }
+      
       const prefixParam = url.searchParams.get('prefix');
       if (prefixParam) {
         prefix = decodeURIComponent(prefixParam);
@@ -62,8 +73,17 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Import] 提取的 prefix: ${prefix}`);
 
+    // 使用从 URL 中提取的 bucket 名称创建存储客户端
+    const importStorage = new S3Storage({
+      endpointUrl: process.env.COZE_BUCKET_ENDPOINT || process.env.COZE_BUCKET_ENDPOINT_URL || '',
+      accessKey: process.env.COZE_BUCKET_ACCESS_KEY_ID || '',
+      secretKey: process.env.COZE_BUCKET_SECRET_ACCESS_KEY || '',
+      bucketName: bucketName,
+      region: 'auto',
+    });
+
     // 列出文件夹中的所有文件
-    const filesResult = await storage.listFiles({ prefix });
+    const filesResult = await importStorage.listFiles({ prefix });
     const fileKeys = filesResult.keys || [];
     console.log(`[Import] 找到 ${fileKeys.length} 个文件`);
 
@@ -109,7 +129,7 @@ export async function POST(request: NextRequest) {
       const wordKey = wordKeys[0];
       console.log(`[Import] 解析 Word 文件：${wordKey}`);
       
-      const wordBuffer = await storage.readFile({ fileKey: wordKey });
+      const wordBuffer = await importStorage.readFile({ fileKey: wordKey });
       const text = extractTextFromDocx(wordBuffer);
       pageTexts = splitIntoPages(text, imageKeys.length);
       
