@@ -38,6 +38,9 @@ function AdminContent() {
   const [importJson, setImportJson] = useState('');
   const [importing, setImporting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [r2FolderUrl, setR2FolderUrl] = useState('');
+  const [importingFromR2, setImportingFromR2] = useState(false);
+  const [r2ImportMessage, setR2ImportMessage] = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -261,6 +264,43 @@ function AdminContent() {
       alert('导入失败：' + (err as Error).message);
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleImportFromR2 = async () => {
+    if (!selectedEpisode || !r2FolderUrl.trim()) {
+      alert('请先选择绘本集并输入 Cloudflare R2 文件夹 URL');
+      return;
+    }
+
+    setImportingFromR2(true);
+    setR2ImportMessage('');
+    try {
+      const res = await fetch(`/api/books/episodes/${selectedEpisode.id}/import-from-r2`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_url: r2FolderUrl, episode_id: selectedEpisode.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setR2ImportMessage(data.message);
+        setSuccessMessage(data.message);
+        setShowSuccessDialog(true);
+        // 重新加载页面数据
+        const pagesRes = await fetch(`/api/books/episodes/${selectedEpisode.id}/pages`);
+        const pagesData = await pagesRes.json();
+        if (pagesData.data) {
+          setEpisodePages(pagesData.data);
+        }
+        setR2FolderUrl('');
+      } else {
+        setR2ImportMessage('导入失败：' + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      setR2ImportMessage('导入失败：' + (err as Error).message);
+    } finally {
+      setImportingFromR2(false);
     }
   };
 
@@ -793,6 +833,38 @@ function AdminContent() {
                       {importing && (
                         <div className="mt-2 text-sm text-gray-600">导入中...</div>
                       )}
+                    </div>
+
+                    {/* 方式三：从 Cloudflare R2 文件夹自动导入 */}
+                    <div className="mt-6 pt-6 border-t">
+                      <h3 className="font-display text-lg text-gray-800 mb-3">方式三：从 Cloudflare R2 文件夹自动导入（推荐）</h3>
+                      <p className="text-sm text-gray-600 mb-3">
+                        只需提供 Cloudflare R2 的文件夹 URL，系统会自动获取图片和 Word 文件并生成绘本
+                      </p>
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border rounded-lg text-sm"
+                          placeholder="粘贴 Cloudflare R2 文件夹 URL，例如：https://dash.cloudflare.com/xxx/r2/default/buckets/src-c-books?prefix=books-huiben%2FJourney+to+the+west%2FEP+001%2F"
+                          value={r2FolderUrl}
+                          onChange={(e) => setR2FolderUrl(e.target.value)}
+                        />
+                        <button
+                          onClick={handleImportFromR2}
+                          disabled={importingFromR2}
+                          className="px-6 py-2 bg-[var(--color-src-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                        >
+                          {importingFromR2 ? '自动导入中...' : '自动导入绘本内容'}
+                        </button>
+                        {importingFromR2 && (
+                          <div className="text-sm text-gray-600">正在从 Cloudflare R2 获取文件并解析...</div>
+                        )}
+                        {r2ImportMessage && (
+                          <div className={`text-sm ${r2ImportMessage.includes('成功') ? 'text-green-600' : 'text-red-600'}`}>
+                            {r2ImportMessage}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {episodePages.length > 0 && (
