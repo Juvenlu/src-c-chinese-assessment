@@ -9,26 +9,29 @@ export async function GET(request: NextRequest) {
 
     const client = getSupabaseClient();
     
-    // 使用 RPC 或直接查询来绕过 schema cache 问题
-    let query = client
-      .from("custom_books")
-      .select("*, episodes:book_episodes(series_name, episode_number, episode_title), children(name)")
-      .order("created_at", { ascending: false });
-
-    if (childId && childId !== "all") {
-      query = query.eq("child_id", childId);
-    }
-
-    const { data, error } = await query;
+    // Use RPC function to bypass schema cache issues
+    const { data, error } = await client
+      .rpc('get_custom_books', { p_child_id: childId && childId !== "all" ? childId : null });
 
     if (error) {
-      // 如果表不存在，返回空数组而不是错误
-      if (error.message.includes("Could not find the table")) {
-        return NextResponse.json({ data: [] });
-      }
+      console.error('RPC error:', error);
       throw error;
     }
-    return NextResponse.json({ data });
+    
+    // Transform data to match expected format
+    const transformedData = (data || []).map((item: any) => ({
+      ...item,
+      episodes: {
+        series_name: item.series_name,
+        episode_number: item.episode_number,
+        episode_title: item.episode_title,
+      },
+      children: {
+        name: item.child_name,
+      },
+    }));
+    
+    return NextResponse.json({ data: transformedData });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

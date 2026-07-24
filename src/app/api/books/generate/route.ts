@@ -73,44 +73,34 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create custom book record
-    // Due to Supabase schema cache issues, we'll use a workaround:
-    // 1. Try normal insert
-    // 2. If it fails due to schema cache, return success message anyway (insert may have worked)
+    // Create custom book record using RPC function to bypass schema cache issues
     try {
-      const { data: book, error: bookError } = await client
-        .from('custom_books')
-        .insert({
-          child_id,
-          episode_id,
-          level_tier: level,
-          initial_char_count: knownCharacters.length,
-          pages_json: rewrittenPages,
-          new_chars: rewrittenPages.flatMap((p) => p.new_characters),
-          cumulative_chars: [...new Set([...knownCharacters, ...rewrittenPages.flatMap((p) => p.new_characters)])],
-          version: 1,
-        })
-        .select()
-        .single();
+      const { data: bookId, error: bookError } = await client
+        .rpc('create_custom_book', {
+          p_child_id: child_id,
+          p_episode_id: episode_id,
+          p_level_tier: level,
+          p_initial_char_count: knownCharacters.length,
+          p_pages_json: rewrittenPages,
+          p_new_chars: rewrittenPages.flatMap((p) => p.new_characters),
+          p_cumulative_chars: [...new Set([...knownCharacters, ...rewrittenPages.flatMap((p) => p.new_characters)])],
+          p_version: 1,
+        });
 
       if (bookError) {
-        // Check if it's a schema cache error
-        if (bookError.message.includes('schema cache')) {
-          console.warn('Schema cache issue detected, but insert may have succeeded');
-          // Return success with a message
-          return NextResponse.json({ 
-            data: { 
-              message: 'Book created successfully (schema cache pending refresh)',
-              child_id,
-              episode_id,
-              level_tier: level,
-            } 
-          });
-        }
+        console.error('RPC error:', bookError);
         throw bookError;
       }
 
-      return NextResponse.json({ data: book });
+      return NextResponse.json({ 
+        data: { 
+          message: 'Book created successfully',
+          book_id: bookId,
+          child_id,
+          episode_id,
+          level_tier: level,
+        } 
+      });
     } catch (e: any) {
       console.error('Book generation error:', e);
       return NextResponse.json({ error: e.message }, { status: 500 });
