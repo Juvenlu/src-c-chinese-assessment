@@ -41,6 +41,8 @@ function AdminContent() {
   const [r2FolderUrl, setR2FolderUrl] = useState('');
   const [importingFromR2, setImportingFromR2] = useState(false);
   const [r2ImportMessage, setR2ImportMessage] = useState('');
+  const [previewPages, setPreviewPages] = useState<any[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -921,6 +923,51 @@ function AdminContent() {
                     >
                       {generating ? '生成中...' : '生成定制绘本'}
                     </button>
+
+                    {/* Preview Modal */}
+                    {showPreview && (
+                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+                          <h3 className="font-display text-2xl mb-4">预览并编辑绘本内容</h3>
+                          <p className="text-sm text-gray-600 mb-4">您可以编辑每页的文本内容，确认后再生成绘本</p>
+                          
+                          <div className="space-y-4 mb-6">
+                            {previewPages.map((page, index) => (
+                              <div key={index} className="border rounded-lg p-4">
+                                <div className="flex gap-4">
+                                  <img src={page.image_url} alt={`第${page.page_number}页`} className="w-32 h-32 object-cover rounded" />
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium mb-1">第{page.page_number}页</div>
+                                    <textarea
+                                      value={page.adapted_text}
+                                      onChange={(e) => handleUpdatePageText(index, e.target.value)}
+                                      className="w-full px-3 py-2 border rounded text-sm"
+                                      rows={3}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <div className="flex gap-3 justify-end">
+                            <button
+                              onClick={() => { setShowPreview(false); setPreviewPages([]); }}
+                              className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                            >
+                              取消
+                            </button>
+                            <button
+                              onClick={handleConfirmBook}
+                              disabled={generating}
+                              className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+                            >
+                              {generating ? '生成中...' : '确认生成'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
