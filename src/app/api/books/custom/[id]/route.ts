@@ -9,13 +9,15 @@ export async function GET(
   try {
     const { id } = await params;
     const client = getSupabaseClient();
-    const { data, error } = await client
-      .from("custom_books")
-      .select("*, episodes:book_episodes(series_name, episode_number, episode_title)")
-      .eq("id", id)
-      .single();
+    
+    // 使用 RPC 函数绕过 schema cache 问题
+    const { data, error } = await client.rpc("get_custom_book_by_id", { p_book_id: parseInt(id) });
 
     if (error) throw error;
+    if (!data) {
+      return NextResponse.json({ error: "绘本不存在" }, { status: 404 });
+    }
+    
     return NextResponse.json({ data });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
