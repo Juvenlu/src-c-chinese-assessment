@@ -315,18 +315,59 @@ function AdminContent() {
         body: JSON.stringify({ child_id: childId, episode_id: episodeId, action: "preview" }),
       });
       const data = await res.json();
-      if (data.data) {
-        alert('绘本生成成功！');
-        fetchCustomBooks();
+      if (data.data && data.data.preview) {
+        setPreviewPages(data.data.pages);
+        setShowPreview(true);
       } else {
-        alert('生成失败: ' + data.error);
+        alert('预览失败：' + data.error);
       }
     } catch (err) {
       console.error(err);
-      alert('生成失败');
+      alert('预览失败');
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleConfirmBook = async () => {
+    if (!selectedChildId || !selectedEpisode) return;
+    
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/books/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          child_id: selectedChildId, 
+          episode_id: selectedEpisode.id,
+          action: 'confirm',
+          pages: previewPages
+        }),
+      });
+      const data = await res.json();
+      if (data.data) {
+        alert('绘本生成成功！');
+        setShowPreview(false);
+        setPreviewPages([]);
+        fetchCustomBooks();
+      } else {
+        alert('生成失败：' + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+        alert('生成失败');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleUpdatePageText = (pageIndex: number, newText: string) => {
+    const updatedPages = [...previewPages];
+    updatedPages[pageIndex] = {
+      ...updatedPages[pageIndex],
+      adapted_text: newText,
+    };
+    setPreviewPages(updatedPages);
   };
 
   const handleExportCSV = () => {
