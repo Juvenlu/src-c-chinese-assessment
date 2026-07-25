@@ -312,7 +312,7 @@ function AdminContent() {
       const res = await fetch('/api/books/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ child_id: childId, episode_id: episodeId }),
+        body: JSON.stringify({ child_id: childId, episode_id: episodeId, action: "preview" }),
       });
       const data = await res.json();
       if (data.data) {
