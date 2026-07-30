@@ -55,6 +55,7 @@ function ProfileContent() {
           body: JSON.stringify({
             child_id: data.id,
             level,
+            test_mode: mode,
           }),
         });
         const { data: sessionData, error: sessionError } = await sessionRes.json();

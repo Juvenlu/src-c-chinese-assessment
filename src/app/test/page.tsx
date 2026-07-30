@@ -127,28 +127,37 @@ function TestContent() {
   const getCurrentPartQuestions = useCallback((): QuestionItem[] => {
     if (!questions.length) return [];
 
-    // Allocate questions: Part 1 (30%), Part 2 (30%), Part 3 (23%), Part 4 (17%)
-    // Part 4 reduced by ~1/3 compared to equal distribution to fit within time limit
-    const n = questions.length;
-    const p1End = Math.round(n * 0.30);
-    const p2End = p1End + Math.round(n * 0.30);
-    const p3End = p2End + Math.round(n * 0.23);
-    // Part 4 gets the rest (~17%)
+    // Separate questions by part type based on their fields
+    const part1Questions = questions.filter(q => q.character && !q.word); // 字形识别
+    const part2Questions = questions.filter(q => q.word && !q.sentence); // 词汇识别
+    const part3Questions = questions.filter(q => q.sentence && !q.story_title); // 句子识别
+    const part4Questions = questions.filter(q => q.story_title); // 理解测试
+
+    // Random shuffle helper
+    const shuffle = (arr: QuestionItem[]) => {
+      const sessionSeed = sessionId ? sessionId.split('').reduce((a, c) => a + c.charCodeAt(0), 0) : 42;
+      return shuffleArray(arr, sessionSeed + currentPart * 1000);
+    };
+
+    // Reduce parts 2, 3, 4 by 50% (half the questions)
+    // Part 1 (字形识别) keeps full count as it's the baseline
+    const p1 = shuffle(part1Questions);
+    const p2 = shuffle(part2Questions).slice(0, Math.ceil(part2Questions.length * 0.5));
+    const p3 = shuffle(part3Questions).slice(0, Math.ceil(part3Questions.length * 0.5));
+    const p4 = shuffle(part4Questions).slice(0, Math.ceil(part4Questions.length * 0.5));
 
     let partQuestions: QuestionItem[];
     switch (currentPart) {
-      case 1: partQuestions = questions.slice(0, p1End); break;
-      case 2: partQuestions = questions.slice(p1End, p2End); break;
-      case 3: partQuestions = questions.slice(p2End, p3End); break;
-      case 4: partQuestions = questions.slice(p3End); break;
-      default: partQuestions = questions.slice(0, p1End);
+      case 1: partQuestions = p1; break;
+      case 2: partQuestions = p2; break;
+      case 3: partQuestions = p3; break;
+      case 4: partQuestions = p4; break;
+      default: partQuestions = p1;
     }
 
-    // Shuffle questions within each part (using session-based seed for consistency)
-    if (!shuffledPartQuestions.current[currentPart] && partQuestions.length > 0) {
-      // Use sessionId as seed base for deterministic but random-looking order
-      const sessionSeed = sessionId ? sessionId.split('').reduce((a, c) => a + c.charCodeAt(0), 0) : 42;
-      shuffledPartQuestions.current[currentPart] = shuffleArray(partQuestions, sessionSeed + currentPart * 1000);
+    // Cache for consistency within session
+    if (!shuffledPartQuestions.current[currentPart]) {
+      shuffledPartQuestions.current[currentPart] = partQuestions;
     }
 
     return shuffledPartQuestions.current[currentPart] || partQuestions;

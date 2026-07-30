@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
             reading_comprehension_rate,
             completion_time_seconds: completion_time_seconds || 0,
             known_characters: known_characters || null,
+            test_mode: body.test_mode || 'full',
           },
           { onConflict: 'session_id' }
         )
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
 
     // Calculate stable char/vocab counts
     const level = session.level as Level;
+    const testMode = session.test_mode || 'full';
     const stableCharCount = calculateStableCharCount(totalScore, level, typedAnswers);
     const stableVocabCount = calculateStableVocabCount(stableCharCount, level);
 
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
           session_id,
           child_id: session.child_id,
           level,
+          test_mode: testMode,
           character_score: partScores.characterScore,
           vocab_score: partScores.vocabScore,
           reading_score: partScores.readingScore,
