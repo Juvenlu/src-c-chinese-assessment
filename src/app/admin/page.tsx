@@ -118,6 +118,64 @@ function AdminContent() {
     }
   };
 
+  const [editingQuestion, setEditingQuestion] = useState<any>(null);
+  const [editForm, setEditForm] = useState<any>({});
+
+  const handleEditClick = (q: any) => {
+    setEditingQuestion(q);
+    setEditForm({
+      level: q.level,
+      character: q.character,
+      word: q.word,
+      sentence: q.sentence,
+      meaning_question: q.meaning_question,
+      options: q.options?.join('\n') || '',
+      answer: q.answer,
+      story_text: q.story_text || '',
+      story_question: q.story_question || '',
+      story_options: q.story_options?.join('\n') || '',
+      story_answer: q.story_answer || '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingQuestion) return;
+    try {
+      const options = editForm.options.split('\n').filter((o: string) => o.trim());
+      const story_options = editForm.story_options.split('\n').filter((o: string) => o.trim());
+      const res = await fetch("/api/questions", {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingQuestion.id,
+          level: editForm.level,
+          character: editForm.character,
+          word: editForm.word,
+          sentence: editForm.sentence,
+          meaning_question: editForm.meaning_question,
+          options,
+          answer: editForm.answer,
+          story_text: editForm.story_text || null,
+          story_question: editForm.story_question || null,
+          story_options: story_options.length > 0 ? story_options : null,
+          story_answer: editForm.story_answer || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.data) {
+        alert('题目更新成功！');
+        setEditingQuestion(null);
+        loadData();
+      } else {
+        alert('更新失败：' + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('更新失败');
+    }
+  };
+
+
   const handleDeleteQuestion = async (id: string) => {
     if (!confirm('确定要删除这道题吗？')) return;
     try {
@@ -723,6 +781,12 @@ function AdminContent() {
                             <td className="px-4 py-3">{q.answer}</td>
                             <td className="px-4 py-3 text-right">
                               <button
+                                onClick={() => handleEditClick(q)}
+                                className="text-blue-500 hover:underline mr-3"
+                              >
+                                编辑
+                              </button>
+                              <button
                                 onClick={() => handleDeleteQuestion(q.id)}
                                 className="text-red-500 hover:underline"
                               >
@@ -1053,6 +1117,152 @@ function AdminContent() {
                 className="px-6 py-2 bg-[var(--color-src-primary)] text-white rounded-lg hover:opacity-90 font-bold"
               >
                 确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Question Modal */}
+      {editingQuestion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <h3 className="font-bold text-xl mb-4">编辑题目</h3>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">等级</label>
+                  <select 
+                    value={editForm.level || 'SRC300'}
+                    onChange={(e) => setEditForm({...editForm, level: e.target.value})}
+                    className="w-full px-3 py-2 border rounded"
+                  >
+                    <option value="SRC300">SRC300</option>
+                    <option value="SRC500">SRC500</option>
+                    <option value="SRC800">SRC800</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">汉字</label>
+                  <input 
+                    type="text" 
+                    value={editForm.character || ''}
+                    onChange={(e) => setEditForm({...editForm, character: e.target.value})}
+                    className="w-full px-3 py-2 border rounded"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">词语</label>
+                <input 
+                  type="text" 
+                  value={editForm.word || ''}
+                  onChange={(e) => setEditForm({...editForm, word: e.target.value})}
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">句子</label>
+                <input 
+                  type="text" 
+                  value={editForm.sentence || ''}
+                  onChange={(e) => setEditForm({...editForm, sentence: e.target.value})}
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">词义问题</label>
+                <input 
+                  type="text" 
+                  value={editForm.meaning_question || ''}
+                  onChange={(e) => setEditForm({...editForm, meaning_question: e.target.value})}
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">选项（每行一个）</label>
+                <textarea 
+                  value={editForm.options || ''}
+                  onChange={(e) => setEditForm({...editForm, options: e.target.value})}
+                  className="w-full px-3 py-2 border rounded"
+                  rows={4}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">正确答案</label>
+                <input 
+                  type="text" 
+                  value={editForm.answer || ''}
+                  onChange={(e) => setEditForm({...editForm, answer: e.target.value})}
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </div>
+              
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-medium mb-3">理解测试（选填）</h4>
+                
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">故事文本</label>
+                    <textarea 
+                      value={editForm.story_text || ''}
+                      onChange={(e) => setEditForm({...editForm, story_text: e.target.value})}
+                      className="w-full px-3 py-2 border rounded"
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">理解问题</label>
+                    <input 
+                      type="text" 
+                      value={editForm.story_question || ''}
+                      onChange={(e) => setEditForm({...editForm, story_question: e.target.value})}
+                      className="w-full px-3 py-2 border rounded"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">理解题选项（每行一个）</label>
+                    <textarea 
+                      value={editForm.story_options || ''}
+                      onChange={(e) => setEditForm({...editForm, story_options: e.target.value})}
+                      className="w-full px-3 py-2 border rounded"
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">理解题正确答案</label>
+                    <input 
+                      type="text" 
+                      value={editForm.story_answer || ''}
+                      onChange={(e) => setEditForm({...editForm, story_answer: e.target.value})}
+                      className="w-full px-3 py-2 border rounded"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={() => { setEditingQuestion(null); }}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                保存
               </button>
             </div>
           </div>
