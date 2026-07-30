@@ -489,9 +489,11 @@ function AdminContent() {
                               </td>
                               <td className="px-4 py-3 text-right font-bold text-[var(--color-src-primary)]">
                                 {r.stable_char_count}
+                                {r.test_mode === "sampling" && <span className="text-xs text-gray-500 ml-1">（估算）</span>}
                               </td>
                               <td className="px-4 py-3 text-right font-bold text-[var(--color-src-secondary)]">
                                 {r.stable_vocab_count}
+                                {r.test_mode === "sampling" && <span className="text-xs text-gray-500 ml-1">（估算）</span>}
                               </td>
                               <td className="px-4 py-3 text-right font-bold">{r.total_score}</td>
                               <td className="px-4 py-3 text-right text-gray-500">

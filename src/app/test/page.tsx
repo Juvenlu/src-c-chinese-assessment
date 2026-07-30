@@ -127,24 +127,24 @@ function TestContent() {
   const getCurrentPartQuestions = useCallback((): QuestionItem[] => {
     if (!questions.length) return [];
 
-    // Separate questions by part type based on their fields
-    const part1Questions = questions.filter(q => q.character && !q.word); // 字形识别
-    const part2Questions = questions.filter(q => q.word && !q.sentence); // 词汇识别
-    const part3Questions = questions.filter(q => q.sentence && !q.story_title); // 句子识别
-    const part4Questions = questions.filter(q => q.story_title); // 理解测试
+    // All questions contain all parts (character, word, sentence, story)
+    // We use the same questions for all parts, but display different fields
+    // Random shuffle the entire question array, then slice based on part
 
-    // Random shuffle helper
-    const shuffle = (arr: QuestionItem[]) => {
-      const sessionSeed = sessionId ? sessionId.split('').reduce((a, c) => a + c.charCodeAt(0), 0) : 42;
-      return shuffleArray(arr, sessionSeed + currentPart * 1000);
+    const shuffle = (arr: QuestionItem[], seed: number) => {
+      return shuffleArray(arr, seed);
     };
 
-    // Reduce parts 2, 3, 4 by 50% (half the questions)
-    // Part 1 (字形识别) keeps full count as it's the baseline
-    const p1 = shuffle(part1Questions);
-    const p2 = shuffle(part2Questions).slice(0, Math.ceil(part2Questions.length * 0.5));
-    const p3 = shuffle(part3Questions).slice(0, Math.ceil(part3Questions.length * 0.5));
-    const p4 = shuffle(part4Questions).slice(0, Math.ceil(part4Questions.length * 0.5));
+    const sessionSeed = sessionId ? sessionId.split('').reduce((a, c) => a + c.charCodeAt(0), 0) : 42;
+
+    // Part 1 (字形识别): full count - this is the baseline
+    const p1 = shuffle([...questions], sessionSeed + 1 * 1000);
+
+    // Parts 2, 3, 4: reduced by 50% (half the questions)
+    // Each part uses a different shuffle seed for randomness
+    const p2 = shuffle([...questions], sessionSeed + 2 * 1000).slice(0, Math.ceil(questions.length * 0.5));
+    const p3 = shuffle([...questions], sessionSeed + 3 * 1000).slice(0, Math.ceil(questions.length * 0.5));
+    const p4 = shuffle([...questions], sessionSeed + 4 * 1000).slice(0, Math.ceil(questions.length * 0.5));
 
     let partQuestions: QuestionItem[];
     switch (currentPart) {
