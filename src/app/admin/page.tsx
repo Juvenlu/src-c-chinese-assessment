@@ -15,6 +15,8 @@ function AdminContent() {
   const [results, setResults] = useState<TestResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterLevel, setFilterLevel] = useState<string>('');
+  const [questionPage, setQuestionPage] = useState(1);
+  const PAGE_SIZE = 50;
   const [selectedChildId, setSelectedChildId] = useState<string>('');
   const [charLibData, setCharLibData] = useState<Record<string, string[]>>({});
   
@@ -728,7 +730,7 @@ function AdminContent() {
                   <div className="flex gap-2 items-center">
                     <select
                       value={filterLevel}
-                      onChange={(e) => setFilterLevel(e.target.value)}
+                      onChange={(e) => { setFilterLevel(e.target.value); setQuestionsPage(1); }}
                       className="px-3 py-2 border rounded-lg text-sm"
                     >
                       <option value="">全部等级</option>
@@ -763,7 +765,7 @@ function AdminContent() {
                         </tr>
                       </thead>
                       <tbody>
-                        {questions.slice(0, 50).map((q) => (
+                        {questions.slice((questionsPage - 1) * QUESTIONS_PER_PAGE, questionsPage * QUESTIONS_PER_PAGE).map((q) => (
                           <tr key={q.id} className="border-t hover:bg-gray-50">
                             <td className="px-4 py-3 font-bold text-lg">{q.character}</td>
                             <td className="px-4 py-3">{q.word}</td>
@@ -798,9 +800,30 @@ function AdminContent() {
                       </tbody>
                     </table>
                   </div>
-                  {questions.length > 50 && (
-                    <div className="px-4 py-3 text-center text-sm text-gray-500">
-                      显示前50条，共 {questions.length} 条
+                  {questions.length > QUESTIONS_PER_PAGE && (
+                    <div className="px-4 py-3 flex items-center justify-between text-sm text-gray-500">
+                      <div>
+                        第 {(questionsPage - 1) * QUESTIONS_PER_PAGE + 1}-{Math.min(questionsPage * QUESTIONS_PER_PAGE, questions.length)} 条，共 {questions.length} 条
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setQuestionsPage(p => Math.max(1, p - 1))}
+                          disabled={questionsPage === 1}
+                          className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          上一页
+                        </button>
+                        <span className="px-2 py-1">
+                          {questionsPage} / {Math.ceil(questions.length / QUESTIONS_PER_PAGE)}
+                        </span>
+                        <button
+                          onClick={() => setQuestionsPage(p => Math.min(Math.ceil(questions.length / QUESTIONS_PER_PAGE), p + 1))}
+                          disabled={questionsPage >= Math.ceil(questions.length / QUESTIONS_PER_PAGE)}
+                          className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          下一页
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
