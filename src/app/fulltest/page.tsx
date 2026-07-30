@@ -3,6 +3,21 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCharList, getWordList } from '@/lib/questions';
+
+// Fisher-Yates shuffle
+function shuffleArray<T>(array: T[], seed: number): T[] {
+  const result = [...array];
+  let s = seed;
+  for (let i = result.length - 1; i > 0; i--) {
+    s = (s * 9301 + 49297) % 233280;
+    const j = Math.floor((s / 233280) * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// Generate a random seed
+const randomSeed = Math.floor(Math.random() * 1000000);
 import { Level, LEVEL_CONFIG, CharTestResult } from '@/lib/types';
 
 function FullTestContent() {
@@ -22,9 +37,9 @@ function FullTestContent() {
   const [testStartTime, setTestStartTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Current list based on phase and level
-  const charList = getCharList(level);
-  const wordList = getWordList(level);
+  // Shuffled lists (random order for both chars and words)
+  const charList = useMemo(() => shuffleArray(getCharList(level), randomSeed), [level]);
+  const wordList = useMemo(() => shuffleArray(getWordList(level), randomSeed + 10000), [level]);
   const currentList = phase === 'chars' ? charList : wordList;
   const currentItem = currentList[currentIndex];
   const totalItems = currentList.length;
