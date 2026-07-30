@@ -730,7 +730,7 @@ function AdminContent() {
                   <div className="flex gap-2 items-center">
                     <select
                       value={filterLevel}
-                      onChange={(e) => { setFilterLevel(e.target.value); setQuestionsPage(1); }}
+                      onChange={(e) => { setFilterLevel(e.target.value); setQuestionPage(1); }}
                       className="px-3 py-2 border rounded-lg text-sm"
                     >
                       <option value="">全部等级</option>
@@ -765,7 +765,7 @@ function AdminContent() {
                         </tr>
                       </thead>
                       <tbody>
-                        {questions.slice((questionsPage - 1) * QUESTIONS_PER_PAGE, questionsPage * QUESTIONS_PER_PAGE).map((q) => (
+                        {questions.slice((questionPage - 1) * PAGE_SIZE, questionPage * PAGE_SIZE).map((q) => (
                           <tr key={q.id} className="border-t hover:bg-gray-50">
                             <td className="px-4 py-3 font-bold text-lg">{q.character}</td>
                             <td className="px-4 py-3">{q.word}</td>
@@ -800,25 +800,25 @@ function AdminContent() {
                       </tbody>
                     </table>
                   </div>
-                  {questions.length > QUESTIONS_PER_PAGE && (
+                  {questions.length > PAGE_SIZE && (
                     <div className="px-4 py-3 flex items-center justify-between text-sm text-gray-500">
                       <div>
-                        第 {(questionsPage - 1) * QUESTIONS_PER_PAGE + 1}-{Math.min(questionsPage * QUESTIONS_PER_PAGE, questions.length)} 条，共 {questions.length} 条
+                        第 {(questionPage - 1) * PAGE_SIZE + 1}-{Math.min(questionPage * PAGE_SIZE, questions.length)} 条，共 {questions.length} 条
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setQuestionsPage(p => Math.max(1, p - 1))}
-                          disabled={questionsPage === 1}
+                          onClick={() => setQuestionPage(p => Math.max(1, p - 1))}
+                          disabled={questionPage === 1}
                           className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           上一页
                         </button>
                         <span className="px-2 py-1">
-                          {questionsPage} / {Math.ceil(questions.length / QUESTIONS_PER_PAGE)}
+                          {questionPage} / {Math.ceil(questions.length / PAGE_SIZE)}
                         </span>
                         <button
-                          onClick={() => setQuestionsPage(p => Math.min(Math.ceil(questions.length / QUESTIONS_PER_PAGE), p + 1))}
-                          disabled={questionsPage >= Math.ceil(questions.length / QUESTIONS_PER_PAGE)}
+                          onClick={() => setQuestionPage(p => Math.min(Math.ceil(questions.length / PAGE_SIZE), p + 1))}
+                          disabled={questionPage >= Math.ceil(questions.length / PAGE_SIZE)}
                           className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           下一页
