@@ -1,0 +1,88 @@
+{
+  "version": "1.1",
+  "level": "SRC300",
+  "characters": [
+    {
+      "character": "飞",
+      "count": 14,
+      "reason": "高频动作动词，绘本故事核心",
+      "typical_words": "飞天、飞行、飞鸟"
+    },
+    {
+      "character": "看",
+      "count": 11,
+      "reason": "高频动作动词，阅读基础",
+      "typical_words": "看见、看书、好看"
+    },
+    {
+      "character": "猴",
+      "count": 16,
+      "reason": "故事核心角色",
+      "typical_words": "猴子、猴王"
+    },
+    {
+      "character": "山",
+      "count": 8,
+      "reason": "具象名词，场景基础",
+      "typical_words": "大山、山上、花果山"
+    },
+    {
+      "character": "天",
+      "count": 10,
+      "reason": "基础名词，时空概念",
+      "typical_words": "天空、天上、今天"
+    },
+    {
+      "character": "跳",
+      "count": 6,
+      "reason": "动作动词，儿童活动",
+      "typical_words": "跳高、跳远"
+    },
+    {
+      "character": "听",
+      "count": 5,
+      "reason": "动作动词，学习基础",
+      "typical_words": "听说、听话"
+    },
+    {
+      "character": "笑",
+      "count": 4,
+      "reason": "情感动词，社交基础",
+      "typical_words": "笑了、好笑"
+    },
+    {
+      "character": "哭",
+      "count": 3,
+      "reason": "情感动词，情绪表达",
+      "typical_words": "哭了、不哭"
+    },
+    {
+      "character": "跑",
+      "count": 3,
+      "reason": "动作动词，儿童活动",
+      "typical_words": "跑步、跑快"
+    }
+  ],
+  "words": [
+    {
+      "word": "悟空",
+      "count": 21,
+      "reason": "故事核心角色"
+    },
+    {
+      "word": "猴子",
+      "count": 12,
+      "reason": "故事核心角色"
+    },
+    {
+      "word": "一个",
+      "count": 10,
+      "reason": "高频量词"
+    },
+    {
+      "word": "孙悟空",
+      "count": 21,
+      "reason": "故事核心角色"
+    }
+  ]
+}

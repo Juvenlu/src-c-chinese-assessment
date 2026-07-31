@@ -1,0 +1,83 @@
+{
+  "version": "1.1",
+  "level": "SRC500",
+  "characters": [
+    {
+      "character": "武",
+      "count": 14,
+      "reason": "故事核心概念",
+      "typical_words": "武器、武士、武功"
+    },
+    {
+      "character": "器",
+      "count": 16,
+      "reason": "故事核心概念",
+      "typical_words": "武器、兵器"
+    },
+    {
+      "character": "城",
+      "count": 10,
+      "reason": "场景名词",
+      "typical_words": "京城、城市"
+    },
+    {
+      "character": "兵",
+      "count": 5,
+      "reason": "故事相关",
+      "typical_words": "兵器、士兵"
+    },
+    {
+      "character": "龙",
+      "count": 4,
+      "reason": "神话核心",
+      "typical_words": "龙王、龙宫"
+    },
+    {
+      "character": "宫",
+      "count": 3,
+      "reason": "神话场景",
+      "typical_words": "龙宫、皇宫"
+    },
+    {
+      "character": "宝",
+      "count": 3,
+      "reason": "故事核心",
+      "typical_words": "宝贝、宝藏"
+    },
+    {
+      "character": "变",
+      "count": 6,
+      "reason": "神话能力",
+      "typical_words": "变成、变化"
+    },
+    {
+      "character": "翻",
+      "count": 7,
+      "reason": "动作动词",
+      "typical_words": "翻身、翻跟头"
+    },
+    {
+      "character": "筋",
+      "count": 3,
+      "reason": "故事专有",
+      "typical_words": "筋斗云"
+    }
+  ],
+  "words": [
+    {
+      "word": "武器",
+      "count": 11,
+      "reason": "故事核心概念"
+    },
+    {
+      "word": "兵器",
+      "count": 5,
+      "reason": "故事核心概念"
+    },
+    {
+      "word": "龙王",
+      "count": 4,
+      "reason": "神话核心"
+    }
+  ]
+}
