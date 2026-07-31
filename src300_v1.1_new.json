@@ -1,0 +1,1507 @@
+{
+  "version": "1.1",
+  "level": "SRC300",
+  "total_chars": 300,
+  "characters": [
+    {
+      "char": "大",
+      "count": 273,
+      "score": 130
+    },
+    {
+      "char": "上",
+      "count": 142,
+      "score": 110
+    },
+    {
+      "char": "说",
+      "count": 119,
+      "score": 100
+    },
+    {
+      "char": "人",
+      "count": 86,
+      "score": 100
+    },
+    {
+      "char": "下",
+      "count": 147,
+      "score": 90
+    },
+    {
+      "char": "手",
+      "count": 61,
+      "score": 90
+    },
+    {
+      "char": "里",
+      "count": 169,
+      "score": 80
+    },
+    {
+      "char": "慢",
+      "count": 76,
+      "score": 80
+    },
+    {
+      "char": "山",
+      "count": 63,
+      "score": 80
+    },
+    {
+      "char": "果",
+      "count": 73,
+      "score": 80
+    },
+    {
+      "char": "头",
+      "count": 68,
+      "score": 80
+    },
+    {
+      "char": "小",
+      "count": 74,
+      "score": 80
+    },
+    {
+      "char": "看",
+      "count": 142,
+      "score": 80
+    },
+    {
+      "char": "后",
+      "count": 66,
+      "score": 80
+    },
+    {
+      "char": "多",
+      "count": 65,
+      "score": 80
+    },
+    {
+      "char": "轻",
+      "count": 76,
+      "score": 80
+    },
+    {
+      "char": "前",
+      "count": 27,
+      "score": 75
+    },
+    {
+      "char": "水",
+      "count": 29,
+      "score": 75
+    },
+    {
+      "char": "面",
+      "count": 43,
+      "score": 75
+    },
+    {
+      "char": "风",
+      "count": 28,
+      "score": 75
+    },
+    {
+      "char": "花",
+      "count": 48,
+      "score": 75
+    },
+    {
+      "char": "快",
+      "count": 28,
+      "score": 75
+    },
+    {
+      "char": "高",
+      "count": 37,
+      "score": 75
+    },
+    {
+      "char": "心",
+      "count": 40,
+      "score": 75
+    },
+    {
+      "char": "长",
+      "count": 26,
+      "score": 75
+    },
+    {
+      "char": "身",
+      "count": 41,
+      "score": 75
+    },
+    {
+      "char": "云",
+      "count": 21,
+      "score": 75
+    },
+    {
+      "char": "口",
+      "count": 34,
+      "score": 75
+    },
+    {
+      "char": "拿",
+      "count": 22,
+      "score": 75
+    },
+    {
+      "char": "马",
+      "count": 25,
+      "score": 75
+    },
+    {
+      "char": "树",
+      "count": 23,
+      "score": 75
+    },
+    {
+      "char": "重",
+      "count": 29,
+      "score": 75
+    },
+    {
+      "char": "光",
+      "count": 25,
+      "score": 75
+    },
+    {
+      "char": "年",
+      "count": 30,
+      "score": 75
+    },
+    {
+      "char": "游",
+      "count": 7,
+      "score": 70
+    },
+    {
+      "char": "听",
+      "count": 79,
+      "score": 70
+    },
+    {
+      "char": "想",
+      "count": 64,
+      "score": 70
+    },
+    {
+      "char": "雪",
+      "count": 2,
+      "score": 70
+    },
+    {
+      "char": "石",
+      "count": 18,
+      "score": 70
+    },
+    {
+      "char": "少",
+      "count": 10,
+      "score": 70
+    },
+    {
+      "char": "日",
+      "count": 5,
+      "score": 70
+    },
+    {
+      "char": "鸟",
+      "count": 1,
+      "score": 70
+    },
+    {
+      "char": "火",
+      "count": 14,
+      "score": 70
+    },
+    {
+      "char": "低",
+      "count": 9,
+      "score": 70
+    },
+    {
+      "char": "走",
+      "count": 72,
+      "score": 70
+    },
+    {
+      "char": "虫",
+      "count": 2,
+      "score": 70
+    },
+    {
+      "char": "短",
+      "count": 5,
+      "score": 70
+    },
+    {
+      "char": "细",
+      "count": 9,
+      "score": 70
+    },
+    {
+      "char": "草",
+      "count": 6,
+      "score": 70
+    },
+    {
+      "char": "木",
+      "count": 4,
+      "score": 70
+    },
+    {
+      "char": "左",
+      "count": 1,
+      "score": 70
+    },
+    {
+      "char": "右",
+      "count": 1,
+      "score": 70
+    },
+    {
+      "char": "晚",
+      "count": 2,
+      "score": 70
+    },
+    {
+      "char": "夜",
+      "count": 5,
+      "score": 70
+    },
+    {
+      "char": "星",
+      "count": 17,
+      "score": 70
+    },
+    {
+      "char": "足",
+      "count": 2,
+      "score": 70
+    },
+    {
+      "char": "耳",
+      "count": 8,
+      "score": 70
+    },
+    {
+      "char": "牙",
+      "count": 1,
+      "score": 70
+    },
+    {
+      "char": "粗",
+      "count": 1,
+      "score": 70
+    },
+    {
+      "char": "舌",
+      "count": 1,
+      "score": 70
+    },
+    {
+      "char": "牛",
+      "count": 1,
+      "score": 70
+    },
+    {
+      "char": "早",
+      "count": 4,
+      "score": 70
+    },
+    {
+      "char": "目",
+      "count": 2,
+      "score": 70
+    },
+    {
+      "char": "月",
+      "count": 2,
+      "score": 70
+    },
+    {
+      "char": "鼻",
+      "count": 1,
+      "score": 70
+    },
+    {
+      "char": "开",
+      "count": 47,
+      "score": 65
+    },
+    {
+      "char": "飞",
+      "count": 45,
+      "score": 65
+    },
+    {
+      "char": "跳",
+      "count": 22,
+      "score": 65
+    },
+    {
+      "char": "站",
+      "count": 43,
+      "score": 65
+    },
+    {
+      "char": "问",
+      "count": 26,
+      "score": 65
+    },
+    {
+      "char": "吃",
+      "count": 29,
+      "score": 65
+    },
+    {
+      "char": "笑",
+      "count": 49,
+      "score": 65
+    },
+    {
+      "char": "门",
+      "count": 29,
+      "score": 65
+    },
+    {
+      "char": "一",
+      "count": 680,
+      "score": 60
+    },
+    {
+      "char": "哭",
+      "count": 3,
+      "score": 60
+    },
+    {
+      "char": "跑",
+      "count": 10,
+      "score": 60
+    },
+    {
+      "char": "坐",
+      "count": 17,
+      "score": 60
+    },
+    {
+      "char": "喝",
+      "count": 17,
+      "score": 60
+    },
+    {
+      "char": "放",
+      "count": 13,
+      "score": 60
+    },
+    {
+      "char": "关",
+      "count": 2,
+      "score": 60
+    },
+    {
+      "char": "外",
+      "count": 10,
+      "score": 60
+    },
+    {
+      "char": "答",
+      "count": 8,
+      "score": 60
+    },
+    {
+      "char": "穿",
+      "count": 6,
+      "score": 60
+    },
+    {
+      "char": "爬",
+      "count": 1,
+      "score": 60
+    },
+    {
+      "char": "他",
+      "count": 287,
+      "score": 50
+    },
+    {
+      "char": "不",
+      "count": 213,
+      "score": 50
+    },
+    {
+      "char": "是",
+      "count": 292,
+      "score": 50
+    },
+    {
+      "char": "这",
+      "count": 207,
+      "score": 50
+    },
+    {
+      "char": "来",
+      "count": 269,
+      "score": 50
+    },
+    {
+      "char": "的",
+      "count": 489,
+      "score": 50
+    },
+    {
+      "char": "了",
+      "count": 519,
+      "score": 50
+    },
+    {
+      "char": "有",
+      "count": 223,
+      "score": 50
+    },
+    {
+      "char": "在",
+      "count": 151,
+      "score": 40
+    },
+    {
+      "char": "到",
+      "count": 146,
+      "score": 40
+    },
+    {
+      "char": "会",
+      "count": 107,
+      "score": 40
+    },
+    {
+      "char": "我",
+      "count": 100,
+      "score": 40
+    },
+    {
+      "char": "个",
+      "count": 187,
+      "score": 40
+    },
+    {
+      "char": "们",
+      "count": 139,
+      "score": 40
+    },
+    {
+      "char": "就",
+      "count": 177,
+      "score": 40
+    },
+    {
+      "char": "子",
+      "count": 166,
+      "score": 40
+    },
+    {
+      "char": "中",
+      "count": 42,
+      "score": 35
+    },
+    {
+      "char": "都",
+      "count": 91,
+      "score": 30
+    },
+    {
+      "char": "孙",
+      "count": 311,
+      "score": 30
+    },
+    {
+      "char": "悟",
+      "count": 295,
+      "score": 30
+    },
+    {
+      "char": "空",
+      "count": 312,
+      "score": 30
+    },
+    {
+      "char": "你",
+      "count": 72,
+      "score": 30
+    },
+    {
+      "char": "时",
+      "count": 57,
+      "score": 30
+    },
+    {
+      "char": "好",
+      "count": 84,
+      "score": 30
+    },
+    {
+      "char": "国",
+      "count": 12,
+      "score": 30
+    },
+    {
+      "char": "地",
+      "count": 94,
+      "score": 30
+    },
+    {
+      "char": "出",
+      "count": 79,
+      "score": 30
+    },
+    {
+      "char": "要",
+      "count": 63,
+      "score": 30
+    },
+    {
+      "char": "也",
+      "count": 69,
+      "score": 30
+    },
+    {
+      "char": "和",
+      "count": 26,
+      "score": 25
+    },
+    {
+      "char": "天",
+      "count": 179,
+      "score": 20
+    },
+    {
+      "char": "那",
+      "count": 108,
+      "score": 20
+    },
+    {
+      "char": "着",
+      "count": 174,
+      "score": 20
+    },
+    {
+      "char": "起",
+      "count": 103,
+      "score": 20
+    },
+    {
+      "char": "王",
+      "count": 143,
+      "score": 20
+    },
+    {
+      "char": "对",
+      "count": 16,
+      "score": 20
+    },
+    {
+      "char": "为",
+      "count": 10,
+      "score": 20
+    },
+    {
+      "char": "龙",
+      "count": 101,
+      "score": 20
+    },
+    {
+      "char": "与",
+      "count": 1,
+      "score": 20
+    },
+    {
+      "char": "家",
+      "count": 46,
+      "score": 15
+    },
+    {
+      "char": "老",
+      "count": 42,
+      "score": 15
+    },
+    {
+      "char": "三",
+      "count": 30,
+      "score": 15
+    },
+    {
+      "char": "四",
+      "count": 22,
+      "score": 15
+    },
+    {
+      "char": "法",
+      "count": 23,
+      "score": 15
+    },
+    {
+      "char": "动",
+      "count": 31,
+      "score": 15
+    },
+    {
+      "char": "还",
+      "count": 79,
+      "score": 10
+    },
+    {
+      "char": "师",
+      "count": 3,
+      "score": 10
+    },
+    {
+      "char": "事",
+      "count": 61,
+      "score": 10
+    },
+    {
+      "char": "很",
+      "count": 70,
+      "score": 10
+    },
+    {
+      "char": "五",
+      "count": 8,
+      "score": 10
+    },
+    {
+      "char": "六",
+      "count": 8,
+      "score": 10
+    },
+    {
+      "char": "七",
+      "count": 19,
+      "score": 10
+    },
+    {
+      "char": "八",
+      "count": 6,
+      "score": 10
+    },
+    {
+      "char": "九",
+      "count": 10,
+      "score": 10
+    },
+    {
+      "char": "十",
+      "count": 12,
+      "score": 10
+    },
+    {
+      "char": "样",
+      "count": 51,
+      "score": 10
+    },
+    {
+      "char": "然",
+      "count": 62,
+      "score": 10
+    },
+    {
+      "char": "只",
+      "count": 62,
+      "score": 10
+    },
+    {
+      "char": "又",
+      "count": 64,
+      "score": 10
+    },
+    {
+      "char": "猴",
+      "count": 96,
+      "score": 10
+    },
+    {
+      "char": "得",
+      "count": 68,
+      "score": 10
+    },
+    {
+      "char": "越",
+      "count": 58,
+      "score": 10
+    },
+    {
+      "char": "啊",
+      "count": 66,
+      "score": 10
+    },
+    {
+      "char": "美",
+      "count": 14,
+      "score": 10
+    },
+    {
+      "char": "英",
+      "count": 1,
+      "score": 10
+    },
+    {
+      "char": "语",
+      "count": 1,
+      "score": 10
+    },
+    {
+      "char": "可",
+      "count": 96,
+      "score": 10
+    },
+    {
+      "char": "儿",
+      "count": 65,
+      "score": 10
+    },
+    {
+      "char": "么",
+      "count": 89,
+      "score": 10
+    },
+    {
+      "char": "变",
+      "count": 56,
+      "score": 10
+    },
+    {
+      "char": "学",
+      "count": 2,
+      "score": 10
+    },
+    {
+      "char": "什",
+      "count": 51,
+      "score": 10
+    },
+    {
+      "char": "万",
+      "count": 9,
+      "score": 10
+    },
+    {
+      "char": "千",
+      "count": 19,
+      "score": 10
+    },
+    {
+      "char": "二",
+      "count": 4,
+      "score": 10
+    },
+    {
+      "char": "没",
+      "count": 86,
+      "score": 10
+    },
+    {
+      "char": "器",
+      "count": 50,
+      "score": 10
+    },
+    {
+      "char": "兵",
+      "count": 54,
+      "score": 10
+    },
+    {
+      "char": "去",
+      "count": 89,
+      "score": 10
+    },
+    {
+      "char": "同",
+      "count": 8,
+      "score": 10
+    },
+    {
+      "char": "过",
+      "count": 62,
+      "score": 10
+    },
+    {
+      "char": "机",
+      "count": 3,
+      "score": 10
+    },
+    {
+      "char": "点",
+      "count": 81,
+      "score": 10
+    },
+    {
+      "char": "体",
+      "count": 5,
+      "score": 10
+    },
+    {
+      "char": "育",
+      "count": 1,
+      "score": 10
+    },
+    {
+      "char": "脑",
+      "count": 2,
+      "score": 10
+    },
+    {
+      "char": "加",
+      "count": 10,
+      "score": 10
+    },
+    {
+      "char": "把",
+      "count": 58,
+      "score": 10
+    },
+    {
+      "char": "百",
+      "count": 13,
+      "score": 10
+    },
+    {
+      "char": "神",
+      "count": 74,
+      "score": 10
+    },
+    {
+      "char": "仙",
+      "count": 87,
+      "score": 10
+    },
+    {
+      "char": "影",
+      "count": 10,
+      "score": 10
+    },
+    {
+      "char": "海",
+      "count": 51,
+      "score": 10
+    },
+    {
+      "char": "金",
+      "count": 63,
+      "score": 10
+    },
+    {
+      "char": "乐",
+      "count": 2,
+      "score": 10
+    },
+    {
+      "char": "弟",
+      "count": 1,
+      "score": 10
+    },
+    {
+      "char": "哥",
+      "count": 3,
+      "score": 10
+    },
+    {
+      "char": "音",
+      "count": 10,
+      "score": 10
+    },
+    {
+      "char": "朋",
+      "count": 3,
+      "score": 10
+    },
+    {
+      "char": "友",
+      "count": 3,
+      "score": 10
+    },
+    {
+      "char": "桃",
+      "count": 71,
+      "score": 10
+    },
+    {
+      "char": "西",
+      "count": 26,
+      "score": 5
+    },
+    {
+      "char": "本",
+      "count": 30,
+      "score": 5
+    },
+    {
+      "char": "叫",
+      "count": 28,
+      "score": 5
+    },
+    {
+      "char": "现",
+      "count": 32,
+      "score": 5
+    },
+    {
+      "char": "觉",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "间",
+      "count": 29,
+      "score": 5
+    },
+    {
+      "char": "安",
+      "count": 31,
+      "score": 5
+    },
+    {
+      "char": "静",
+      "count": 22,
+      "score": 5
+    },
+    {
+      "char": "给",
+      "count": 21,
+      "score": 5
+    },
+    {
+      "char": "久",
+      "count": 21,
+      "score": 5
+    },
+    {
+      "char": "以",
+      "count": 34,
+      "score": 5
+    },
+    {
+      "char": "吗",
+      "count": 26,
+      "score": 5
+    },
+    {
+      "char": "吧",
+      "count": 20,
+      "score": 5
+    },
+    {
+      "char": "见",
+      "count": 41,
+      "score": 5
+    },
+    {
+      "char": "些",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "刻",
+      "count": 22,
+      "score": 5
+    },
+    {
+      "char": "东",
+      "count": 43,
+      "score": 5
+    },
+    {
+      "char": "边",
+      "count": 35,
+      "score": 5
+    },
+    {
+      "char": "忽",
+      "count": 28,
+      "score": 5
+    },
+    {
+      "char": "声",
+      "count": 43,
+      "score": 5
+    },
+    {
+      "char": "而",
+      "count": 24,
+      "score": 5
+    },
+    {
+      "char": "眼",
+      "count": 46,
+      "score": 5
+    },
+    {
+      "char": "睛",
+      "count": 29,
+      "score": 5
+    },
+    {
+      "char": "发",
+      "count": 37,
+      "score": 5
+    },
+    {
+      "char": "自",
+      "count": 43,
+      "score": 5
+    },
+    {
+      "char": "己",
+      "count": 35,
+      "score": 5
+    },
+    {
+      "char": "别",
+      "count": 28,
+      "score": 5
+    },
+    {
+      "char": "候",
+      "count": 27,
+      "score": 5
+    },
+    {
+      "char": "最",
+      "count": 36,
+      "score": 5
+    },
+    {
+      "char": "于",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "成",
+      "count": 33,
+      "score": 5
+    },
+    {
+      "char": "名",
+      "count": 24,
+      "score": 5
+    },
+    {
+      "char": "字",
+      "count": 23,
+      "score": 5
+    },
+    {
+      "char": "做",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "呢",
+      "count": 43,
+      "score": 5
+    },
+    {
+      "char": "哪",
+      "count": 35,
+      "score": 5
+    },
+    {
+      "char": "如",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "办",
+      "count": 23,
+      "score": 5
+    },
+    {
+      "char": "道",
+      "count": 41,
+      "score": 5
+    },
+    {
+      "char": "翻",
+      "count": 21,
+      "score": 5
+    },
+    {
+      "char": "能",
+      "count": 48,
+      "score": 5
+    },
+    {
+      "char": "生",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "件",
+      "count": 32,
+      "score": 5
+    },
+    {
+      "char": "真",
+      "count": 44,
+      "score": 5
+    },
+    {
+      "char": "正",
+      "count": 30,
+      "score": 5
+    },
+    {
+      "char": "武",
+      "count": 29,
+      "score": 5
+    },
+    {
+      "char": "悄",
+      "count": 22,
+      "score": 5
+    },
+    {
+      "char": "向",
+      "count": 22,
+      "score": 5
+    },
+    {
+      "char": "远",
+      "count": 31,
+      "score": 5
+    },
+    {
+      "char": "方",
+      "count": 29,
+      "score": 5
+    },
+    {
+      "char": "底",
+      "count": 26,
+      "score": 5
+    },
+    {
+      "char": "找",
+      "count": 27,
+      "score": 5
+    },
+    {
+      "char": "次",
+      "count": 30,
+      "score": 5
+    },
+    {
+      "char": "直",
+      "count": 28,
+      "score": 5
+    },
+    {
+      "char": "像",
+      "count": 33,
+      "score": 5
+    },
+    {
+      "char": "气",
+      "count": 34,
+      "score": 5
+    },
+    {
+      "char": "处",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "回",
+      "count": 41,
+      "score": 5
+    },
+    {
+      "char": "呼",
+      "count": 21,
+      "score": 5
+    },
+    {
+      "char": "白",
+      "count": 28,
+      "score": 5
+    },
+    {
+      "char": "往",
+      "count": 20,
+      "score": 5
+    },
+    {
+      "char": "打",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "进",
+      "count": 36,
+      "score": 5
+    },
+    {
+      "char": "刚",
+      "count": 31,
+      "score": 5
+    },
+    {
+      "char": "立",
+      "count": 21,
+      "score": 5
+    },
+    {
+      "char": "住",
+      "count": 44,
+      "score": 5
+    },
+    {
+      "char": "意",
+      "count": 23,
+      "score": 5
+    },
+    {
+      "char": "已",
+      "count": 33,
+      "score": 5
+    },
+    {
+      "char": "经",
+      "count": 36,
+      "score": 5
+    },
+    {
+      "char": "太",
+      "count": 39,
+      "score": 5
+    },
+    {
+      "char": "从",
+      "count": 28,
+      "score": 5
+    },
+    {
+      "char": "根",
+      "count": 42,
+      "score": 5
+    },
+    {
+      "char": "奇",
+      "count": 21,
+      "score": 5
+    },
+    {
+      "char": "怪",
+      "count": 20,
+      "score": 5
+    },
+    {
+      "char": "几",
+      "count": 27,
+      "score": 5
+    },
+    {
+      "char": "接",
+      "count": 29,
+      "score": 5
+    },
+    {
+      "char": "被",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "带",
+      "count": 32,
+      "score": 5
+    },
+    {
+      "char": "完",
+      "count": 23,
+      "score": 5
+    },
+    {
+      "char": "谁",
+      "count": 21,
+      "score": 5
+    },
+    {
+      "char": "情",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "抬",
+      "count": 20,
+      "score": 5
+    },
+    {
+      "char": "哈",
+      "count": 34,
+      "score": 5
+    },
+    {
+      "char": "再",
+      "count": 29,
+      "score": 5
+    },
+    {
+      "char": "铁",
+      "count": 23,
+      "score": 5
+    },
+    {
+      "char": "宫",
+      "count": 41,
+      "score": 5
+    },
+    {
+      "char": "宝",
+      "count": 27,
+      "score": 5
+    },
+    {
+      "char": "色",
+      "count": 33,
+      "score": 5
+    },
+    {
+      "char": "呃",
+      "count": 23,
+      "score": 5
+    },
+    {
+      "char": "请",
+      "count": 22,
+      "score": 5
+    },
+    {
+      "char": "殿",
+      "count": 24,
+      "score": 5
+    },
+    {
+      "char": "话",
+      "count": 25,
+      "score": 5
+    },
+    {
+      "char": "箍",
+      "count": 26,
+      "score": 5
+    },
+    {
+      "char": "棒",
+      "count": 35,
+      "score": 5
+    },
+    {
+      "char": "位",
+      "count": 42,
+      "score": 5
+    },
+    {
+      "char": "脚",
+      "count": 20,
+      "score": 5
+    },
+    {
+      "char": "庭",
+      "count": 31,
+      "score": 5
+    },
+    {
+      "char": "玉",
+      "count": 34,
+      "score": 5
+    },
+    {
+      "char": "皇",
+      "count": 38,
+      "score": 5
+    },
+    {
+      "char": "帝",
+      "count": 37,
+      "score": 5
+    },
+    {
+      "char": "官",
+      "count": 22,
+      "score": 5
+    },
+    {
+      "char": "齐",
+      "count": 23,
+      "score": 5
+    },
+    {
+      "char": "圣",
+      "count": 27,
+      "score": 5
+    },
+    {
+      "char": "吒",
+      "count": 23,
+      "score": 5
+    },
+    {
+      "char": "蟠",
+      "count": 33,
+      "score": 5
+    },
+    {
+      "char": "园",
+      "count": 22,
+      "score": 5
+    },
+    {
+      "char": "记",
+      "count": 8,
+      "score": 0
+    },
+    {
+      "char": "趣",
+      "count": 2,
+      "score": 0
+    },
+    {
+      "char": "味",
+      "count": 5,
+      "score": 0
+    },
+    {
+      "char": "文",
+      "count": 2,
+      "score": 0
+    },
+    {
+      "char": "库",
+      "count": 12,
+      "score": 0
+    },
+    {
+      "char": "管",
+      "count": 18,
+      "score": 0
+    },
+    {
+      "char": "车",
+      "count": 2,
+      "score": 0
+    },
+    {
+      "char": "准",
+      "count": 16,
+      "score": 0
+    },
+    {
+      "char": "备",
+      "count": 14,
+      "score": 0
+    }
+  ]
+}
