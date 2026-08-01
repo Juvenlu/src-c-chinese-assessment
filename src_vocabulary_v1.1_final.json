@@ -1,0 +1,951 @@
+{
+  "version": "1.1",
+  "base_on": "西游记•趣味中文文本库（前20集）",
+  "total_chars_in_text": 18924,
+  "unique_chars_in_text": 1130,
+  "src300": {
+    "char_count": 75,
+    "questions": [
+      {
+        "character": "一",
+        "word": "一个",
+        "char_count": 680,
+        "score": 80
+      },
+      {
+        "character": "的",
+        "word": "里的",
+        "char_count": 489,
+        "score": 80
+      },
+      {
+        "character": "了",
+        "word": "了一",
+        "char_count": 519,
+        "score": 80
+      },
+      {
+        "character": "大",
+        "word": "大家",
+        "char_count": 273,
+        "score": 70
+      },
+      {
+        "character": "他",
+        "word": "他们",
+        "char_count": 287,
+        "score": 70
+      },
+      {
+        "character": "不",
+        "word": "不是",
+        "char_count": 213,
+        "score": 70
+      },
+      {
+        "character": "是",
+        "word": "可是",
+        "char_count": 292,
+        "score": 70
+      },
+      {
+        "character": "这",
+        "word": "这个",
+        "char_count": 207,
+        "score": 70
+      },
+      {
+        "character": "来",
+        "word": "起来",
+        "char_count": 269,
+        "score": 70
+      },
+      {
+        "character": "有",
+        "word": "没有",
+        "char_count": 223,
+        "score": 70
+      },
+      {
+        "character": "在",
+        "word": "在这",
+        "char_count": 151,
+        "score": 60
+      },
+      {
+        "character": "到",
+        "word": "来到",
+        "char_count": 146,
+        "score": 60
+      },
+      {
+        "character": "会",
+        "word": "一会",
+        "char_count": 107,
+        "score": 60
+      },
+      {
+        "character": "我",
+        "word": "我们",
+        "char_count": 100,
+        "score": 60
+      },
+      {
+        "character": "个",
+        "word": "一个",
+        "char_count": 187,
+        "score": 60
+      },
+      {
+        "character": "们",
+        "word": "子们",
+        "char_count": 139,
+        "score": 60
+      },
+      {
+        "character": "就",
+        "word": "就是",
+        "char_count": 177,
+        "score": 60
+      },
+      {
+        "character": "子",
+        "word": "猴子",
+        "char_count": 166,
+        "score": 60
+      },
+      {
+        "character": "说",
+        "word": "说道",
+        "char_count": 119,
+        "score": 60
+      },
+      {
+        "character": "手",
+        "word": "手里",
+        "char_count": 61,
+        "score": 60
+      },
+      {
+        "character": "里",
+        "word": "这里",
+        "char_count": 169,
+        "score": 55
+      },
+      {
+        "character": "下",
+        "word": "一下",
+        "char_count": 147,
+        "score": 55
+      },
+      {
+        "character": "看",
+        "word": "看看",
+        "char_count": 142,
+        "score": 55
+      },
+      {
+        "character": "上",
+        "word": "上一",
+        "char_count": 142,
+        "score": 55
+      },
+      {
+        "character": "中",
+        "word": "中国",
+        "char_count": 42,
+        "score": 50
+      },
+      {
+        "character": "都",
+        "word": "家都",
+        "char_count": 91,
+        "score": 50
+      },
+      {
+        "character": "你",
+        "word": "你们",
+        "char_count": 72,
+        "score": 50
+      },
+      {
+        "character": "时",
+        "word": "时候",
+        "char_count": 57,
+        "score": 50
+      },
+      {
+        "character": "好",
+        "word": "好像",
+        "char_count": 84,
+        "score": 50
+      },
+      {
+        "character": "地",
+        "word": "地方",
+        "char_count": 94,
+        "score": 50
+      },
+      {
+        "character": "出",
+        "word": "出来",
+        "char_count": 79,
+        "score": 50
+      },
+      {
+        "character": "人",
+        "word": "个人",
+        "char_count": 86,
+        "score": 50
+      },
+      {
+        "character": "要",
+        "word": "要是",
+        "char_count": 63,
+        "score": 50
+      },
+      {
+        "character": "也",
+        "word": "也不",
+        "char_count": 69,
+        "score": 50
+      },
+      {
+        "character": "听",
+        "word": "一听",
+        "char_count": 79,
+        "score": 45
+      },
+      {
+        "character": "想",
+        "word": "想到",
+        "char_count": 64,
+        "score": 45
+      },
+      {
+        "character": "开",
+        "word": "开始",
+        "char_count": 47,
+        "score": 45
+      },
+      {
+        "character": "飞",
+        "word": "飞向",
+        "char_count": 45,
+        "score": 45
+      },
+      {
+        "character": "面",
+        "word": "里面",
+        "char_count": 43,
+        "score": 45
+      },
+      {
+        "character": "山",
+        "word": "果山",
+        "char_count": 63,
+        "score": 45
+      },
+      {
+        "character": "花",
+        "word": "花果",
+        "char_count": 48,
+        "score": 45
+      },
+      {
+        "character": "头",
+        "word": "点头",
+        "char_count": 68,
+        "score": 45
+      },
+      {
+        "character": "小",
+        "word": "小猴",
+        "char_count": 74,
+        "score": 45
+      },
+      {
+        "character": "猴",
+        "word": "猴子",
+        "char_count": 96,
+        "score": 45
+      },
+      {
+        "character": "王",
+        "word": "龙王",
+        "char_count": 143,
+        "score": 45
+      },
+      {
+        "character": "心",
+        "word": "心里",
+        "char_count": 40,
+        "score": 45
+      },
+      {
+        "character": "后",
+        "word": "以后",
+        "char_count": 66,
+        "score": 45
+      },
+      {
+        "character": "站",
+        "word": "站在",
+        "char_count": 43,
+        "score": 45
+      },
+      {
+        "character": "多",
+        "word": "多久",
+        "char_count": 65,
+        "score": 45
+      },
+      {
+        "character": "身",
+        "word": "身上",
+        "char_count": 41,
+        "score": 45
+      },
+      {
+        "character": "笑",
+        "word": "空笑",
+        "char_count": 49,
+        "score": 45
+      },
+      {
+        "character": "走",
+        "word": "走进",
+        "char_count": 72,
+        "score": 45
+      },
+      {
+        "character": "龙",
+        "word": "龙王",
+        "char_count": 101,
+        "score": 45
+      },
+      {
+        "character": "家",
+        "word": "大家",
+        "char_count": 46,
+        "score": 40
+      },
+      {
+        "character": "孙",
+        "word": "孙悟",
+        "char_count": 311,
+        "score": 40
+      },
+      {
+        "character": "悟",
+        "word": "悟空",
+        "char_count": 295,
+        "score": 40
+      },
+      {
+        "character": "空",
+        "word": "悟空",
+        "char_count": 312,
+        "score": 40
+      },
+      {
+        "character": "老",
+        "word": "老孙",
+        "char_count": 42,
+        "score": 40
+      },
+      {
+        "character": "前",
+        "word": "往前",
+        "char_count": 27,
+        "score": 35
+      },
+      {
+        "character": "水",
+        "word": "水晶",
+        "char_count": 29,
+        "score": 35
+      },
+      {
+        "character": "风",
+        "word": "威风",
+        "char_count": 28,
+        "score": 35
+      },
+      {
+        "character": "跳",
+        "word": "一跳",
+        "char_count": 22,
+        "score": 35
+      },
+      {
+        "character": "高",
+        "word": "高兴",
+        "char_count": 37,
+        "score": 35
+      },
+      {
+        "character": "长",
+        "word": "长的",
+        "char_count": 26,
+        "score": 35
+      },
+      {
+        "character": "问",
+        "word": "问题",
+        "char_count": 26,
+        "score": 35
+      },
+      {
+        "character": "口",
+        "word": "一口",
+        "char_count": 34,
+        "score": 35
+      },
+      {
+        "character": "吃",
+        "word": "吃了",
+        "char_count": 29,
+        "score": 35
+      },
+      {
+        "character": "拿",
+        "word": "拿着",
+        "char_count": 22,
+        "score": 35
+      },
+      {
+        "character": "仙",
+        "word": "神仙",
+        "char_count": 87,
+        "score": 35
+      },
+      {
+        "character": "树",
+        "word": "桃树",
+        "char_count": 23,
+        "score": 35
+      },
+      {
+        "character": "光",
+        "word": "金光",
+        "char_count": 25,
+        "score": 35
+      },
+      {
+        "character": "桃",
+        "word": "蟠桃",
+        "char_count": 71,
+        "score": 35
+      },
+      {
+        "character": "天",
+        "word": "天庭",
+        "char_count": 179,
+        "score": 30
+      },
+      {
+        "character": "那",
+        "word": "那里",
+        "char_count": 108,
+        "score": 30
+      },
+      {
+        "character": "着",
+        "word": "着一",
+        "char_count": 174,
+        "score": 30
+      }
+    ]
+  },
+  "src500": {
+    "new_char_count": 40,
+    "questions": [
+      {
+        "character": "起",
+        "word": "起来",
+        "char_count": 103,
+        "score": 30
+      },
+      {
+        "character": "可",
+        "word": "可是",
+        "char_count": 96,
+        "score": 30
+      },
+      {
+        "character": "对",
+        "word": "不对",
+        "char_count": 16,
+        "score": 30
+      },
+      {
+        "character": "为",
+        "word": "为什",
+        "char_count": 10,
+        "score": 30
+      },
+      {
+        "character": "游",
+        "word": "西游",
+        "char_count": 7,
+        "score": 25
+      },
+      {
+        "character": "雪",
+        "word": "着雪",
+        "char_count": 2,
+        "score": 25
+      },
+      {
+        "character": "石",
+        "word": "石头",
+        "char_count": 18,
+        "score": 25
+      },
+      {
+        "character": "哭",
+        "word": "不哭",
+        "char_count": 3,
+        "score": 25
+      },
+      {
+        "character": "跑",
+        "word": "他跑",
+        "char_count": 10,
+        "score": 25
+      },
+      {
+        "character": "坐",
+        "word": "坐在",
+        "char_count": 17,
+        "score": 25
+      },
+      {
+        "character": "少",
+        "word": "不少",
+        "char_count": 10,
+        "score": 25
+      },
+      {
+        "character": "日",
+        "word": "生日",
+        "char_count": 5,
+        "score": 25
+      },
+      {
+        "character": "火",
+        "word": "火尖",
+        "char_count": 14,
+        "score": 25
+      },
+      {
+        "character": "低",
+        "word": "低声",
+        "char_count": 9,
+        "score": 25
+      },
+      {
+        "character": "喝",
+        "word": "喝酒",
+        "char_count": 17,
+        "score": 25
+      },
+      {
+        "character": "法",
+        "word": "办法",
+        "char_count": 23,
+        "score": 25
+      },
+      {
+        "character": "短",
+        "word": "再短",
+        "char_count": 5,
+        "score": 25
+      },
+      {
+        "character": "放",
+        "word": "放在",
+        "char_count": 13,
+        "score": 25
+      },
+      {
+        "character": "关",
+        "word": "还关",
+        "char_count": 2,
+        "score": 25
+      },
+      {
+        "character": "外",
+        "word": "外面",
+        "char_count": 10,
+        "score": 25
+      },
+      {
+        "character": "草",
+        "word": "草木",
+        "char_count": 6,
+        "score": 25
+      },
+      {
+        "character": "木",
+        "word": "草木",
+        "char_count": 4,
+        "score": 25
+      },
+      {
+        "character": "答",
+        "word": "答应",
+        "char_count": 8,
+        "score": 25
+      },
+      {
+        "character": "星",
+        "word": "金星",
+        "char_count": 17,
+        "score": 25
+      },
+      {
+        "character": "足",
+        "word": "满足",
+        "char_count": 2,
+        "score": 25
+      },
+      {
+        "character": "耳",
+        "word": "耳朵",
+        "char_count": 8,
+        "score": 25
+      },
+      {
+        "character": "牙",
+        "word": "咬牙",
+        "char_count": 1,
+        "score": 25
+      },
+      {
+        "character": "舌",
+        "word": "八舌",
+        "char_count": 1,
+        "score": 25
+      },
+      {
+        "character": "穿",
+        "word": "穿着",
+        "char_count": 6,
+        "score": 25
+      },
+      {
+        "character": "目",
+        "word": "的目",
+        "char_count": 2,
+        "score": 25
+      },
+      {
+        "character": "月",
+        "word": "和月",
+        "char_count": 2,
+        "score": 25
+      },
+      {
+        "character": "爬",
+        "word": "的爬",
+        "char_count": 1,
+        "score": 25
+      },
+      {
+        "character": "鼻",
+        "word": "吸鼻",
+        "char_count": 1,
+        "score": 25
+      },
+      {
+        "character": "还",
+        "word": "还有",
+        "char_count": 79,
+        "score": 20
+      },
+      {
+        "character": "师",
+        "word": "老师",
+        "char_count": 3,
+        "score": 20
+      },
+      {
+        "character": "事",
+        "word": "事情",
+        "char_count": 61,
+        "score": 20
+      },
+      {
+        "character": "很",
+        "word": "很多",
+        "char_count": 70,
+        "score": 20
+      },
+      {
+        "character": "见",
+        "word": "看见",
+        "char_count": 41,
+        "score": 20
+      },
+      {
+        "character": "慢",
+        "word": "慢慢",
+        "char_count": 76,
+        "score": 20
+      },
+      {
+        "character": "样",
+        "word": "这样",
+        "char_count": 51,
+        "score": 20
+      }
+    ]
+  },
+  "src800": {
+    "new_char_count": 40,
+    "questions": [
+      {
+        "character": "东",
+        "word": "东西",
+        "char_count": 43,
+        "score": 20
+      },
+      {
+        "character": "果",
+        "word": "花果",
+        "char_count": 73,
+        "score": 20
+      },
+      {
+        "character": "然",
+        "word": "忽然",
+        "char_count": 62,
+        "score": 20
+      },
+      {
+        "character": "只",
+        "word": "只是",
+        "char_count": 62,
+        "score": 20
+      },
+      {
+        "character": "声",
+        "word": "一声",
+        "char_count": 43,
+        "score": 20
+      },
+      {
+        "character": "又",
+        "word": "又大",
+        "char_count": 64,
+        "score": 20
+      },
+      {
+        "character": "眼",
+        "word": "眼睛",
+        "char_count": 46,
+        "score": 20
+      },
+      {
+        "character": "自",
+        "word": "自己",
+        "char_count": 43,
+        "score": 20
+      },
+      {
+        "character": "得",
+        "word": "觉得",
+        "char_count": 68,
+        "score": 20
+      },
+      {
+        "character": "越",
+        "word": "越来",
+        "char_count": 58,
+        "score": 20
+      },
+      {
+        "character": "啊",
+        "word": "啊他",
+        "char_count": 66,
+        "score": 20
+      },
+      {
+        "character": "呢",
+        "word": "呢孙",
+        "char_count": 43,
+        "score": 20
+      },
+      {
+        "character": "儿",
+        "word": "会儿",
+        "char_count": 65,
+        "score": 20
+      },
+      {
+        "character": "么",
+        "word": "什么",
+        "char_count": 89,
+        "score": 20
+      },
+      {
+        "character": "变",
+        "word": "变成",
+        "char_count": 56,
+        "score": 20
+      },
+      {
+        "character": "学",
+        "word": "师学",
+        "char_count": 2,
+        "score": 20
+      },
+      {
+        "character": "道",
+        "word": "知道",
+        "char_count": 41,
+        "score": 20
+      },
+      {
+        "character": "什",
+        "word": "什么",
+        "char_count": 51,
+        "score": 20
+      },
+      {
+        "character": "能",
+        "word": "不能",
+        "char_count": 48,
+        "score": 20
+      },
+      {
+        "character": "没",
+        "word": "没有",
+        "char_count": 86,
+        "score": 20
+      },
+      {
+        "character": "真",
+        "word": "真正",
+        "char_count": 44,
+        "score": 20
+      },
+      {
+        "character": "器",
+        "word": "兵器",
+        "char_count": 50,
+        "score": 20
+      },
+      {
+        "character": "兵",
+        "word": "兵器",
+        "char_count": 54,
+        "score": 20
+      },
+      {
+        "character": "去",
+        "word": "进去",
+        "char_count": 89,
+        "score": 20
+      },
+      {
+        "character": "过",
+        "word": "过来",
+        "char_count": 62,
+        "score": 20
+      },
+      {
+        "character": "回",
+        "word": "回来",
+        "char_count": 41,
+        "score": 20
+      },
+      {
+        "character": "轻",
+        "word": "轻轻",
+        "char_count": 76,
+        "score": 20
+      },
+      {
+        "character": "住",
+        "word": "不住",
+        "char_count": 44,
+        "score": 20
+      },
+      {
+        "character": "点",
+        "word": "一点",
+        "char_count": 81,
+        "score": 20
+      },
+      {
+        "character": "太",
+        "word": "太白",
+        "char_count": 39,
+        "score": 20
+      },
+      {
+        "character": "根",
+        "word": "一根",
+        "char_count": 42,
+        "score": 20
+      },
+      {
+        "character": "把",
+        "word": "把那",
+        "char_count": 58,
+        "score": 20
+      },
+      {
+        "character": "神",
+        "word": "神仙",
+        "char_count": 74,
+        "score": 20
+      },
+      {
+        "character": "海",
+        "word": "海龙",
+        "char_count": 51,
+        "score": 20
+      },
+      {
+        "character": "宫",
+        "word": "龙宫",
+        "char_count": 41,
+        "score": 20
+      },
+      {
+        "character": "金",
+        "word": "金箍",
+        "char_count": 63,
+        "score": 20
+      },
+      {
+        "character": "弟",
+        "word": "兄弟",
+        "char_count": 1,
+        "score": 20
+      },
+      {
+        "character": "位",
+        "word": "位仙",
+        "char_count": 42,
+        "score": 20
+      },
+      {
+        "character": "哥",
+        "word": "大哥",
+        "char_count": 3,
+        "score": 20
+      },
+      {
+        "character": "朋",
+        "word": "朋友",
+        "char_count": 3,
+        "score": 20
+      }
+    ]
+  }
+}
