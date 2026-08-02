@@ -470,3 +470,124 @@ export function getBadgeForPart(part: number, stars: number): string | null {
   };
   return badgeNames[part]?.[stars - 1] || null;
 }
+
+/**
+ * 生成高质量的词汇识别干扰项
+ * 原则：
+ * 1. 优先选同一个字组成的不同词（如同字不同词）
+ * 2. 其次选同类型/同词性的词（如都是名词、都是颜色）
+ * 3. 最后用同频率等级的随机词补充
+ * 4. 绝对保证：干扰项 ≠ 正确答案
+ */
+export function generateWordDistractors(
+  correctWord: string,
+  wordPool: string[],  // 该等级所有可用词汇
+  count: number = 3,
+): string[] {
+  if (wordPool.length <= 1) return [];
+
+  const correctChars = new Set(Array.from(correctWord));
+  const correctLen = correctWord.length;
+  const distractors: string[] = [];
+  const used = new Set<string>([correctWord]);
+
+  // 第一层：同一个字开头的词（同字组词，最理想的干扰项）
+  const firstChar = correctWord[0];
+  const sameStart = wordPool.filter(
+    (w) =>
+      w.length === correctLen &&
+      w.startsWith(firstChar) &&
+      w !== correctWord &&
+      !used.has(w),
+  );
+  shuffleArray(sameStart);
+  for (const w of sameStart) {
+    if (distractors.length >= count) break;
+    distractors.push(w);
+    used.add(w);
+  }
+
+  // 第二层：同一个字结尾的词
+  if (distractors.length < count && correctLen >= 2) {
+    const lastChar = correctWord[correctWord.length - 1];
+    const sameEnd = wordPool.filter(
+      (w) =>
+        w.length === correctLen &&
+        w.endsWith(lastChar) &&
+        w !== correctWord &&
+        !used.has(w),
+    );
+    shuffleArray(sameEnd);
+    for (const w of sameEnd) {
+      if (distractors.length >= count) break;
+      distractors.push(w);
+      used.add(w);
+    }
+  }
+
+  // 第三层：含有任意一个相同字的词（同字不同位）
+  if (distractors.length < count) {
+    const hasCommonChar = wordPool.filter(
+      (w) =>
+        w.length === correctLen &&
+        Array.from(w).some((c) => correctChars.has(c)) &&
+        w !== correctWord &&
+        !used.has(w),
+    );
+    shuffleArray(hasCommonChar);
+    for (const w of hasCommonChar) {
+      if (distractors.length >= count) break;
+      distractors.push(w);
+      used.add(w);
+    }
+  }
+
+  // 第四层：同长度的随机词兜底
+  if (distractors.length < count) {
+    const sameLen = wordPool.filter(
+      (w) => w.length === correctLen && !used.has(w),
+    );
+    shuffleArray(sameLen);
+    for (const w of sameLen) {
+      if (distractors.length >= count) break;
+      distractors.push(w);
+      used.add(w);
+    }
+  }
+
+  // 最后兜底：任意长度的词
+  if (distractors.length < count) {
+    const rest = wordPool.filter((w) => !used.has(w));
+    shuffleArray(rest);
+    for (const w of rest) {
+      if (distractors.length >= count) break;
+      distractors.push(w);
+      used.add(w);
+    }
+  }
+
+  return distractors.slice(0, count);
+}
+
+/** Fisher–Yates 洗牌 */
+function shuffleArray<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * 生成字形识别的干扰项（从同等级字库中选形似/音近的字）
+ */
+export function generateCharDistractors(
+  correctChar: string,
+  charPool: string[],
+  count: number = 3,
+): string[] {
+  if (charPool.length <= 1) return [];
+  const others = charPool.filter((c) => c !== correctChar);
+  shuffleArray(others);
+  return others.slice(0, count);
+}

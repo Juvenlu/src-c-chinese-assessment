@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Level, TestPart, QuestionItem, PART_NAMES, SubmitAnswerInput, LEVEL_CONFIG } from '@/lib/types';
-import { getXP, getStarsForPart, getBadgeForPart } from '@/lib/scoring';
-import { getQuestionsByLevel } from '@/lib/questions';
+import { getXP, getStarsForPart, getBadgeForPart, generateWordDistractors, generateCharDistractors } from '@/lib/scoring';
+import { getQuestionsByLevel, getCharList, getWordList } from '@/lib/questions';
 
 // Readable Chinese font stack (KaiTi > Microsoft YaHei > SimHei > sans-serif)
 const CHINESE_READABLE_FONT: React.CSSProperties = {
@@ -64,17 +64,39 @@ function TestContent() {
   // Key: `${part}-${questionIndex}`, Value: shuffled options
   const shuffledOptionsMap = useRef<Record<string, string[]>>({});
 
-  const getShuffledOptions = (key: string, options: string[]): string[] => {
-    if (!shuffledOptionsMap.current[key]) {
-      // Use hash of key as seed for consistent shuffle
-      let hash = 0;
-      for (let i = 0; i < key.length; i++) {
-        hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
-      }
-      shuffledOptionsMap.current[key] = shuffleArray(options, Math.abs(hash) + 1);
+  // Generate smart word options: 1 correct + 3 distractors sharing a character with the target word
+  const generateWordOptions = useCallback((question: QuestionItem, allQs: QuestionItem[]): string[] => {
+    const targetWord = question.word;
+    const targetChar = question.character;
+
+    // Find other words that share the target character (same position)
+    const sameStartWords = allQs
+      .filter(q => q.word !== targetWord && q.word.startsWith(targetChar) && q.word.length === targetWord.length)
+      .map(q => q.word);
+    const sameEndWords = allQs
+      .filter(q => q.word !== targetWord && q.word.endsWith(targetChar) && q.word.length === targetWord.length)
+      .map(q => q.word);
+
+    // Priority: same start char > same end char > other words
+    const candidates = [...new Set([...sameStartWords, ...sameEndWords])];
+
+    // Shuffle candidates and pick 3
+    const seed = targetWord.charCodeAt(0) + targetWord.charCodeAt(targetWord.length - 1);
+    const shuffled = shuffleArray(candidates, seed);
+    const distractors = shuffled.slice(0, 3);
+
+    // If not enough distractors, fill with random words
+    if (distractors.length < 3) {
+      const otherWords = allQs
+        .filter(q => q.word !== targetWord && !distractors.includes(q.word) && q.word.length === targetWord.length)
+        .map(q => q.word);
+      const shuffledOthers = shuffleArray(otherWords, seed + 7);
+      distractors.push(...shuffledOthers.slice(0, 3 - distractors.length));
     }
-    return shuffledOptionsMap.current[key];
-  };
+
+    const options = [targetWord, ...distractors.slice(0, 3)];
+    return shuffleArray(options, seed + 13);
+  }, []);
 
   // Load questions
   useEffect(() => {
@@ -133,14 +155,21 @@ function TestContent() {
 
     const sessionSeed = sessionId ? sessionId.split('').reduce((a, c) => a + c.charCodeAt(0), 0) : 42;
 
-    // Part 1 (字形识别): full count - this is the baseline
-    const p1 = shuffle([...questions], sessionSeed + 1 * 1000);
+    // All 4 parts use 10% of total questions (level char count)
+    // Total level char count = questions.length (1 question per character)
+    const sampleSize = Math.max(10, Math.ceil(questions.length * 0.1));
 
-    // Parts 2, 3, 4: reduced by 50% (half the questions)
-    // Each part uses a different shuffle seed for randomness
-    const p2 = shuffle([...questions], sessionSeed + 2 * 1000).slice(0, Math.ceil(questions.length * 0.5));
-    const p3 = shuffle([...questions], sessionSeed + 3 * 1000).slice(0, Math.ceil(questions.length * 0.5));
-    const p4 = shuffle([...questions], sessionSeed + 4 * 1000).slice(0, Math.ceil(questions.length * 0.5));
+    // Part 1 (字形识别): 10% sample
+    const p1 = shuffle([...questions], sessionSeed + 1 * 1000).slice(0, sampleSize);
+
+    // Part 2 (词汇识别): 10% sample - different questions
+    const p2 = shuffle([...questions], sessionSeed + 2 * 1000).slice(0, sampleSize);
+
+    // Part 3 (句子识别): 10% sample
+    const p3 = shuffle([...questions], sessionSeed + 3 * 1000).slice(0, sampleSize);
+
+    // Part 4 (理解测试): 10% sample
+    const p4 = shuffle([...questions], sessionSeed + 4 * 1000).slice(0, sampleSize);
 
     let partQuestions: QuestionItem[];
     switch (currentPart) {
@@ -542,7 +571,10 @@ function TestContent() {
                   </div>
                   <p className="text-[var(--color-src-text)] mb-6">{currentQuestion.meaning_question}</p>
                   <div className="space-y-3">
-                    {getShuffledOptions(`p2-${currentQuestion.id}`, currentQuestion.options).map((option: string, idx: number) => (
+                    {shuffleArray(
+                      generateWordOptions(currentQuestion, questions),
+                      currentQuestionIdx * 7 + 3
+                    ).map((option: string, idx: number) => (
                       <button
                         key={idx}
                         onClick={() => handlePart2Answer(option)}
@@ -570,7 +602,7 @@ function TestContent() {
                     {currentQuestion.meaning_question}
                   </p>
                   <div className="space-y-3">
-                    {getShuffledOptions(`p3-${currentQuestion.id}`, currentQuestion.options).map((option: string, idx: number) => (
+                    {shuffleArray(currentQuestion.options, currentQuestionIdx * 11 + 5).map((option: string, idx: number) => (
                       <button
                         key={idx}
                         onClick={() => handlePart3Answer(option)}
@@ -598,7 +630,7 @@ function TestContent() {
                     {currentQuestion.story_question || currentQuestion.meaning_question}
                   </p>
                   <div className="space-y-3">
-                    {getShuffledOptions(`p4-${currentQuestion.id}`, currentQuestion.story_options || currentQuestion.options).map((option: string, idx: number) => (
+                    {shuffleArray(currentQuestion.story_options || currentQuestion.options, currentQuestionIdx * 13 + 7).map((option: string, idx: number) => (
                       <button
                         key={idx}
                         onClick={() => handlePart4Answer(option)}
