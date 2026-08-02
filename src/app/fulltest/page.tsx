@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCharList, getWordList } from '@/lib/questions';
+import { adaptiveWordSampling, masteryFromCharTest, getEmptyMastery, type SampledWord, type ChildMasteryData } from '@/lib/scoring';
 
 // Fisher-Yates shuffle
 function shuffleArray<T>(array: T[], seed: number): T[] {
@@ -37,9 +38,12 @@ function FullTestContent() {
   const [testStartTime, setTestStartTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Shuffled lists (random order for both chars and words)
+  // Shuffled list for characters (test all)
   const charList = useMemo(() => shuffleArray(getCharList(level), randomSeed), [level]);
-  const wordList = useMemo(() => shuffleArray(getWordList(level), randomSeed + 10000), [level]);
+  
+  // Word list: starts empty, filled by adaptive sampling after char test
+  const [sampledWords, setSampledWords] = useState<SampledWord[]>([]);
+  const wordList = sampledWords.map(w => w.word);
   const currentList = phase === 'chars' ? charList : wordList;
   const currentItem = currentList[currentIndex];
   const totalItems = currentList.length;
@@ -77,6 +81,32 @@ function FullTestContent() {
       } else {
         // Phase complete
         if (phase === 'chars') {
+          // Run adaptive word sampling based on char test results
+          const allCharResults = [...results, { character: currentItem, recognized, reaction_time_ms: reactionTime }];
+          const wordPool = getWordList(level);
+          const charPool = getCharList(level);
+          
+          // Build mastery data from char test results
+          const knownChars = allCharResults.filter(r => r.recognized).map(r => r.character);
+          const unknownChars = allCharResults.filter(r => !r.recognized).map(r => r.character);
+          const charMastery: Record<string, number> = {};
+          allCharResults.forEach(r => {
+            charMastery[r.character] = r.recognized ? 1 : 0;
+          });
+          
+          const now = Date.now();
+          const mastery: ChildMasteryData = {
+            recognizedChars: knownChars,
+            unknownChars,
+            charMastery,
+            wordMastery: {},
+            wrongWordHistory: [],
+            wordLastTested: {},
+            charLastTested: Object.fromEntries(knownChars.map(c => [c, now])),
+          };
+          
+          const sampled = adaptiveWordSampling(wordPool, charPool, mastery);
+          setSampledWords(sampled);
           setPhase('words');
           setCurrentIndex(0);
           setQuestionStartTime(Date.now());
@@ -366,7 +396,7 @@ function FullTestContent() {
         </div>
 
         {/* Character/Word display */}
-        <div className="flex items-center justify-center mb-10">
+        <div className="flex items-center justify-center mb-6">
           <div
             className={`bg-white rounded-3xl shadow-lg flex items-center justify-center transition-all duration-300 ${
               showFeedback === 'known'
@@ -391,6 +421,21 @@ function FullTestContent() {
             </span>
           </div>
         </div>
+
+        {/* 智能抽测原因提示（词组测试阶段） */}
+        {phase === 'words' && sampledWords[currentIndex]?.reason && (
+          <div className="text-center mb-8">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-medium"
+              style={{
+                backgroundColor: 'var(--color-src-accent)',
+                color: 'var(--color-src-text)',
+                opacity: 0.8,
+              }}
+            >
+              🎯 抽测原因：{sampledWords[currentIndex].reason}
+            </span>
+          </div>
+        )}
 
         {/* Answer buttons */}
         <div className="flex gap-4 max-w-sm mx-auto">

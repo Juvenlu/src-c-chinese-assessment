@@ -146,6 +146,30 @@ export interface CharTestResult {
   reaction_time_ms: number;  // 反应时间
 }
 
+// 逐字测试中每个词组的测试结果
+export interface WordTestResult {
+  word: string;
+  recognized: boolean;
+  reaction_time_ms: number;
+  reason: SamplingReason;
+}
+
+// 词组智能抽测的原因
+export type SamplingReason = 
+  | 'recent_char_error'    // 最近单字错误
+  | 'historical_word_error' // 历史词组错误
+  | 'low_mastery'           // 掌握度低
+  | 'forget_check'          // 遗忘验证
+  | 'random_check';         // 随机抽测
+
+// 词组抽测项
+export interface SampledWord {
+  word: string;
+  reason: SamplingReason;
+  srcLevel: Level;
+  characters: string[];
+}
+
 // 逐字测试的会话数据
 export interface FullTestSession {
   childId: string;
