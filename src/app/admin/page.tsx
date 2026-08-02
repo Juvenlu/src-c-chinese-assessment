@@ -87,7 +87,8 @@ function AdminContent() {
         if (!lib[r.child_id]) lib[r.child_id] = [];
         const existing = new Set(lib[r.child_id]);
         r.known_characters.forEach((c) => {
-          if (!existing.has(c)) {
+          if (typeof c === 'string' && c.length === 1 && !existing.has(c)) {
+            // 只统计单字，词组因有重复字不计入认识汉字数
             lib[r.child_id].push(c);
             existing.add(c);
           }

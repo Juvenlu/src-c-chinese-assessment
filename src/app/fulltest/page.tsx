@@ -215,7 +215,7 @@ function FullTestContent() {
               reading_comprehension_rate: Math.round((charMasteryPct + vocabMasteryPct) / 2),
               completion_time_seconds: completionTimeSeconds,
               skip_recalculate: true,
-              known_characters: [...knownChars, ...knownWords],
+              known_characters: knownChars,  // 只存单字，词组不计入识字量
             }),
           }).catch(() => {});
         }

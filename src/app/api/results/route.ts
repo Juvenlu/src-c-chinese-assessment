@@ -112,9 +112,11 @@ export async function POST(request: NextRequest) {
     );
 
     // Collect known characters from fulltest answers
+    // 只统计单字（长度为1），词组因有重复字不计入认识汉字数
     const knownCharacters = typedAnswers
       .filter((a) => a.is_correct && a.question_content)
-      .map((a) => a.question_content as string);
+      .map((a) => a.question_content as string)
+      .filter((content) => content.length === 1); // 只保留单字
 
     // Save results
     const { data: result, error: resultError } = await client
