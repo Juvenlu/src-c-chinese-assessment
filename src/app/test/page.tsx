@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Level, TestPart, QuestionItem, PART_NAMES, SubmitAnswerInput } from '@/lib/types';
+import { Level, TestPart, QuestionItem, PART_NAMES, SubmitAnswerInput, LEVEL_CONFIG } from '@/lib/types';
 import { getXP, getStarsForPart, getBadgeForPart } from '@/lib/scoring';
+import { getQuestionsByLevel } from '@/lib/questions';
 
 // Readable Chinese font stack (KaiTi > Microsoft YaHei > SimHei > sans-serif)
 const CHINESE_READABLE_FONT: React.CSSProperties = {
@@ -80,17 +81,12 @@ function TestContent() {
     async function loadQuestions() {
       if (!level) return;
       try {
-        // Seed first
-        await fetch('/api/seed', { method: 'POST' });
-        
-        const res = await fetch(`/api/questions?level=${level}`);
-        const { data, error } = await res.json();
-        if (error) throw new Error(error);
+        // Use local question data (faster, no pagination limits)
+        const data = getQuestionsByLevel(level) as unknown as QuestionItem[];
         setQuestions(data || []);
 
         // Set timer based on level
-        const timeLimits: Record<Level, number> = { SRC300: 480, SRC500: 720, SRC800: 900 };
-        setTimeLeft(timeLimits[level]);
+        setTimeLeft(LEVEL_CONFIG[level].timeLimitSeconds);
       } catch (err) {
         console.error(err);
       } finally {

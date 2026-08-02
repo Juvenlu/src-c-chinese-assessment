@@ -1,6 +1,6 @@
 // Type definitions for SRC-C system
 
-export type Level = 'SRC300' | 'SRC500' | 'SRC800';
+export type Level = 'SRC100' | 'SRC300' | 'SRC500' | 'SRC800';
 export type TestMode = 'full' | 'sampling'; // full = 逐字测试, sampling = 抽测闯关
 export type LanguageEnv = 'chinese_primary' | 'bilingual' | 'english_primary' | 'other';
 export type SessionStatus = 'in_progress' | 'completed' | 'abandoned';
@@ -83,6 +83,7 @@ export interface TestResult {
   reading_comprehension_rate: number;
   completion_time_seconds: number;
   known_characters?: string[]; // array of recognized characters (fulltest)
+  test_mode?: 'sampling' | 'full'; // test mode
   created_at: string;
 }
 
@@ -103,10 +104,11 @@ export interface SubmitAnswerInput {
   question_content?: string;
 }
 
-export const LEVEL_CONFIG: Record<Level, { timeLimitSeconds: number; charCount: number; vocabMultiplier: number }> = {
-  SRC300: { timeLimitSeconds: 480, charCount: 300, vocabMultiplier: 2.86 },
-  SRC500: { timeLimitSeconds: 720, charCount: 500, vocabMultiplier: 2.86 },
-  SRC800: { timeLimitSeconds: 900, charCount: 800, vocabMultiplier: 2.86 },
+export const LEVEL_CONFIG: Record<Level, { timeLimitSeconds: number; charCount: number; vocabMultiplier: number; label: string }> = {
+  SRC100: { timeLimitSeconds: 300, charCount: 100, vocabMultiplier: 2.86, label: '入门级' },
+  SRC300: { timeLimitSeconds: 480, charCount: 300, vocabMultiplier: 2.86, label: '基础级' },
+  SRC500: { timeLimitSeconds: 720, charCount: 500, vocabMultiplier: 2.86, label: '进阶级' },
+  SRC800: { timeLimitSeconds: 900, charCount: 800, vocabMultiplier: 2.86, label: '高级' },
 };
 
 export const PART_WEIGHTS = {

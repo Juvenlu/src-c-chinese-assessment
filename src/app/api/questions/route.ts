@@ -7,14 +7,15 @@ export async function GET(request: NextRequest) {
     const level = searchParams.get('level');
 
     const client = getSupabaseClient();
-    let query = client.from('question_bank').select('*').order('created_at');
+    let query = client.from('question_bank').select('*', { count: 'exact' }).order('created_at').limit(99999);
 
     if (level) {
       // Cumulative level: SRC500 includes SRC300, SRC800 includes SRC300+SRC500
       const levelMap: Record<string, string[]> = {
-        'SRC300': ['SRC300'],
-        'SRC500': ['SRC300', 'SRC500'],
-        'SRC800': ['SRC300', 'SRC500', 'SRC800'],
+        'SRC100': ['SRC100'],
+        'SRC300': ['SRC100', 'SRC300'],
+        'SRC500': ['SRC100', 'SRC300', 'SRC500'],
+        'SRC800': ['SRC100', 'SRC300', 'SRC500', 'SRC800'],
       };
       const levels = levelMap[level] || [level];
       query = query.in('level', levels);
