@@ -64,6 +64,18 @@ lines.append('  }')
 lines.append('}')
 lines.append('')
 
+lines.append('''
+export function getCharList(level: Level): string[] {
+  const questions = getQuestionsByLevel(level);
+  return questions.map(q => q.character);
+}
+
+export function getWordList(level: Level): string[] {
+  const questions = getQuestionsByLevel(level);
+  return questions.map(q => q.word).filter(w => w.length > 1);
+}
+''')
+
 content = '\n'.join(lines)
 with open('src/lib/questions.ts', 'w', encoding='utf-8') as f:
     f.write(content)

@@ -1,0 +1,5699 @@
+[
+  {
+    "WordID": "SRC-W-00001",
+    "Word": "一个",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "一, 个",
+    "FrequencyRank": "极高",
+    "Frequency": 233
+  },
+  {
+    "WordID": "SRC-W-00002",
+    "Word": "他们",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 们",
+    "FrequencyRank": "极高",
+    "Frequency": 196
+  },
+  {
+    "WordID": "SRC-W-00003",
+    "Word": "什么",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "什, 么",
+    "FrequencyRank": "极高",
+    "Frequency": 170
+  },
+  {
+    "WordID": "SRC-W-00004",
+    "Word": "没有",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "没, 有",
+    "FrequencyRank": "极高",
+    "Frequency": 155
+  },
+  {
+    "WordID": "SRC-W-00005",
+    "Word": "起来",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "起, 来",
+    "FrequencyRank": "极高",
+    "Frequency": 132
+  },
+  {
+    "WordID": "SRC-W-00006",
+    "Word": "一下",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "一, 下",
+    "FrequencyRank": "极高",
+    "Frequency": 100
+  },
+  {
+    "WordID": "SRC-W-00007",
+    "Word": "我们",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "我, 们",
+    "FrequencyRank": "极高",
+    "Frequency": 99
+  },
+  {
+    "WordID": "SRC-W-00008",
+    "Word": "就是",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "就, 是",
+    "FrequencyRank": "极高",
+    "Frequency": 91
+  },
+  {
+    "WordID": "SRC-W-00009",
+    "Word": "可是",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "可, 是",
+    "FrequencyRank": "极高",
+    "Frequency": 76
+  },
+  {
+    "WordID": "SRC-W-00010",
+    "Word": "龙王",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "龙, 王",
+    "FrequencyRank": "极高",
+    "Frequency": 73
+  },
+  {
+    "WordID": "SRC-W-00011",
+    "Word": "大家",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "大, 家",
+    "FrequencyRank": "极高",
+    "Frequency": 71
+  },
+  {
+    "WordID": "SRC-W-00012",
+    "Word": "东西",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "东, 西",
+    "FrequencyRank": "极高",
+    "Frequency": 68
+  },
+  {
+    "WordID": "SRC-W-00013",
+    "Word": "出来",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "出, 来",
+    "FrequencyRank": "极高",
+    "Frequency": 62
+  },
+  {
+    "WordID": "SRC-W-00014",
+    "Word": "猴子",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "猴, 子",
+    "FrequencyRank": "极高",
+    "Frequency": 58
+  },
+  {
+    "WordID": "SRC-W-00015",
+    "Word": "你们",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "你, 们",
+    "FrequencyRank": "极高",
+    "Frequency": 54
+  },
+  {
+    "WordID": "SRC-W-00016",
+    "Word": "个人",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "个, 人",
+    "FrequencyRank": "极高",
+    "Frequency": 52
+  },
+  {
+    "WordID": "SRC-W-00017",
+    "Word": "地说",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "地, 说",
+    "FrequencyRank": "极高",
+    "Frequency": 51
+  },
+  {
+    "WordID": "SRC-W-00018",
+    "Word": "时候",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "时, 候",
+    "FrequencyRank": "高",
+    "Frequency": 46
+  },
+  {
+    "WordID": "SRC-W-00019",
+    "Word": "他一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 一",
+    "FrequencyRank": "高",
+    "Frequency": 45
+  },
+  {
+    "WordID": "SRC-W-00020",
+    "Word": "心里",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "心, 里",
+    "FrequencyRank": "高",
+    "Frequency": 44
+  },
+  {
+    "WordID": "SRC-W-00021",
+    "Word": "花果山",
+    "Length": "3字",
+    "SRCLevel": "SRC100",
+    "Characters": "花, 果, 山",
+    "FrequencyRank": "高",
+    "Frequency": 43
+  },
+  {
+    "WordID": "SRC-W-00022",
+    "Word": "花果",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "花, 果",
+    "FrequencyRank": "高",
+    "Frequency": 43
+  },
+  {
+    "WordID": "SRC-W-00023",
+    "Word": "也不",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "也, 不",
+    "FrequencyRank": "高",
+    "Frequency": 40
+  },
+  {
+    "WordID": "SRC-W-00024",
+    "Word": "看见",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "看, 见",
+    "FrequencyRank": "高",
+    "Frequency": 38
+  },
+  {
+    "WordID": "SRC-W-00025",
+    "Word": "地方",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "地, 方",
+    "FrequencyRank": "高",
+    "Frequency": 37
+  },
+  {
+    "WordID": "SRC-W-00026",
+    "Word": "在这",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 这",
+    "FrequencyRank": "高",
+    "Frequency": 37
+  },
+  {
+    "WordID": "SRC-W-00027",
+    "Word": "子们",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "子, 们",
+    "FrequencyRank": "高",
+    "Frequency": 35
+  },
+  {
+    "WordID": "SRC-W-00028",
+    "Word": "他说",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 说",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00029",
+    "Word": "好像",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "好, 像",
+    "FrequencyRank": "高",
+    "Frequency": 33
+  },
+  {
+    "WordID": "SRC-W-00030",
+    "Word": "很多",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "很, 多",
+    "FrequencyRank": "高",
+    "Frequency": 30
+  },
+  {
+    "WordID": "SRC-W-00031",
+    "Word": "学生",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "学, 生",
+    "FrequencyRank": "高",
+    "Frequency": 29
+  },
+  {
+    "WordID": "SRC-W-00032",
+    "Word": "们一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "们, 一",
+    "FrequencyRank": "高",
+    "Frequency": 29
+  },
+  {
+    "WordID": "SRC-W-00033",
+    "Word": "我不",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "我, 不",
+    "FrequencyRank": "高",
+    "Frequency": 28
+  },
+  {
+    "WordID": "SRC-W-00034",
+    "Word": "很快",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "很, 快",
+    "FrequencyRank": "高",
+    "Frequency": 28
+  },
+  {
+    "WordID": "SRC-W-00035",
+    "Word": "大王",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "大, 王",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00036",
+    "Word": "地上",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "地, 上",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00037",
+    "Word": "找到",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "找, 到",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00038",
+    "Word": "里面",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "里, 面",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00039",
+    "Word": "子里",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "子, 里",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00040",
+    "Word": "家都",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "家, 都",
+    "FrequencyRank": "高",
+    "Frequency": 23
+  },
+  {
+    "WordID": "SRC-W-00041",
+    "Word": "他不",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 不",
+    "FrequencyRank": "高",
+    "Frequency": 22
+  },
+  {
+    "WordID": "SRC-W-00042",
+    "Word": "老师",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "老, 师",
+    "FrequencyRank": "高",
+    "Frequency": 21
+  },
+  {
+    "WordID": "SRC-W-00043",
+    "Word": "在一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 一",
+    "FrequencyRank": "高",
+    "Frequency": 21
+  },
+  {
+    "WordID": "SRC-W-00044",
+    "Word": "武器",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "武, 器",
+    "FrequencyRank": "高",
+    "Frequency": 21
+  },
+  {
+    "WordID": "SRC-W-00045",
+    "Word": "天大",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "天, 大",
+    "FrequencyRank": "高",
+    "Frequency": 21
+  },
+  {
+    "WordID": "SRC-W-00046",
+    "Word": "听见",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "听, 见",
+    "FrequencyRank": "高",
+    "Frequency": 20
+  },
+  {
+    "WordID": "SRC-W-00047",
+    "Word": "从来",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "从, 来",
+    "FrequencyRank": "高",
+    "Frequency": 20
+  },
+  {
+    "WordID": "SRC-W-00048",
+    "Word": "高兴",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "高, 兴",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00049",
+    "Word": "喜欢",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "喜, 欢",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00050",
+    "Word": "小猴",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "小, 猴",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00051",
+    "Word": "也没",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "也, 没",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00052",
+    "Word": "站在",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "站, 在",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00053",
+    "Word": "在那",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 那",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00054",
+    "Word": "天上",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "天, 上",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00055",
+    "Word": "他还",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 还",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00056",
+    "Word": "头看",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "头, 看",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00057",
+    "Word": "个小",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "个, 小",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00058",
+    "Word": "都是",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "都, 是",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00059",
+    "Word": "他从",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 从",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00060",
+    "Word": "王一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "王, 一",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00061",
+    "Word": "上面",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "上, 面",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00062",
+    "Word": "都不",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "都, 不",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00063",
+    "Word": "像一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "像, 一",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00064",
+    "Word": "在他",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 他",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00065",
+    "Word": "桃子",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "桃, 子",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00066",
+    "Word": "下面",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "下, 面",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00067",
+    "Word": "在地",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 地",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00068",
+    "Word": "在天",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 天",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00069",
+    "Word": "石头",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "石, 头",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00070",
+    "Word": "我要",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "我, 要",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00071",
+    "Word": "个大",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "个, 大",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00072",
+    "Word": "都有",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "都, 有",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00073",
+    "Word": "子一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "子, 一",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00074",
+    "Word": "我是",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "我, 是",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00075",
+    "Word": "开心",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "开, 心",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00076",
+    "Word": "见一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "见, 一",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00077",
+    "Word": "我一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "我, 一",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00078",
+    "Word": "他在",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 在",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00079",
+    "Word": "你会",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "你, 会",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00080",
+    "Word": "都在",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "都, 在",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00081",
+    "Word": "你这",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "你, 这",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00082",
+    "Word": "外面",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "外, 面",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00083",
+    "Word": "地下",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "地, 下",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00084",
+    "Word": "都会",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "都, 会",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00085",
+    "Word": "他没",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 没",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00086",
+    "Word": "身上",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "身, 上",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00087",
+    "Word": "人都",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "人, 都",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00088",
+    "Word": "他就",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 就",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00089",
+    "Word": "他看",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 看",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00090",
+    "Word": "我看",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "我, 看",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00091",
+    "Word": "桃会",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "桃, 会",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00092",
+    "Word": "道我",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "道, 我",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00093",
+    "Word": "猴王",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "猴, 王",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00094",
+    "Word": "头上",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "头, 上",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00095",
+    "Word": "好多",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "好, 多",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00096",
+    "Word": "们是",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "们, 是",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00097",
+    "Word": "家一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "家, 一",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00098",
+    "Word": "道你",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "道, 你",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00099",
+    "Word": "时他",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "时, 他",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00100",
+    "Word": "生们",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "生, 们",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00101",
+    "Word": "在大",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 大",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00102",
+    "Word": "你是",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "你, 是",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00103",
+    "Word": "你看",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "你, 看",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00104",
+    "Word": "们会",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "们, 会",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00105",
+    "Word": "他把",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 把",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00106",
+    "Word": "他大",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 大",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00107",
+    "Word": "见他",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "见, 他",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00108",
+    "Word": "子上",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "子, 上",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00109",
+    "Word": "们有",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "们, 有",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00110",
+    "Word": "在看",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 看",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00111",
+    "Word": "家里",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "家, 里",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00112",
+    "Word": "后面",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "后, 面",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00113",
+    "Word": "在中",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "在, 中",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00114",
+    "Word": "个一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "个, 一",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00115",
+    "Word": "都没",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "都, 没",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00116",
+    "Word": "子他",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "子, 他",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00117",
+    "Word": "你就",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "你, 就",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00118",
+    "Word": "身后",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "身, 后",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00119",
+    "Word": "他去",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 去",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00120",
+    "Word": "他那",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 那",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00121",
+    "Word": "像有",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "像, 有",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00122",
+    "Word": "地看",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "地, 看",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00123",
+    "Word": "他开",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "他, 开",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00124",
+    "Word": "道他",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "道, 他",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00125",
+    "Word": "天花",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "天, 花",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00126",
+    "Word": "我来",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "我, 来",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00127",
+    "Word": "站起",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "站, 起",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00128",
+    "Word": "们也",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "们, 也",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00129",
+    "Word": "面有",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "面, 有",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00130",
+    "Word": "都要",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "都, 要",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00131",
+    "Word": "老头",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "老, 头",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00132",
+    "Word": "事他",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "事, 他",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00133",
+    "Word": "子都",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "子, 都",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00134",
+    "Word": "们要",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "们, 要",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00135",
+    "Word": "道这",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "道, 这",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00136",
+    "Word": "事里",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "事, 里",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00137",
+    "Word": "天都",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "天, 都",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00138",
+    "Word": "人他",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "人, 他",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00139",
+    "Word": "本不",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "本, 不",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00140",
+    "Word": "小心",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "小, 心",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00141",
+    "Word": "中一",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "中, 一",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00142",
+    "Word": "快就",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "快, 就",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00143",
+    "Word": "见到",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "见, 到",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00144",
+    "Word": "冬天",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "冬, 天",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00145",
+    "Word": "高山",
+    "Length": "2字",
+    "SRCLevel": "SRC100",
+    "Characters": "高, 山",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00146",
+    "Word": "悟空",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "悟, 空",
+    "FrequencyRank": "极高",
+    "Frequency": 295
+  },
+  {
+    "WordID": "SRC-W-00147",
+    "Word": "孙悟空",
+    "Length": "3字",
+    "SRCLevel": "SRC300",
+    "Characters": "孙, 悟, 空",
+    "FrequencyRank": "极高",
+    "Frequency": 294
+  },
+  {
+    "WordID": "SRC-W-00148",
+    "Word": "孙悟",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "孙, 悟",
+    "FrequencyRank": "极高",
+    "Frequency": 294
+  },
+  {
+    "WordID": "SRC-W-00149",
+    "Word": "知道",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "知, 道",
+    "FrequencyRank": "极高",
+    "Frequency": 101
+  },
+  {
+    "WordID": "SRC-W-00150",
+    "Word": "自己",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "自, 己",
+    "FrequencyRank": "极高",
+    "Frequency": 92
+  },
+  {
+    "WordID": "SRC-W-00151",
+    "Word": "魔法",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "魔, 法",
+    "FrequencyRank": "极高",
+    "Frequency": 79
+  },
+  {
+    "WordID": "SRC-W-00152",
+    "Word": "开始",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "开, 始",
+    "FrequencyRank": "极高",
+    "Frequency": 78
+  },
+  {
+    "WordID": "SRC-W-00153",
+    "Word": "已经",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "已, 经",
+    "FrequencyRank": "极高",
+    "Frequency": 72
+  },
+  {
+    "WordID": "SRC-W-00154",
+    "Word": "眼睛",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "眼, 睛",
+    "FrequencyRank": "极高",
+    "Frequency": 57
+  },
+  {
+    "WordID": "SRC-W-00155",
+    "Word": "一样",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "一, 样",
+    "FrequencyRank": "极高",
+    "Frequency": 57
+  },
+  {
+    "WordID": "SRC-W-00156",
+    "Word": "忽然",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "忽, 然",
+    "FrequencyRank": "极高",
+    "Frequency": 56
+  },
+  {
+    "WordID": "SRC-W-00157",
+    "Word": "真的",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "真, 的",
+    "FrequencyRank": "高",
+    "Frequency": 47
+  },
+  {
+    "WordID": "SRC-W-00158",
+    "Word": "声说",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "声, 说",
+    "FrequencyRank": "高",
+    "Frequency": 45
+  },
+  {
+    "WordID": "SRC-W-00159",
+    "Word": "觉得",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "觉, 得",
+    "FrequencyRank": "高",
+    "Frequency": 44
+  },
+  {
+    "WordID": "SRC-W-00160",
+    "Word": "利多",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 多",
+    "FrequencyRank": "高",
+    "Frequency": 43
+  },
+  {
+    "WordID": "SRC-W-00161",
+    "Word": "安静",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "安, 静",
+    "FrequencyRank": "高",
+    "Frequency": 42
+  },
+  {
+    "WordID": "SRC-W-00162",
+    "Word": "空一",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "空, 一",
+    "FrequencyRank": "高",
+    "Frequency": 40
+  },
+  {
+    "WordID": "SRC-W-00163",
+    "Word": "神仙",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "神, 仙",
+    "FrequencyRank": "高",
+    "Frequency": 39
+  },
+  {
+    "WordID": "SRC-W-00164",
+    "Word": "学校",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "学, 校",
+    "FrequencyRank": "高",
+    "Frequency": 35
+  },
+  {
+    "WordID": "SRC-W-00165",
+    "Word": "玉皇大帝",
+    "Length": "4字",
+    "SRCLevel": "SRC300",
+    "Characters": "玉, 皇, 大, 帝",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00166",
+    "Word": "事情",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "事, 情",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00167",
+    "Word": "玉皇",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "玉, 皇",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00168",
+    "Word": "皇大",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "皇, 大",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00169",
+    "Word": "大帝",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 帝",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00170",
+    "Word": "声音",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "声, 音",
+    "FrequencyRank": "高",
+    "Frequency": 33
+  },
+  {
+    "WordID": "SRC-W-00171",
+    "Word": "回来",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "回, 来",
+    "FrequencyRank": "高",
+    "Frequency": 30
+  },
+  {
+    "WordID": "SRC-W-00172",
+    "Word": "兵器",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "兵, 器",
+    "FrequencyRank": "高",
+    "Frequency": 29
+  },
+  {
+    "WordID": "SRC-W-00173",
+    "Word": "利说",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 说",
+    "FrequencyRank": "高",
+    "Frequency": 28
+  },
+  {
+    "WordID": "SRC-W-00174",
+    "Word": "大圣",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 圣",
+    "FrequencyRank": "高",
+    "Frequency": 27
+  },
+  {
+    "WordID": "SRC-W-00175",
+    "Word": "金箍棒",
+    "Length": "3字",
+    "SRCLevel": "SRC300",
+    "Characters": "金, 箍, 棒",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00176",
+    "Word": "小声",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "小, 声",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00177",
+    "Word": "海龙",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "海, 龙",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00178",
+    "Word": "金箍",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "金, 箍",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00179",
+    "Word": "箍棒",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "箍, 棒",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00180",
+    "Word": "变成",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "变, 成",
+    "FrequencyRank": "高",
+    "Frequency": 25
+  },
+  {
+    "WordID": "SRC-W-00181",
+    "Word": "手里",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "手, 里",
+    "FrequencyRank": "高",
+    "Frequency": 23
+  },
+  {
+    "WordID": "SRC-W-00182",
+    "Word": "时间",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "时, 间",
+    "FrequencyRank": "高",
+    "Frequency": 22
+  },
+  {
+    "WordID": "SRC-W-00183",
+    "Word": "进来",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "进, 来",
+    "FrequencyRank": "高",
+    "Frequency": 22
+  },
+  {
+    "WordID": "SRC-W-00184",
+    "Word": "利和",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 和",
+    "FrequencyRank": "高",
+    "Frequency": 22
+  },
+  {
+    "WordID": "SRC-W-00185",
+    "Word": "继续",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "继, 续",
+    "FrequencyRank": "高",
+    "Frequency": 21
+  },
+  {
+    "WordID": "SRC-W-00186",
+    "Word": "火龙",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "火, 龙",
+    "FrequencyRank": "高",
+    "Frequency": 21
+  },
+  {
+    "WordID": "SRC-W-00187",
+    "Word": "故事",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "故, 事",
+    "FrequencyRank": "高",
+    "Frequency": 20
+  },
+  {
+    "WordID": "SRC-W-00188",
+    "Word": "原来",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "原, 来",
+    "FrequencyRank": "高",
+    "Frequency": 20
+  },
+  {
+    "WordID": "SRC-W-00189",
+    "Word": "三个",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "三, 个",
+    "FrequencyRank": "高",
+    "Frequency": 20
+  },
+  {
+    "WordID": "SRC-W-00190",
+    "Word": "齐天大圣",
+    "Length": "4字",
+    "SRCLevel": "SRC300",
+    "Characters": "齐, 天, 大, 圣",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00191",
+    "Word": "进去",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "进, 去",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00192",
+    "Word": "轻一",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "轻, 一",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00193",
+    "Word": "两个",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "两, 个",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00194",
+    "Word": "齐天",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "齐, 天",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00195",
+    "Word": "利一",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 一",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00196",
+    "Word": "龙宫",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "龙, 宫",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00197",
+    "Word": "办法",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "办, 法",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00198",
+    "Word": "金色",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "金, 色",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00199",
+    "Word": "坐在",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "坐, 在",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00200",
+    "Word": "大殿",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 殿",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00201",
+    "Word": "衣服",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "衣, 服",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00202",
+    "Word": "重要",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "重, 要",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00203",
+    "Word": "三头",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "三, 头",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00204",
+    "Word": "太白金星",
+    "Length": "4字",
+    "SRCLevel": "SRC300",
+    "Characters": "太, 白, 金, 星",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00205",
+    "Word": "东海",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "东, 海",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00206",
+    "Word": "厉害",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "厉, 害",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00207",
+    "Word": "老孙",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "老, 孙",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00208",
+    "Word": "抓住",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "抓, 住",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00209",
+    "Word": "太白",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "太, 白",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00210",
+    "Word": "白金",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "白, 金",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00211",
+    "Word": "金星",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "金, 星",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00212",
+    "Word": "朋友",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "朋, 友",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00213",
+    "Word": "打开",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "打, 开",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00214",
+    "Word": "可能",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "可, 能",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00215",
+    "Word": "空中",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "空, 中",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00216",
+    "Word": "低声",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "低, 声",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00217",
+    "Word": "大声",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 声",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00218",
+    "Word": "天空",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "天, 空",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00219",
+    "Word": "天兵",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "天, 兵",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00220",
+    "Word": "想到",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "想, 到",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00221",
+    "Word": "件事",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "件, 事",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00222",
+    "Word": "成一",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "成, 一",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00223",
+    "Word": "房间",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "房, 间",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00224",
+    "Word": "宝贝",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "宝, 贝",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00225",
+    "Word": "大门",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 门",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00226",
+    "Word": "回到",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "回, 到",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00227",
+    "Word": "吓得",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "吓, 得",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00228",
+    "Word": "二天",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "二, 天",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00229",
+    "Word": "静下",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "静, 下",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00230",
+    "Word": "变得",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "变, 得",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00231",
+    "Word": "魔王",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "魔, 王",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00232",
+    "Word": "生日",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "生, 日",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00233",
+    "Word": "树上",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "树, 上",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00234",
+    "Word": "得像",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "得, 像",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00235",
+    "Word": "利问",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 问",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00236",
+    "Word": "魔法石",
+    "Length": "3字",
+    "SRCLevel": "SRC300",
+    "Characters": "魔, 法, 石",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00237",
+    "Word": "样子",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "样, 子",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00238",
+    "Word": "慢地",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "慢, 地",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00239",
+    "Word": "得不",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "得, 不",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00240",
+    "Word": "宫里",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "宫, 里",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00241",
+    "Word": "拿出",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "拿, 出",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00242",
+    "Word": "也许",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "也, 许",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00243",
+    "Word": "他忽",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "他, 忽",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00244",
+    "Word": "面前",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "面, 前",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00245",
+    "Word": "大仙",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 仙",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00246",
+    "Word": "多年",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "多, 年",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00247",
+    "Word": "传来",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "传, 来",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00248",
+    "Word": "空气",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "空, 气",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00249",
+    "Word": "间里",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "间, 里",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00250",
+    "Word": "利心",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 心",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00251",
+    "Word": "法石",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "法, 石",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00252",
+    "Word": "桃树",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "桃, 树",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00253",
+    "Word": "我想",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "我, 想",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00254",
+    "Word": "马上",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "马, 上",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00255",
+    "Word": "大刀",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 刀",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00256",
+    "Word": "想起",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "想, 起",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00257",
+    "Word": "同时",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "同, 时",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00258",
+    "Word": "殿里",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "殿, 里",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00259",
+    "Word": "房子",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "房, 子",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00260",
+    "Word": "新生",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "新, 生",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00261",
+    "Word": "生气",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "生, 气",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00262",
+    "Word": "不同",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "不, 同",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00263",
+    "Word": "京城",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "京, 城",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00264",
+    "Word": "他想",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "他, 想",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00265",
+    "Word": "四个",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "四, 个",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00266",
+    "Word": "盔甲",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "盔, 甲",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00267",
+    "Word": "住他",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "住, 他",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00268",
+    "Word": "完他",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "完, 他",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00269",
+    "Word": "开眼",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "开, 眼",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00270",
+    "Word": "天宫",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "天, 宫",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00271",
+    "Word": "土地",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "土, 地",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00272",
+    "Word": "万圣",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "万, 圣",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00273",
+    "Word": "利小",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 小",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00274",
+    "Word": "利看",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 看",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00275",
+    "Word": "校长",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "校, 长",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00276",
+    "Word": "动地",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "动, 地",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00277",
+    "Word": "白色",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "白, 色",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00278",
+    "Word": "关上",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "关, 上",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00279",
+    "Word": "叫做",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "叫, 做",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00280",
+    "Word": "得到",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "得, 到",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00281",
+    "Word": "传说",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "传, 说",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00282",
+    "Word": "空心",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "空, 心",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00283",
+    "Word": "空已",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "空, 已",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00284",
+    "Word": "大笑",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 笑",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00285",
+    "Word": "神猴",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "神, 猴",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00286",
+    "Word": "三千",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "三, 千",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00287",
+    "Word": "空看",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "空, 看",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00288",
+    "Word": "铁棒",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "铁, 棒",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00289",
+    "Word": "棒一",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "棒, 一",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00290",
+    "Word": "他已",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "他, 已",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00291",
+    "Word": "轻声",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "轻, 声",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00292",
+    "Word": "在哪",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "在, 哪",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00293",
+    "Word": "儿子",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "儿, 子",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00294",
+    "Word": "故意",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "故, 意",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00295",
+    "Word": "个神",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "个, 神",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00296",
+    "Word": "转头",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "转, 头",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00297",
+    "Word": "校里",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "校, 里",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00298",
+    "Word": "中学",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "中, 学",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00299",
+    "Word": "利把",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "利, 把",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00300",
+    "Word": "你不",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "你, 不",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00301",
+    "Word": "黑色",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "黑, 色",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00302",
+    "Word": "睡觉",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "睡, 觉",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00303",
+    "Word": "天将",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "天, 将",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00304",
+    "Word": "美猴",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "美, 猴",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00305",
+    "Word": "们怎",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "们, 怎",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00306",
+    "Word": "他飞",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "他, 飞",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00307",
+    "Word": "头就",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "头, 就",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00308",
+    "Word": "老猴",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "老, 猴",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00309",
+    "Word": "次我",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "次, 我",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00310",
+    "Word": "你有",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "你, 有",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00311",
+    "Word": "儿他",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "儿, 他",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00312",
+    "Word": "低头",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "低, 头",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00313",
+    "Word": "天兵天将",
+    "Length": "4字",
+    "SRCLevel": "SRC300",
+    "Characters": "天, 兵, 天, 将",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00314",
+    "Word": "妖怪",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "妖, 怪",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00315",
+    "Word": "筋斗",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "筋, 斗",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00316",
+    "Word": "中间",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "中, 间",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00317",
+    "Word": "魔法学校",
+    "Length": "4字",
+    "SRCLevel": "SRC300",
+    "Characters": "魔, 法, 学, 校",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00318",
+    "Word": "一动不动",
+    "Length": "4字",
+    "SRCLevel": "SRC300",
+    "Characters": "一, 动, 不, 动",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00319",
+    "Word": "害怕",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "害, 怕",
+    "FrequencyRank": "中",
+    "Frequency": 5
+  },
+  {
+    "WordID": "SRC-W-00320",
+    "Word": "草地",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "草, 地",
+    "FrequencyRank": "中",
+    "Frequency": 5
+  },
+  {
+    "WordID": "SRC-W-00321",
+    "Word": "南海",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "南, 海",
+    "FrequencyRank": "中",
+    "Frequency": 5
+  },
+  {
+    "WordID": "SRC-W-00322",
+    "Word": "前面",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "前, 面",
+    "FrequencyRank": "中",
+    "Frequency": 5
+  },
+  {
+    "WordID": "SRC-W-00323",
+    "Word": "回家",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "回, 家",
+    "FrequencyRank": "基础",
+    "Frequency": 4
+  },
+  {
+    "WordID": "SRC-W-00324",
+    "Word": "法术",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "法, 术",
+    "FrequencyRank": "基础",
+    "Frequency": 4
+  },
+  {
+    "WordID": "SRC-W-00325",
+    "Word": "水果",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "水, 果",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00326",
+    "Word": "大海",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "大, 海",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00327",
+    "Word": "友好",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "友, 好",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00328",
+    "Word": "变化",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "变, 化",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00329",
+    "Word": "同学",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "同, 学",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00330",
+    "Word": "出门",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "出, 门",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00331",
+    "Word": "太阳",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "太, 阳",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00332",
+    "Word": "山洞",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "山, 洞",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00333",
+    "Word": "水帘洞",
+    "Length": "3字",
+    "SRCLevel": "SRC300",
+    "Characters": "水, 帘, 洞",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00334",
+    "Word": "拿起",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "拿, 起",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00335",
+    "Word": "爸爸",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "爸, 爸",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00336",
+    "Word": "妈妈",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "妈, 妈",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00337",
+    "Word": "哥哥",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "哥, 哥",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00338",
+    "Word": "读书",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "读, 书",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00339",
+    "Word": "写字",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "写, 字",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00340",
+    "Word": "画画",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "画, 画",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00341",
+    "Word": "书本",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "书, 本",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00342",
+    "Word": "喝水",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "喝, 水",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00343",
+    "Word": "小鸟",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "小, 鸟",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00344",
+    "Word": "鱼儿",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "鱼, 儿",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00345",
+    "Word": "月亮",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "月, 亮",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00346",
+    "Word": "星星",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "星, 星",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00347",
+    "Word": "完成",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "完, 成",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00348",
+    "Word": "一百个",
+    "Length": "3字",
+    "SRCLevel": "SRC300",
+    "Characters": "一, 百, 个",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00349",
+    "Word": "一千年",
+    "Length": "3字",
+    "SRCLevel": "SRC300",
+    "Characters": "一, 千, 年",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00350",
+    "Word": "小朋友",
+    "Length": "3字",
+    "SRCLevel": "SRC300",
+    "Characters": "小, 朋, 友",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00351",
+    "Word": "如来",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "如, 来",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00352",
+    "Word": "慢慢",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "慢, 慢",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00353",
+    "Word": "轻轻",
+    "Length": "2字",
+    "SRCLevel": "SRC300",
+    "Characters": "轻, 轻",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00354",
+    "Word": "哈利",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "哈, 利",
+    "FrequencyRank": "极高",
+    "Frequency": 533
+  },
+  {
+    "WordID": "SRC-W-00355",
+    "Word": "海格",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "海, 格",
+    "FrequencyRank": "极高",
+    "Frequency": 173
+  },
+  {
+    "WordID": "SRC-W-00356",
+    "Word": "先生",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "先, 生",
+    "FrequencyRank": "极高",
+    "Frequency": 56
+  },
+  {
+    "WordID": "SRC-W-00357",
+    "Word": "波特",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "波, 特",
+    "FrequencyRank": "极高",
+    "Frequency": 54
+  },
+  {
+    "WordID": "SRC-W-00358",
+    "Word": "世界",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "世, 界",
+    "FrequencyRank": "高",
+    "Frequency": 48
+  },
+  {
+    "WordID": "SRC-W-00359",
+    "Word": "奇怪",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "奇, 怪",
+    "FrequencyRank": "高",
+    "Frequency": 46
+  },
+  {
+    "WordID": "SRC-W-00360",
+    "Word": "一点",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "一, 点",
+    "FrequencyRank": "高",
+    "Frequency": 44
+  },
+  {
+    "WordID": "SRC-W-00361",
+    "Word": "特别",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "特, 别",
+    "FrequencyRank": "高",
+    "Frequency": 38
+  },
+  {
+    "WordID": "SRC-W-00362",
+    "Word": "名字",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "名, 字",
+    "FrequencyRank": "高",
+    "Frequency": 36
+  },
+  {
+    "WordID": "SRC-W-00363",
+    "Word": "蟠桃",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "蟠, 桃",
+    "FrequencyRank": "高",
+    "Frequency": 33
+  },
+  {
+    "WordID": "SRC-W-00364",
+    "Word": "一定",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "一, 定",
+    "FrequencyRank": "高",
+    "Frequency": 31
+  },
+  {
+    "WordID": "SRC-W-00365",
+    "Word": "今天",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "今, 天",
+    "FrequencyRank": "高",
+    "Frequency": 28
+  },
+  {
+    "WordID": "SRC-W-00366",
+    "Word": "最后",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "最, 后",
+    "FrequencyRank": "高",
+    "Frequency": 28
+  },
+  {
+    "WordID": "SRC-W-00367",
+    "Word": "真正",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "真, 正",
+    "FrequencyRank": "高",
+    "Frequency": 27
+  },
+  {
+    "WordID": "SRC-W-00368",
+    "Word": "利波",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "利, 波",
+    "FrequencyRank": "高",
+    "Frequency": 27
+  },
+  {
+    "WordID": "SRC-W-00369",
+    "Word": "哈利波特",
+    "Length": "4字",
+    "SRCLevel": "SRC500",
+    "Characters": "哈, 利, 波, 特",
+    "FrequencyRank": "高",
+    "Frequency": 27
+  },
+  {
+    "WordID": "SRC-W-00370",
+    "Word": "说话",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "说, 话",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00371",
+    "Word": "非常",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "非, 常",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00372",
+    "Word": "准备",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "准, 备",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00373",
+    "Word": "点头",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "点, 头",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00374",
+    "Word": "发生",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "发, 生",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00375",
+    "Word": "正在",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "正, 在",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00376",
+    "Word": "格说",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "格, 说",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00377",
+    "Word": "格教",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "格, 教",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00378",
+    "Word": "巨怪",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "巨, 怪",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00379",
+    "Word": "离开",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "离, 开",
+    "FrequencyRank": "高",
+    "Frequency": 23
+  },
+  {
+    "WordID": "SRC-W-00380",
+    "Word": "门口",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "门, 口",
+    "FrequencyRank": "高",
+    "Frequency": 23
+  },
+  {
+    "WordID": "SRC-W-00381",
+    "Word": "神秘",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "神, 秘",
+    "FrequencyRank": "高",
+    "Frequency": 22
+  },
+  {
+    "WordID": "SRC-W-00382",
+    "Word": "小屋",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "小, 屋",
+    "FrequencyRank": "高",
+    "Frequency": 20
+  },
+  {
+    "WordID": "SRC-W-00383",
+    "Word": "特林",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "特, 林",
+    "FrequencyRank": "高",
+    "Frequency": 20
+  },
+  {
+    "WordID": "SRC-W-00384",
+    "Word": "秘密",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "秘, 密",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00385",
+    "Word": "口气",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "口, 气",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00386",
+    "Word": "桃园",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "桃, 园",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00387",
+    "Word": "地奇",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "地, 奇",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00388",
+    "Word": "晚上",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "晚, 上",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00389",
+    "Word": "明白",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "明, 白",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00390",
+    "Word": "星期",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "星, 期",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00391",
+    "Word": "尖叫",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "尖, 叫",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00392",
+    "Word": "法世",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "法, 世",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00393",
+    "Word": "魔法世界",
+    "Length": "4字",
+    "SRCLevel": "SRC500",
+    "Characters": "魔, 法, 世, 界",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00394",
+    "Word": "教室",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "教, 室",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00395",
+    "Word": "巨大",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "巨, 大",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00396",
+    "Word": "仙女",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "仙, 女",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00397",
+    "Word": "当然",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "当, 然",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00398",
+    "Word": "吗哈",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "吗, 哈",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00399",
+    "Word": "头发",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "头, 发",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00400",
+    "Word": "红色",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "红, 色",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00401",
+    "Word": "决定",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "决, 定",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00402",
+    "Word": "认真",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "认, 真",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00403",
+    "Word": "个名",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "个, 名",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00404",
+    "Word": "别人",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "别, 人",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00405",
+    "Word": "完全",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "完, 全",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00406",
+    "Word": "危险",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "危, 险",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00407",
+    "Word": "中国",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "中, 国",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00408",
+    "Word": "神奇",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "神, 奇",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00409",
+    "Word": "全都",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "全, 都",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00410",
+    "Word": "时哈",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "时, 哈",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00411",
+    "Word": "世魔",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "世, 魔",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00412",
+    "Word": "金光",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "金, 光",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00413",
+    "Word": "特先",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "特, 先",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00414",
+    "Word": "天晚",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "天, 晚",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00415",
+    "Word": "绿色",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "绿, 色",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00416",
+    "Word": "点儿",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "点, 儿",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00417",
+    "Word": "桌上",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "桌, 上",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00418",
+    "Word": "墙上",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "墙, 上",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00419",
+    "Word": "天早",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "天, 早",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00420",
+    "Word": "图书",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "图, 书",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00421",
+    "Word": "巨人",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "巨, 人",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00422",
+    "Word": "球手",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "球, 手",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00423",
+    "Word": "奇怪的事",
+    "Length": "4字",
+    "SRCLevel": "SRC500",
+    "Characters": "奇, 怪, 的, 事",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00424",
+    "Word": "桌子",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "桌, 子",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00425",
+    "Word": "遇到",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "遇, 到",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00426",
+    "Word": "库里",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "库, 里",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00427",
+    "Word": "放在",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "放, 在",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00428",
+    "Word": "等他",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "等, 他",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00429",
+    "Word": "早就",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "早, 就",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00430",
+    "Word": "发出",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "发, 出",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00431",
+    "Word": "圣节",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "圣, 节",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00432",
+    "Word": "子哈",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "子, 哈",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00433",
+    "Word": "屋里",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "屋, 里",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00434",
+    "Word": "书馆",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "书, 馆",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00435",
+    "Word": "钥匙",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "钥, 匙",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00436",
+    "Word": "金库",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "金, 库",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00437",
+    "Word": "站台",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "站, 台",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00438",
+    "Word": "找球",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "找, 球",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00439",
+    "Word": "明天",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "明, 天",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00440",
+    "Word": "火车",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "火, 车",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00441",
+    "Word": "安全",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "安, 全",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00442",
+    "Word": "咒语",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "咒, 语",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00443",
+    "Word": "应该",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "应, 该",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00444",
+    "Word": "定要",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "定, 要",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00445",
+    "Word": "大口",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "大, 口",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00446",
+    "Word": "点也",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "点, 也",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00447",
+    "Word": "当他",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "当, 他",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00448",
+    "Word": "难道",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "难, 道",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00449",
+    "Word": "干什",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "干, 什",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00450",
+    "Word": "地爷",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "地, 爷",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00451",
+    "Word": "楼梯",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "楼, 梯",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00452",
+    "Word": "阳光",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "阳, 光",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00453",
+    "Word": "利立",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "利, 立",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00454",
+    "Word": "早上",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "早, 上",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00455",
+    "Word": "电话",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "电, 话",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00456",
+    "Word": "快乐",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "快, 乐",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00457",
+    "Word": "个世",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "个, 世",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00458",
+    "Word": "器库",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "器, 库",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00459",
+    "Word": "哈哈大笑",
+    "Length": "4字",
+    "SRCLevel": "SRC500",
+    "Characters": "哈, 哈, 大, 笑",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00460",
+    "Word": "一点也不",
+    "Length": "4字",
+    "SRCLevel": "SRC500",
+    "Characters": "一, 点, 也, 不",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00461",
+    "Word": "糖果",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "糖, 果",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00462",
+    "Word": "电视",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "电, 视",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00463",
+    "Word": "黄色",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "黄, 色",
+    "FrequencyRank": "中",
+    "Frequency": 5
+  },
+  {
+    "WordID": "SRC-W-00464",
+    "Word": "出发",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "出, 发",
+    "FrequencyRank": "中",
+    "Frequency": 5
+  },
+  {
+    "WordID": "SRC-W-00465",
+    "Word": "聪明",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "聪, 明",
+    "FrequencyRank": "中",
+    "Frequency": 5
+  },
+  {
+    "WordID": "SRC-W-00466",
+    "Word": "紫色",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "紫, 色",
+    "FrequencyRank": "基础",
+    "Frequency": 4
+  },
+  {
+    "WordID": "SRC-W-00467",
+    "Word": "寻找",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "寻, 找",
+    "FrequencyRank": "基础",
+    "Frequency": 4
+  },
+  {
+    "WordID": "SRC-W-00468",
+    "Word": "勇敢",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "勇, 敢",
+    "FrequencyRank": "基础",
+    "Frequency": 4
+  },
+  {
+    "WordID": "SRC-W-00469",
+    "Word": "饼干",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "饼, 干",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00470",
+    "Word": "星期二",
+    "Length": "3字",
+    "SRCLevel": "SRC500",
+    "Characters": "星, 期, 二",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00471",
+    "Word": "星期五",
+    "Length": "3字",
+    "SRCLevel": "SRC500",
+    "Characters": "星, 期, 五",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00472",
+    "Word": "光轮",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "光, 轮",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00473",
+    "Word": "昨天",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "昨, 天",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00474",
+    "Word": "吃饭",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "吃, 饭",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00475",
+    "Word": "面包",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "面, 包",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00476",
+    "Word": "椅子",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "椅, 子",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00477",
+    "Word": "飞机",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "飞, 机",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00478",
+    "Word": "灰色",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "灰, 色",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00479",
+    "Word": "保护",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "保, 护",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00480",
+    "Word": "游戏",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "游, 戏",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00481",
+    "Word": "放下",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "放, 下",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00482",
+    "Word": "爷爷",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "爷, 爷",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00483",
+    "Word": "奶奶",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "奶, 奶",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00484",
+    "Word": "姐姐",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "姐, 姐",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00485",
+    "Word": "弟弟",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "弟, 弟",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00486",
+    "Word": "妹妹",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "妹, 妹",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00487",
+    "Word": "伙伴",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "伙, 伴",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00488",
+    "Word": "音乐",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "音, 乐",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00489",
+    "Word": "书包",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "书, 包",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00490",
+    "Word": "春天",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "春, 天",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00491",
+    "Word": "夏天",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "夏, 天",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00492",
+    "Word": "秋天",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "秋, 天",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00493",
+    "Word": "星期一",
+    "Length": "3字",
+    "SRCLevel": "SRC500",
+    "Characters": "星, 期, 一",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00494",
+    "Word": "包子",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "包, 子",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00495",
+    "Word": "苹果",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "苹, 果",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00496",
+    "Word": "香蕉",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "香, 蕉",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00497",
+    "Word": "手机",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "手, 机",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00498",
+    "Word": "电脑",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "电, 脑",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00499",
+    "Word": "汽车",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "汽, 车",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00500",
+    "Word": "轮船",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "轮, 船",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00501",
+    "Word": "自行车",
+    "Length": "3字",
+    "SRCLevel": "SRC500",
+    "Characters": "自, 行, 车",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00502",
+    "Word": "森林",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "森, 林",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00503",
+    "Word": "花园",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "花, 园",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00504",
+    "Word": "蓝色",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "蓝, 色",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00505",
+    "Word": "粉色",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "粉, 色",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00506",
+    "Word": "橙色",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "橙, 色",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00507",
+    "Word": "起床",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "起, 床",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00508",
+    "Word": "追赶",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "追, 赶",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00509",
+    "Word": "旅行",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "旅, 行",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00510",
+    "Word": "英雄",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "英, 雄",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00511",
+    "Word": "善良",
+    "Length": "2字",
+    "SRCLevel": "SRC500",
+    "Characters": "善, 良",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00512",
+    "Word": "星期三",
+    "Length": "3字",
+    "SRCLevel": "SRC500",
+    "Characters": "星, 期, 三",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00513",
+    "Word": "星期四",
+    "Length": "3字",
+    "SRCLevel": "SRC500",
+    "Characters": "星, 期, 四",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00514",
+    "Word": "赫敏",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "赫, 敏",
+    "FrequencyRank": "极高",
+    "Frequency": 87
+  },
+  {
+    "WordID": "SRC-W-00515",
+    "Word": "立刻",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "立, 刻",
+    "FrequencyRank": "极高",
+    "Frequency": 63
+  },
+  {
+    "WordID": "SRC-W-00516",
+    "Word": "教授",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "教, 授",
+    "FrequencyRank": "极高",
+    "Frequency": 62
+  },
+  {
+    "WordID": "SRC-W-00517",
+    "Word": "越来",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "越, 来",
+    "FrequencyRank": "高",
+    "Frequency": 39
+  },
+  {
+    "WordID": "SRC-W-00518",
+    "Word": "猫头鹰",
+    "Length": "3字",
+    "SRCLevel": "SRC800",
+    "Characters": "猫, 头, 鹰",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00519",
+    "Word": "猫头",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "猫, 头",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00520",
+    "Word": "头鹰",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "头, 鹰",
+    "FrequencyRank": "高",
+    "Frequency": 34
+  },
+  {
+    "WordID": "SRC-W-00521",
+    "Word": "赶紧",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "赶, 紧",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00522",
+    "Word": "巫师",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "巫, 师",
+    "FrequencyRank": "高",
+    "Frequency": 26
+  },
+  {
+    "WordID": "SRC-W-00523",
+    "Word": "孩子",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "孩, 子",
+    "FrequencyRank": "高",
+    "Frequency": 25
+  },
+  {
+    "WordID": "SRC-W-00524",
+    "Word": "麦格",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "麦, 格",
+    "FrequencyRank": "高",
+    "Frequency": 25
+  },
+  {
+    "WordID": "SRC-W-00525",
+    "Word": "麦格教授",
+    "Length": "4字",
+    "SRCLevel": "SRC800",
+    "Characters": "麦, 格, 教, 授",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00526",
+    "Word": "芬多",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "芬, 多",
+    "FrequencyRank": "高",
+    "Frequency": 24
+  },
+  {
+    "WordID": "SRC-W-00527",
+    "Word": "哪吒",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "哪, 吒",
+    "FrequencyRank": "高",
+    "Frequency": 23
+  },
+  {
+    "WordID": "SRC-W-00528",
+    "Word": "紧张",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "紧, 张",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00529",
+    "Word": "甚至",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "甚, 至",
+    "FrequencyRank": "中",
+    "Frequency": 19
+  },
+  {
+    "WordID": "SRC-W-00530",
+    "Word": "魁地奇",
+    "Length": "3字",
+    "SRCLevel": "SRC800",
+    "Characters": "魁, 地, 奇",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00531",
+    "Word": "消失",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "消, 失",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00532",
+    "Word": "魁地",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "魁, 地",
+    "FrequencyRank": "中",
+    "Frequency": 18
+  },
+  {
+    "WordID": "SRC-W-00533",
+    "Word": "差点",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "差, 点",
+    "FrequencyRank": "中",
+    "Frequency": 17
+  },
+  {
+    "WordID": "SRC-W-00534",
+    "Word": "兴奋",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "兴, 奋",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00535",
+    "Word": "猛地",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "猛, 地",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00536",
+    "Word": "感觉",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "感, 觉",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00537",
+    "Word": "帽子",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "帽, 子",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00538",
+    "Word": "男孩",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "男, 孩",
+    "FrequencyRank": "中",
+    "Frequency": 16
+  },
+  {
+    "WordID": "SRC-W-00539",
+    "Word": "妖精",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "妖, 精",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00540",
+    "Word": "和赫",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "和, 赫",
+    "FrequencyRank": "中",
+    "Frequency": 15
+  },
+  {
+    "WordID": "SRC-W-00541",
+    "Word": "休息",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "休, 息",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00542",
+    "Word": "物间",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "物, 间",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00543",
+    "Word": "包裹",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "包, 裹",
+    "FrequencyRank": "中",
+    "Frequency": 14
+  },
+  {
+    "WordID": "SRC-W-00544",
+    "Word": "麻瓜",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "麻, 瓜",
+    "FrequencyRank": "中",
+    "Frequency": 13
+  },
+  {
+    "WordID": "SRC-W-00545",
+    "Word": "欺负",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "欺, 负",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00546",
+    "Word": "袋里",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "袋, 里",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00547",
+    "Word": "年级",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "年, 级",
+    "FrequencyRank": "中",
+    "Frequency": 12
+  },
+  {
+    "WordID": "SRC-W-00548",
+    "Word": "城堡",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "城, 堡",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00549",
+    "Word": "竟然",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "竟, 然",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00550",
+    "Word": "连忙",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "连, 忙",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00551",
+    "Word": "居然",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "居, 然",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00552",
+    "Word": "利凡",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "利, 凡",
+    "FrequencyRank": "中",
+    "Frequency": 11
+  },
+  {
+    "WordID": "SRC-W-00553",
+    "Word": "下午",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "下, 午",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00554",
+    "Word": "三头狗",
+    "Length": "3字",
+    "SRCLevel": "SRC800",
+    "Characters": "三, 头, 狗",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00555",
+    "Word": "休息室",
+    "Length": "3字",
+    "SRCLevel": "SRC800",
+    "Characters": "休, 息, 室",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00556",
+    "Word": "蛋糕",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "蛋, 糕",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00557",
+    "Word": "麻烦",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "麻, 烦",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00558",
+    "Word": "口袋",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "口, 袋",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00559",
+    "Word": "总是",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "总, 是",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00560",
+    "Word": "息室",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "息, 室",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00561",
+    "Word": "头狗",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "头, 狗",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00562",
+    "Word": "隐形",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "隐, 形",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00563",
+    "Word": "形衣",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "形, 衣",
+    "FrequencyRank": "中",
+    "Frequency": 10
+  },
+  {
+    "WordID": "SRC-W-00564",
+    "Word": "合适",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "合, 适",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00565",
+    "Word": "胡子",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "胡, 子",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00566",
+    "Word": "古代",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "古, 代",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00567",
+    "Word": "句话",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "句, 话",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00568",
+    "Word": "瞬间",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "瞬, 间",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00569",
+    "Word": "带来",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "带, 来",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00570",
+    "Word": "并不",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "并, 不",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00571",
+    "Word": "结果",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "结, 果",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00572",
+    "Word": "进入",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "进, 入",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00573",
+    "Word": "报纸",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "报, 纸",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00574",
+    "Word": "廊里",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "廊, 里",
+    "FrequencyRank": "中",
+    "Frequency": 9
+  },
+  {
+    "WordID": "SRC-W-00575",
+    "Word": "希望",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "希, 望",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00576",
+    "Word": "落在",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "落, 在",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00577",
+    "Word": "钢叉",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "钢, 叉",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00578",
+    "Word": "摆手",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "摆, 手",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00579",
+    "Word": "停下",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "停, 下",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00580",
+    "Word": "周围",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "周, 围",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00581",
+    "Word": "睁开",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "睁, 开",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00582",
+    "Word": "幽冥",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "幽, 冥",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00583",
+    "Word": "冥界",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "冥, 界",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00584",
+    "Word": "眉头",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "眉, 头",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00585",
+    "Word": "越近",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "越, 近",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00586",
+    "Word": "需要",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "需, 要",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00587",
+    "Word": "记得",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "记, 得",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00588",
+    "Word": "相看",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "相, 看",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00589",
+    "Word": "认识",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "认, 识",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00590",
+    "Word": "代表",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "代, 表",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00591",
+    "Word": "生活",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "生, 活",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00592",
+    "Word": "沙发",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "沙, 发",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00593",
+    "Word": "分钟",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "分, 钟",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00594",
+    "Word": "银行",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "银, 行",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00595",
+    "Word": "赫奇",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "赫, 奇",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00596",
+    "Word": "箱子",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "箱, 子",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00597",
+    "Word": "越来越近",
+    "Length": "4字",
+    "SRCLevel": "SRC800",
+    "Characters": "越, 来, 越, 近",
+    "FrequencyRank": "中",
+    "Frequency": 8
+  },
+  {
+    "WordID": "SRC-W-00598",
+    "Word": "耳朵",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "耳, 朵",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00599",
+    "Word": "讨厌",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "讨, 厌",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00600",
+    "Word": "费格太太",
+    "Length": "4字",
+    "SRCLevel": "SRC800",
+    "Characters": "费, 格, 太, 太",
+    "FrequencyRank": "中",
+    "Frequency": 7
+  },
+  {
+    "WordID": "SRC-W-00601",
+    "Word": "脑袋",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "脑, 袋",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00602",
+    "Word": "担心",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "担, 心",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00603",
+    "Word": "舒服",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "舒, 服",
+    "FrequencyRank": "中",
+    "Frequency": 6
+  },
+  {
+    "WordID": "SRC-W-00604",
+    "Word": "仙丹",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "仙, 丹",
+    "FrequencyRank": "中",
+    "Frequency": 5
+  },
+  {
+    "WordID": "SRC-W-00605",
+    "Word": "手指",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "手, 指",
+    "FrequencyRank": "基础",
+    "Frequency": 4
+  },
+  {
+    "WordID": "SRC-W-00606",
+    "Word": "伏地魔",
+    "Length": "3字",
+    "SRCLevel": "SRC800",
+    "Characters": "伏, 地, 魔",
+    "FrequencyRank": "基础",
+    "Frequency": 4
+  },
+  {
+    "WordID": "SRC-W-00607",
+    "Word": "嘴巴",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "嘴, 巴",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00608",
+    "Word": "肩膀",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "肩, 膀",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00609",
+    "Word": "走路",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "走, 路",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00610",
+    "Word": "帮忙",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "帮, 忙",
+    "FrequencyRank": "基础",
+    "Frequency": 3
+  },
+  {
+    "WordID": "SRC-W-00611",
+    "Word": "惊讶",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "惊, 讶",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00612",
+    "Word": "失望",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "失, 望",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00613",
+    "Word": "孩子们",
+    "Length": "3字",
+    "SRCLevel": "SRC800",
+    "Characters": "孩, 子, 们",
+    "FrequencyRank": "基础",
+    "Frequency": 2
+  },
+  {
+    "WordID": "SRC-W-00614",
+    "Word": "中午",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "中, 午",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00615",
+    "Word": "西瓜",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "西, 瓜",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00616",
+    "Word": "喝茶",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "喝, 茶",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00617",
+    "Word": "牙齿",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "牙, 齿",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00618",
+    "Word": "兔子",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "兔, 子",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00619",
+    "Word": "小狗",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "小, 狗",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00620",
+    "Word": "小猫",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "小, 猫",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00621",
+    "Word": "乌龟",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "乌, 龟",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00622",
+    "Word": "狼",
+    "Length": "1字",
+    "SRCLevel": "SRC800",
+    "Characters": "狼",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00623",
+    "Word": "河水",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "河, 水",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00624",
+    "Word": "沙漠",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "沙, 漠",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00625",
+    "Word": "谢谢",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "谢, 谢",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00626",
+    "Word": "怪物",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "怪, 物",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00627",
+    "Word": "骄傲",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "骄, 傲",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00628",
+    "Word": "唐三藏",
+    "Length": "3字",
+    "SRCLevel": "SRC800",
+    "Characters": "唐, 三, 藏",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00629",
+    "Word": "哪吒三",
+    "Length": "3字",
+    "SRCLevel": "SRC800",
+    "Characters": "哪, 吒, 三",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00630",
+    "Word": "唐僧",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "唐, 僧",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00631",
+    "Word": "沙僧",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "沙, 僧",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00632",
+    "Word": "取经",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "取, 经",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  },
+  {
+    "WordID": "SRC-W-00633",
+    "Word": "徒弟",
+    "Length": "2字",
+    "SRCLevel": "SRC800",
+    "Characters": "徒, 弟",
+    "FrequencyRank": "基础",
+    "Frequency": 1
+  }
+]

@@ -22720,6 +22720,7 @@ export function getQuestionsByLevel(level: Level): Omit<QuestionItem, "id" | "cr
   }
 }
 
+
 export function getCharList(level: Level): string[] {
   const questions = getQuestionsByLevel(level);
   return questions.map(q => q.character);
