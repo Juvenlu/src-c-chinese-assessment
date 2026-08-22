@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCharList, getWordList } from '@/lib/questions';
-import { adaptiveWordSampling, masteryFromCharTest, getEmptyMastery, type SampledWord, type ChildMasteryData } from '@/lib/scoring';
+import { generateCharacterTest, generateVocabTest } from '@/lib/item-selection';
+import { LEVEL_CONFIG, type Level, type CharTestResult, type SampledItem, type MasteryStatus } from '@/lib/types';
 
 // Fisher-Yates shuffle
 function shuffleArray<T>(array: T[], seed: number): T[] {
@@ -19,7 +20,6 @@ function shuffleArray<T>(array: T[], seed: number): T[] {
 
 // Generate a random seed
 const randomSeed = Math.floor(Math.random() * 1000000);
-import { Level, LEVEL_CONFIG, CharTestResult } from '@/lib/types';
 
 function FullTestContent() {
   const router = useRouter();
@@ -38,13 +38,16 @@ function FullTestContent() {
   const [testStartTime, setTestStartTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Shuffled list for characters (test all)
-  const charList = useMemo(() => shuffleArray(getCharList(level), randomSeed), [level]);
+  // Character list (smart sampling, not all)
+  const charList = useMemo(() => getCharList(level), [level]);
+  const wordList = useMemo(() => getWordList(level), [level]);
   
-  // Word list: starts empty, filled by adaptive sampling after char test
-  const [sampledWords, setSampledWords] = useState<SampledWord[]>([]);
-  const wordList = sampledWords.map(w => w.word);
-  const currentList = phase === 'chars' ? charList : wordList;
+  // Sampled items (smart selection)
+  const [sampledChars, setSampledChars] = useState<SampledItem[]>([]);
+  const [sampledWords, setSampledWords] = useState<SampledItem[]>([]);
+  const currentCharList = sampledChars.map(s => s.content);
+  const currentWordList = sampledWords.map(s => s.content);
+  const currentList = phase === 'chars' ? currentCharList : currentWordList;
   const currentItem = currentList[currentIndex];
   const totalItems = currentList.length;
   const progress = ((currentIndex) / totalItems) * 100;
@@ -81,31 +84,30 @@ function FullTestContent() {
       } else {
         // Phase complete
         if (phase === 'chars') {
-          // Run adaptive word sampling based on char test results
+          // Run smart word sampling based on char test results
           const allCharResults = [...results, { character: currentItem, recognized, reaction_time_ms: reactionTime }];
-          const wordPool = getWordList(level);
-          const charPool = getCharList(level);
           
-          // Build mastery data from char test results
-          const knownChars = allCharResults.filter(r => r.recognized).map(r => r.character);
-          const unknownChars = allCharResults.filter(r => !r.recognized).map(r => r.character);
-          const charMastery: Record<string, number> = {};
-          allCharResults.forEach(r => {
-            charMastery[r.character] = r.recognized ? 1 : 0;
-          });
-          
+          // Build character mastery from char test results
           const now = Date.now();
-          const mastery: ChildMasteryData = {
-            recognizedChars: knownChars,
-            unknownChars,
-            charMastery,
-            wordMastery: {},
-            wrongWordHistory: [],
-            wordLastTested: {},
-            charLastTested: Object.fromEntries(knownChars.map(c => [c, now])),
-          };
           
-          const sampled = adaptiveWordSampling(wordPool, charPool, mastery);
+          // Smart word sampling using V1.0 algorithm
+          const testedChars = allCharResults.map(r => r.character);
+          const charMasteryMap = new Map<string, { status: MasteryStatus; lastResult?: boolean }>(
+            allCharResults.map(r => [
+              r.character,
+              {
+                status: r.recognized ? 'basic_mastery' : 'needs_review',
+                lastResult: r.recognized,
+              },
+            ]),
+          );
+          const sampled = generateVocabTest({
+            allWords: wordList,
+            testedChars,
+            charMasteryMap,
+            wordMasteryMap: new Map(),
+            level,
+          });
           setSampledWords(sampled);
           setPhase('words');
           setCurrentIndex(0);
@@ -245,7 +247,7 @@ function FullTestContent() {
             逐字测试
           </h1>
           <p className="text-[var(--color-src-text-light)] mb-6">
-            将对{level}字库中的所有字和词逐个测试，了解每个字的掌握情况
+            智能抽选{LEVEL_CONFIG[level].charSampleRatio * 100}%重点字和词，精准掌握度动态调整
           </p>
 
           <div className="card-game space-y-3 text-left mb-6">
@@ -253,14 +255,14 @@ function FullTestContent() {
               <span className="text-2xl">1️⃣</span>
               <div>
                 <div className="font-medium text-[var(--color-src-text)]">字形识别</div>
-                <div className="text-sm text-[var(--color-src-text-light)]">{charList.length}个字逐个展示</div>
+                <div className="text-sm text-[var(--color-src-text-light)]">智能抽选约{Math.round(charList.length * LEVEL_CONFIG[level].charSampleRatio)}个字</div>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-white rounded-xl">
               <span className="text-2xl">2️⃣</span>
               <div>
                 <div className="font-medium text-[var(--color-src-text)]">词汇识别</div>
-                <div className="text-sm text-[var(--color-src-text-light)]">{wordList.length}个词逐个展示</div>
+                <div className="text-sm text-[var(--color-src-text-light)]">智能抽选约{Math.round(wordList.length * LEVEL_CONFIG[level].wordSampleRatio)}个词</div>
               </div>
             </div>
           </div>
@@ -274,7 +276,17 @@ function FullTestContent() {
           <div className="space-y-3">
             <button
               onClick={() => {
+                // V1.0: Smart character sampling (not full test)
+                const sampled = generateCharacterTest({
+                  allCharacters: charList,
+                  totalCharCount: charList.length,
+                  masteryMap: new Map(), // no history, first test
+                  level,
+                  isFirstTest: true,
+                });
+                setSampledChars(sampled);
                 setPhase('chars');
+                setCurrentIndex(0);
                 setQuestionStartTime(Date.now());
                 setTestStartTime(Date.now());
               }}
@@ -423,7 +435,7 @@ function FullTestContent() {
         </div>
 
         {/* 智能抽测原因提示（词组测试阶段） */}
-        {phase === 'words' && sampledWords[currentIndex]?.reason && (
+        {phase === 'words' && sampledWords[currentIndex] && (
           <div className="text-center mb-8">
             <span className="inline-block px-3 py-1 rounded-full text-xs font-medium"
               style={{
@@ -432,7 +444,9 @@ function FullTestContent() {
                 opacity: 0.8,
               }}
             >
-              🎯 抽测原因：{sampledWords[currentIndex].reason}
+              🎯 {sampledWords[currentIndex].poolType === 'review' ? '重点复习' :
+                  sampledWords[currentIndex].poolType === 'new' ? '新字挑战' :
+                  '巩固检测'}
             </span>
           </div>
         )}
