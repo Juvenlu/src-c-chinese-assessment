@@ -83,20 +83,20 @@ export default function HomePage() {
             >
               <div className="text-4xl mb-3">📝</div>
               <h3 className="font-display text-xl text-[var(--color-src-text)] mb-2">
-                逐字测试
+                测字
               </h3>
               <p className="text-sm text-[var(--color-src-text-light)] mb-3">
-                300字库逐个测试，全面了解每个字的掌握情况
+                检测汉字与词组掌握情况，了解当前中文阅读基础
               </p>
               <div className="flex items-center gap-2 text-xs text-[var(--color-src-text-light)]">
                 <span className="inline-flex items-center gap-1 bg-[var(--color-src-accent)]/20 px-2 py-1 rounded-full">
-                  300字
+                  汉字
                 </span>
                 <span className="inline-flex items-center gap-1 bg-[var(--color-src-secondary)]/20 px-2 py-1 rounded-full">
-                  不限时
+                  词组
                 </span>
                 <span className="inline-flex items-center gap-1 bg-[var(--color-src-primary)]/20 px-2 py-1 rounded-full">
-                  全面检测
+                  智能抽测
                 </span>
               </div>
               {hoverFull && (
