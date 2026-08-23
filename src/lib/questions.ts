@@ -718,6 +718,114 @@ export function getCorrespondingRJBLevel(level: Level): RJBLevel {
 }
 
 // ============================================================
+// minimum_src_level 逻辑视图（审计后建立）
+// ============================================================
+// 
+// 背景：SRC字库采用累积式体系（SRC100 ⊂ SRC300 ⊂ SRC500 ⊂ SRC800），
+// 同一个字可能出现在多个等级中。minimum_src_level 表示该字/词首次
+// 进入SRC体系的最低等级。
+//
+// 用途：直接测试等需要按"真实难度"分层的场景，应使用 minimum_src_level
+// 而不是原始字库等级。
+//
+// 审计结果（v1.2）：累积结构完整，0条累积链异常，0条同级重复
+//   单字：SRC100(114) → SRC300新增203 → SRC500新增211 → SRC800新增285
+//   词语：SRC100(128) → SRC300新增218 → SRC500新增212 → SRC800新增262
+// ============================================================
+
+const ALL_LEVELS: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
+
+/**
+ * 计算一个字的 minimum_src_level
+ * 即：它出现在的最低SRC等级
+ */
+export function getCharMinimumLevel(char: string): Level | null {
+  for (const lv of ALL_LEVELS) {
+    if (SRC_CHAR_LIB[lv].includes(char)) {
+      return lv;
+    }
+  }
+  return null;
+}
+
+/**
+ * 计算一个词的 minimum_src_level
+ * 词语等级独立计算，不由组成汉字推导
+ */
+export function getWordMinimumLevel(word: string): Level | null {
+  for (const lv of ALL_LEVELS) {
+    if (SRC_WORD_LIB[lv].includes(word)) {
+      return lv;
+    }
+  }
+  return null;
+}
+
+/**
+ * 获取某一级的"本级真正新增"单字
+ * （只在本级及以上出现，但不在任何更低级出现的字）
+ */
+export function getNewCharsAtLevel(level: Level): string[] {
+  const idx = ALL_LEVELS.indexOf(level);
+  if (idx < 0) return [];
+  const current = SRC_CHAR_LIB[level];
+  if (idx === 0) return [...current]; // 最低级全部都是新增
+  const prevLevel = ALL_LEVELS[idx - 1];
+  const prevSet = new Set(SRC_CHAR_LIB[prevLevel]);
+  return current.filter(c => !prevSet.has(c));
+}
+
+/**
+ * 获取某一级的"本级真正新增"词语
+ */
+export function getNewWordsAtLevel(level: Level): string[] {
+  const idx = ALL_LEVELS.indexOf(level);
+  if (idx < 0) return [];
+  const current = SRC_WORD_LIB[level];
+  if (idx === 0) return [...current];
+  const prevLevel = ALL_LEVELS[idx - 1];
+  const prevSet = new Set(SRC_WORD_LIB[prevLevel]);
+  return current.filter(w => !prevSet.has(w));
+}
+
+/**
+ * 获取某一级 minimum_src_level 等于该级的所有单字
+ * 等价于"本级真正新增字"（累积式字库下是同一个概念）
+ */
+export function getCharsByMinimumLevel(level: Level): string[] {
+  return getNewCharsAtLevel(level);
+}
+
+/**
+ * 获取某一级 minimum_src_level 等于该级的所有词语
+ */
+export function getWordsByMinimumLevel(level: Level): string[] {
+  return getNewWordsAtLevel(level);
+}
+
+/**
+ * 统计信息：各级新增字数
+ */
+export function getLevelNewCharCounts(): Record<Level, number> {
+  const result = {} as Record<Level, number>;
+  for (const lv of ALL_LEVELS) {
+    result[lv] = getNewCharsAtLevel(lv).length;
+  }
+  return result;
+}
+
+/**
+ * 统计信息：各级新增词数
+ */
+export function getLevelNewWordCounts(): Record<Level, number> {
+  const result = {} as Record<Level, number>;
+  for (const lv of ALL_LEVELS) {
+    result[lv] = getNewWordsAtLevel(lv).length;
+  }
+  return result;
+}
+
+// ============================================================
 // 题库数据（用于抽测闯关模式）
 // ============================================================
 
