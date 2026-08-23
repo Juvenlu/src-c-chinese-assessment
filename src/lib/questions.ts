@@ -826,6 +826,265 @@ export function getLevelNewWordCounts(): Record<Level, number> {
 }
 
 // ============================================================
+// Assessment Item Pool - 测试题池
+// 基于 minimum_src_level 构建，用于"直接测试"等自适应测评场景
+// 不修改原始字库，仅提供分类和筛选视图
+// ============================================================
+
+/**
+ * 测试题适用性等级
+ * - core: 核心测试题（实词、常用字、测试辨识度高）
+ * - supplemental: 补充测试题（多音字、虚词、叠词等）
+ * - low_value: 低测试价值（过长词、含非字库字等，不建议用于测试）
+ */
+export type ItemSuitability = 'core' | 'supplemental' | 'low_value';
+
+/** 题池条目 - 单字 */
+export interface AssessmentCharItem {
+  character: string;
+  minimum_src_level: Level;
+  item_type: 'character';
+  suitability: ItemSuitability;
+  is_multi_read: boolean;
+  is_function_word: boolean;
+  tags: string[];
+}
+
+/** 题池条目 - 词语 */
+export interface AssessmentWordItem {
+  word: string;
+  minimum_src_level: Level;
+  item_type: 'vocabulary';
+  char_count: number;
+  suitability: ItemSuitability;
+  tags: string[];
+  issues: string[];
+}
+
+// 多音字候选表（常见多音字，用于标记）
+const MULTI_READ_CHARS = new Set([
+  '行', '长', '重', '少', '都', '好', '了', '着', '的', '地', '得',
+  '一', '不', '看', '见', '说', '要', '会', '中', '大', '子', '还',
+  '发', '觉', '教', '便', '量', '乐', '干', '分', '空', '间', '数',
+  '种', '只', '作', '处', '背', '当', '担', '假', '间', '将', '卷',
+  '卡', '可', '切', '盛', '省', '相', '降', '校', '兴', '旋', '扎',
+  '转', '传', '弹', '调', '恶', '给', '供', '冠', '号', '喝', '还',
+  '几', '奇', '骑', '强', '塞', '散', '扇', '提', '帖', '为', '系',
+  '朝', '着', '正', '钻', '差', '藏', '曾', '乘', '答', '待', '倒',
+  '更', '哄', '划', '结', '尽', '禁', '卷', '卡', '看', '可',
+  '落', '没', '模', '磨', '难', '宁', '屏', '铺', '强', '悄', '切',
+  '曲', '散', '丧', '扫', '色', '塞', '深', '什', '识', '似', '熟',
+  '数', '说', '宿', '汤', '挑', '调', '贴', '同', '吐', '驮', '瓦',
+  '吓', '鲜', '相', '像', '削', '血', '压', '燕', '要', '耶', '叶',
+  '衣', '遗', '殷', '应', '佣', '有', '予', '雨', '语', '晕', '载',
+  '攒', '脏', '遭', '长', '涨', '爪', '召', '折', '这', '正', '挣',
+  '之', '只', '中', '种', '重', '轴', '逐', '转', '赚', '钻', '作',
+]);
+
+// 虚词/功能字
+const FUNCTION_WORDS = new Set([
+  '的', '了', '在', '是', '我', '你', '他', '她', '它', '们',
+  '这', '那', '个', '一', '不', '也', '都', '就', '又', '还',
+  '要', '会', '能', '可', '但', '因', '为', '所', '如', '虽',
+  '而', '且', '或', '已', '正', '曾',
+  '着', '过', '给', '把', '被', '让', '从', '向', '对',
+  '和', '跟', '同', '与', '及', '等', '啊', '呀', '呢', '吧',
+  '吗', '哦', '嗯', '啦', '嘛', '哈', '唉', '哼', '咦',
+]);
+
+/** 获取单字题池条目 */
+export function getAssessmentCharItem(char: string): AssessmentCharItem | null {
+  const minLevel = getCharMinimumLevel(char);
+  if (!minLevel) return null;
+
+  const isMulti = MULTI_READ_CHARS.has(char);
+  const isFunc = FUNCTION_WORDS.has(char);
+  const tags: string[] = [];
+  let suitability: ItemSuitability = 'core';
+
+  if (isMulti) {
+    tags.push('multi_read');
+    suitability = 'supplemental';
+  }
+  if (isFunc) {
+    tags.push('function_word');
+    suitability = 'supplemental';
+  }
+
+  return {
+    character: char,
+    minimum_src_level: minLevel,
+    item_type: 'character',
+    suitability,
+    is_multi_read: isMulti,
+    is_function_word: isFunc,
+    tags,
+  };
+}
+
+/** 获取词语题池条目 */
+export function getAssessmentWordItem(word: string): AssessmentWordItem | null {
+  const minLevel = getWordMinimumLevel(word);
+  if (!minLevel) return null;
+
+  const charCount = [...word].length;
+  const tags: string[] = [];
+  const issues: string[] = [];
+  let suitability: ItemSuitability = 'core';
+
+  // 字数分类
+  if (charCount === 2) tags.push('disyllabic');
+  else if (charCount === 3) tags.push('trisyllabic');
+  else if (charCount >= 4) tags.push('long_word');
+
+  // 过长词
+  if (charCount > 5) {
+    issues.push('词语过长(>5字)，不适合快速识别测试');
+    suitability = 'low_value';
+  }
+
+  // 检查组成字是否都在字库中
+  const allChars = [...word];
+  const hasUnknownChar = allChars.some(ch => !getCharMinimumLevel(ch));
+  if (hasUnknownChar) {
+    tags.push('has_unknown_char');
+    const unknown = allChars.filter(ch => !getCharMinimumLevel(ch)).join('');
+    issues.push(`包含非字库字：${unknown}`);
+    suitability = 'low_value';
+  }
+
+  // 纯虚词组合
+  const allFunc = allChars.every(ch => FUNCTION_WORDS.has(ch));
+  if (allFunc && charCount <= 2) {
+    tags.push('all_function_words');
+    if (suitability === 'core') suitability = 'supplemental';
+  }
+
+  // ABB 式
+  if (charCount === 3 && allChars[1] === allChars[2]) {
+    tags.push('abb_pattern');
+  }
+
+  // ABAB 式
+  if (charCount >= 4 && allChars[0] === allChars[2] && allChars[1] !== allChars[3]) {
+    tags.push('abab_pattern');
+  }
+
+  // 四字成语类
+  if (charCount === 4) tags.push('idiom_candidate');
+
+  // 专有名词类（粗略判断：以特定字开头且>=3字）
+  const properStarts = ['王', '帝', '皇', '圣', '宫', '殿', '海', '山', '洞', '云', '星', '金'];
+  if (charCount >= 3 && properStarts.includes(allChars[0])) {
+    tags.push('proper_noun_candidate');
+  }
+
+  // A一A / A了A 重叠式
+  if (charCount === 3 && (allChars[1] === '一' || allChars[1] === '了') && allChars[0] === allChars[2]) {
+    tags.push('a_x_a_pattern');
+  }
+
+  return {
+    word,
+    minimum_src_level: minLevel,
+    item_type: 'vocabulary',
+    char_count: charCount,
+    suitability,
+    tags,
+    issues,
+  };
+}
+
+/**
+ * 按 minimum_src_level 和适用性筛选单字题池
+ * @param level - 目标等级（仅取minimum_src_level等于该级的字）
+ * @param suitability - 可选，按适用性过滤
+ */
+export function getAssessmentCharsForLevel(
+  level: Level,
+  suitability?: ItemSuitability,
+): string[] {
+  const chars = getNewCharsAtLevel(level);
+  return chars.filter(ch => {
+    const item = getAssessmentCharItem(ch);
+    if (!item) return false;
+    if (suitability && item.suitability !== suitability) return false;
+    return true;
+  });
+}
+
+/**
+ * 按 minimum_src_level 和适用性筛选词语题池
+ */
+export function getAssessmentWordsForLevel(
+  level: Level,
+  suitability?: ItemSuitability,
+): string[] {
+  const words = getNewWordsAtLevel(level);
+  return words.filter(w => {
+    const item = getAssessmentWordItem(w);
+    if (!item) return false;
+    if (suitability && item.suitability !== suitability) return false;
+    return true;
+  });
+}
+
+/**
+ * 按 minimum_src_level 统计题池概览
+ */
+export function getAssessmentPoolSummary(): Record<Level, {
+  total_chars: number;
+  core_chars: number;
+  supplemental_chars: number;
+  low_value_chars: number;
+  total_words: number;
+  core_words: number;
+  supplemental_words: number;
+  low_value_words: number;
+  multi_read_chars: number;
+  function_words: number;
+}> {
+  const result = {} as any;
+  for (const lv of ALL_LEVELS) {
+    const chars = getNewCharsAtLevel(lv);
+    const words = getNewWordsAtLevel(lv);
+    let coreChars = 0, suppChars = 0, lowChars = 0, multiChars = 0, funcChars = 0;
+    let coreWords = 0, suppWords = 0, lowWords = 0;
+
+    for (const ch of chars) {
+      const item = getAssessmentCharItem(ch);
+      if (!item) continue;
+      if (item.suitability === 'core') coreChars++;
+      else if (item.suitability === 'supplemental') suppChars++;
+      else lowChars++;
+      if (item.is_multi_read) multiChars++;
+      if (item.is_function_word) funcChars++;
+    }
+    for (const w of words) {
+      const item = getAssessmentWordItem(w);
+      if (!item) continue;
+      if (item.suitability === 'core') coreWords++;
+      else if (item.suitability === 'supplemental') suppWords++;
+      else lowWords++;
+    }
+
+    result[lv] = {
+      total_chars: chars.length,
+      core_chars: coreChars,
+      supplemental_chars: suppChars,
+      low_value_chars: lowChars,
+      total_words: words.length,
+      core_words: coreWords,
+      supplemental_words: suppWords,
+      low_value_words: lowWords,
+      multi_read_chars: multiChars,
+      function_words: funcChars,
+    };
+  }
+  return result;
+}
+
+// ============================================================
 // 题库数据（用于抽测闯关模式）
 // ============================================================
 

@@ -18,7 +18,10 @@
  */
 
 import { Level, LEVEL_CONFIG } from './types';
-import { getCharList, getWordList } from './questions';
+import {
+  getAssessmentCharsForLevel,
+  getAssessmentWordsForLevel,
+} from './questions';
 
 // ============================================================
 // 可配置参数（后台可调整）
@@ -180,22 +183,67 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * 从指定字库中抽取n个单字，避免与已测试过的重复
+ * 从指定等级的 minimum_src_level 题池中抽取n个单字
+ * - 优先从core（核心实词）中抽
+ * - 不足时从supplemental（多音字/虚词）中补
+ * - 排除low_value
+ * - 排除已测试过的
  */
-function sampleChars(level: Level, count: number, excludeChars: Set<string> = new Set()): string[] {
-  const allChars = getCharList(level).filter(c => !excludeChars.has(c));
-  const shuffled = shuffle(allChars);
-  return shuffled.slice(0, count);
+function sampleChars(
+  level: Level,
+  count: number,
+  coreRatio: number = 0.7,
+  excludeChars: Set<string> = new Set(),
+): string[] {
+  const coreChars = getAssessmentCharsForLevel(level, 'core').filter(c => !excludeChars.has(c));
+  const suppChars = getAssessmentCharsForLevel(level, 'supplemental').filter(c => !excludeChars.has(c));
+
+  const coreCount = Math.min(Math.round(count * coreRatio), coreChars.length);
+  const suppNeeded = count - coreCount;
+
+  const result: string[] = [];
+  // 核心字
+  const shuffledCore = shuffle(coreChars);
+  result.push(...shuffledCore.slice(0, coreCount));
+
+  // 补充字（如果核心不够，先从核心全拿，再从补充拿）
+  const remaining = count - result.length;
+  if (remaining > 0) {
+    const shuffledSupp = shuffle(suppChars);
+    result.push(...shuffledSupp.slice(0, remaining));
+  }
+
+  return shuffle(result);
 }
 
 /**
- * 从指定词汇库中抽取n个词组，优先选取只包含本级字库内字的词
- * 排除已测试过的
+ * 从指定等级的 minimum_src_level 题池中抽取n个词语
+ * - 优先从core（常用词、成语）中抽
+ * - 不足时从supplemental中补
+ * - 排除low_value
  */
-function sampleWords(level: Level, count: number, excludeWords: Set<string> = new Set()): string[] {
-  const allWords = getWordList(level).filter(w => !excludeWords.has(w));
-  const shuffled = shuffle(allWords);
-  return shuffled.slice(0, count);
+function sampleWords(
+  level: Level,
+  count: number,
+  coreRatio: number = 0.8,
+  excludeWords: Set<string> = new Set(),
+): string[] {
+  const coreWords = getAssessmentWordsForLevel(level, 'core').filter(w => !excludeWords.has(w));
+  const suppWords = getAssessmentWordsForLevel(level, 'supplemental').filter(w => !excludeWords.has(w));
+
+  const coreCount = Math.min(Math.round(count * coreRatio), coreWords.length);
+  const result: string[] = [];
+
+  const shuffledCore = shuffle(coreWords);
+  result.push(...shuffledCore.slice(0, coreCount));
+
+  const remaining = count - result.length;
+  if (remaining > 0) {
+    const shuffledSupp = shuffle(suppWords);
+    result.push(...shuffledSupp.slice(0, remaining));
+  }
+
+  return shuffle(result);
 }
 
 // ============================================================
@@ -211,8 +259,8 @@ export function generateLevelQuestions(
   excludeChars: Set<string> = new Set(),
   excludeWords: Set<string> = new Set(),
 ): { chars: QAItem[]; words: QAItem[] } {
-  const chars = sampleChars(level, config.charsPerLevel, excludeChars);
-  const words = sampleWords(level, config.wordsPerLevel, excludeWords);
+  const chars = sampleChars(level, config.charsPerLevel, 0.7, excludeChars);
+  const words = sampleWords(level, config.wordsPerLevel, 0.8, excludeWords);
 
   const charItems: QAItem[] = chars.map((c, i) => ({
     id: `char_${level}_${i}_${Date.now()}`,
@@ -412,6 +460,7 @@ export function submitAnswer(
       const remainingChars = sampleChars(
         s.currentLevel,
         1,
+        0.7,
         new Set([...excludeChars, ...s.currentLevelCharResults.map(r => r.content)]),
       );
       if (remainingChars.length > 0) {
@@ -430,6 +479,7 @@ export function submitAnswer(
       const remainingWords = sampleWords(
         s.currentLevel,
         1,
+        0.8,
         new Set([...excludeWords, ...s.currentLevelVocabResults.map(r => r.content)]),
       );
       if (remainingWords.length > 0) {
@@ -469,7 +519,7 @@ export function getNextQuestionForLevel(
   config = ADAPTIVE_CONFIG,
 ): QAItem | null {
   if (phase === 'character') {
-    const chars = sampleChars(level, 1, excludeChars);
+    const chars = sampleChars(level, 1, 0.7, excludeChars);
     if (chars.length === 0) return null;
     return {
       id: `char_${level}_${indexInLevel}_${Date.now()}`,
@@ -479,7 +529,7 @@ export function getNextQuestionForLevel(
       indexInLevel,
     };
   } else {
-    const words = sampleWords(level, 1, excludeWords);
+    const words = sampleWords(level, 1, 0.8, excludeWords);
     if (words.length === 0) return null;
     return {
       id: `word_${level}_${indexInLevel}_${Date.now()}`,
