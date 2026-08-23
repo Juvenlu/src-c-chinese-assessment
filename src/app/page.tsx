@@ -187,18 +187,22 @@ export default function HomePage() {
         {/* Admin link - hidden from regular users, admin accesses via /admin directly */}
 
         {/* Level info */}
-        <div className="mt-8 grid grid-cols-3 gap-3">
+        <div className="mt-8 grid grid-cols-4 gap-3">
+          <div className="bg-white/60 rounded-2xl p-3 text-center">
+            <div className="font-display text-lg text-[var(--color-src-accent)]">SRC100</div>
+            <div className="text-xs text-[var(--color-src-text-light)]">100字词库</div>
+          </div>
           <div className="bg-white/60 rounded-2xl p-3 text-center">
             <div className="font-display text-lg text-[var(--color-src-primary)]">SRC300</div>
-            <div className="text-xs text-[var(--color-src-text-light)]">300字库</div>
+            <div className="text-xs text-[var(--color-src-text-light)]">300字词库</div>
           </div>
           <div className="bg-white/60 rounded-2xl p-3 text-center">
             <div className="font-display text-lg text-[var(--color-src-secondary)]">SRC500</div>
-            <div className="text-xs text-[var(--color-src-text-light)]">500字库</div>
+            <div className="text-xs text-[var(--color-src-text-light)]">500字词库</div>
           </div>
           <div className="bg-white/60 rounded-2xl p-3 text-center">
             <div className="font-display text-lg text-[var(--color-src-primary)]">SRC800</div>
-            <div className="text-xs text-[var(--color-src-text-light)]">800字库</div>
+            <div className="text-xs text-[var(--color-src-text-light)]">800字词库</div>
           </div>
         </div>
       </div>
