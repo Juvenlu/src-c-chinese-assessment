@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Level, LEVEL_CONFIG, RJBLevel } from '@/lib/types';
 import type { GrowthMapData } from '@/lib/types';
-import { calculateDualSystemResult, getNextLevel, getPepLevelName } from '@/lib/dual-system';
-import { getCharList, getWordList, getRJBCharList } from '@/lib/questions';
+import { calculateDualSystemResult, getNextLevel } from '@/lib/dual-system';
+import { getCharList, getWordList, getRJBCharList, getCorrespondingRJBLevel } from '@/lib/questions';
 
 export default function GrowthMapPage() {
   const [data, setData] = useState<GrowthMapData | null>(null);
@@ -30,13 +30,16 @@ export default function GrowthMapPage() {
 
       // 人教版映射
       const srcChars = getCharList(level);
-      const pepLevelName = getPepLevelName(level) as RJBLevel;
-      const rjbChars = getRJBCharList(pepLevelName);
-      const srcKnownSet = new Set(srcChars.slice(0, correctChars)); // 近似：假设前N个是已掌握的
+      const rjbLevel = getCorrespondingRJBLevel(level);
+      const rjbChars = getRJBCharList(rjbLevel);
+      const srcCharSet = new Set(srcChars);
+      // 计算SRC字库中包含了多少人教版字（覆盖率基数）
+      const pepInSrc = rjbChars.filter(c => srcCharSet.has(c));
       const pepTotal = rjbChars.length;
-      const pepCovered = rjbChars.filter(c => srcChars.slice(0, testedChars).includes(c)).length;
-      const pepCoveredCorrect = rjbChars.filter(c => srcKnownSet.has(c)).length;
-      const pepMasteryRate = pepCovered > 0 ? pepCoveredCorrect / pepCovered : 0;
+      const pepCovered = pepInSrc.length;
+      // 按比例估算人教版掌握数（基于SRC测试的整体掌握率）
+      const pepMasteryRate = charMasteryRate;
+      const pepCoveredCorrect = Math.round(pepCovered * pepMasteryRate);
       const pepEstimated = Math.round(pepTotal * pepMasteryRate);
 
       const vocabMasteryRate = testedVocab > 0 ? correctVocab / testedVocab : 0;
@@ -58,7 +61,7 @@ export default function GrowthMapPage() {
           isFullTest,
         },
         pepMastery: {
-          level: pepLevelName,
+          level: rjbLevel,
           mastered: pepEstimated,
           total: pepTotal,
           masteryRate: pepMasteryRate,
@@ -68,7 +71,9 @@ export default function GrowthMapPage() {
         vocabMastery: {
           mastered: vocabEstimated,
           tested: testedVocab,
+          correct: correctVocab,
           masteryRate: vocabMasteryRate,
+          isFullTest,
         },
         nextLevel: nextLevelVal,
         trend: {
@@ -255,8 +260,9 @@ export default function GrowthMapPage() {
                 />
               </div>
               <p className="text-xs text-gray-400 mt-2">
-                已测试 {data.vocabMastery.tested} 个词组，答对{' '}
-                {data.vocabMastery.mastered} 个
+                本次测试 {data.vocabMastery.tested} 个词组，答对{' '}
+                {data.vocabMastery.correct} 个
+                {data.vocabMastery.isFullTest ? '' : `（掌握率 ${Math.round(data.vocabMastery.masteryRate * 100)}%）`}
               </p>
             </div>
           </div>

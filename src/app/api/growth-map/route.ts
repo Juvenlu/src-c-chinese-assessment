@@ -127,7 +127,9 @@ async function calculateGrowthMap(
     vocabMastery: {
       mastered: vocabMastered,
       tested: vocabTested,
+      correct: vocabMastered,
       masteryRate: vocabMastered / vocabTested,
+      isFullTest: false,
     },
     nextLevel,
     trend,

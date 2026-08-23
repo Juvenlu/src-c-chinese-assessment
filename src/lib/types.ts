@@ -118,7 +118,7 @@ export interface SubmitAnswerInput {
 }
 
 export const LEVEL_CONFIG: Record<Level, { timeLimitSeconds: number; charCount: number; vocabMultiplier: number; label: string; vocabCount: number; charSampleRatio: number; wordSampleRatio: number }> = {
-  SRC100: { timeLimitSeconds: 300, charCount: 114, vocabMultiplier: 2.86, label: '入门级', vocabCount: 128, charSampleRatio: 1.0, wordSampleRatio: 0.5 },
+  SRC100: { timeLimitSeconds: 300, charCount: 114, vocabMultiplier: 2.86, label: '入门级', vocabCount: 128, charSampleRatio: 1.0, wordSampleRatio: 0.6 },
   SRC300: { timeLimitSeconds: 480, charCount: 317, vocabMultiplier: 2.86, label: '基础级', vocabCount: 346, charSampleRatio: 0.3, wordSampleRatio: 0.12 },
   SRC500: { timeLimitSeconds: 720, charCount: 528, vocabMultiplier: 2.86, label: '进阶级', vocabCount: 558, charSampleRatio: 0.25, wordSampleRatio: 0.1 },
   SRC800: { timeLimitSeconds: 900, charCount: 813, vocabMultiplier: 2.86, label: '高级', vocabCount: 820, charSampleRatio: 0.2, wordSampleRatio: 0.08 },
@@ -345,9 +345,11 @@ export interface GrowthMapData {
   };
   
   vocabMastery: {
-    mastered: number;
-    tested: number;
-    masteryRate: number;
+    mastered: number;    // 掌握数（全测=答对数量，抽测=估算掌握量）
+    tested: number;      // 本次测试数量
+    correct: number;     // 本次答对数量
+    masteryRate: number; // 掌握率 correct/tested
+    isFullTest: boolean; // 是否全量测试
   };
   
   // 下一目标

@@ -231,10 +231,16 @@ function FullTestContent() {
       }
     }
 
+    const testedCharCount = results.length;
+    const correctCharCount = results.filter(r => r.recognized).length;
+    const testedVocabCount = wordResults.length;
+    const correctVocabCount = wordResults.filter(r => r.recognized).length;
+
     // Always navigate with URL params to ensure accurate data display
     router.push(
       `/result?mode=full&level=${level}` +
-      `&charCount=${stableCharCount}&vocabCount=${stableVocabCount}` +
+      `&testedChars=${testedCharCount}&correctChars=${correctCharCount}` +
+      `&testedVocab=${testedVocabCount}&correctVocab=${correctVocabCount}` +
       `&score=${totalScore}` +
       `&charMastery=${charMasteryPct}` +
       `&vocabMastery=${vocabMasteryPct}` +
