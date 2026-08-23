@@ -68,26 +68,42 @@ export default function ResultPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const l = (params.get('level') || 'SRC300') as Level;
-    const tc = parseInt(params.get('testedChars') || params.get('charCount') || '0');
-    const cc = parseInt(params.get('correctChars') || params.get('charCount') || '0');
-    const tv = parseInt(params.get('testedVocab') || params.get('vocabCount') || '0');
-    const cv = parseInt(params.get('correctVocab') || params.get('vocabCount') || '0');
+    const l = (params.get('level') || 'SRC100') as Level;
+    const tc = parseInt(params.get('testedChars') || '0');
+    const cc = parseInt(params.get('correctChars') || '0');
+    const tv = parseInt(params.get('testedVocab') || '0');
+    const cv = parseInt(params.get('correctVocab') || '0');
+    const charCount = parseInt(params.get('charCount') || '0');
+    const vocabCount = parseInt(params.get('vocabCount') || '0');
     const totalV = parseInt(params.get('totalVocab') || '0');
 
-    setLevel(l);
     const config = LEVEL_CONFIG[l];
+    const isFull = config.charSampleRatio >= 0.95;
+    setLevel(l);
     setTotalChars(config.charCount);
     setTotalVocab(totalV || config.vocabCount);
-    setIsFullTest(config.charSampleRatio >= 0.95);
+    setIsFullTest(isFull);
 
-    // 单字：如果传了correctChars用correct，否则用charCount当答对（兼容旧调用）
-    setTestedChars(tc || cc);
-    setCorrectChars(cc);
+    // 单字数据解析（优先级：tested+correct > charCount+isFull > 默认）
+    let testedC = tc;
+    let correctC = cc;
+    if (testedC === 0 && correctC === 0 && charCount > 0) {
+      // 兼容旧调用：charCount传的是"认识的字"
+      correctC = charCount;
+      testedC = isFull ? config.charCount : charCount; // 全测时测试量=总字库
+    }
+    setTestedChars(testedC);
+    setCorrectChars(correctC);
 
-    // 词组：同理
-    setTestedVocab(tv || cv);
-    setCorrectVocab(cv);
+    // 词组数据解析
+    let testedV = tv;
+    let correctV = cv;
+    if (testedV === 0 && correctV === 0 && vocabCount > 0) {
+      correctV = vocabCount;
+      testedV = vocabCount; // 词组无全测概念，暂时等量
+    }
+    setTestedVocab(testedV);
+    setCorrectVocab(correctV);
 
     // 人教版映射：根据SRC等级估算覆盖率与掌握情况
     const pepMap: Record<Level, { total: number; coverageRatio: number }> = {
@@ -97,8 +113,8 @@ export default function ResultPage() {
       SRC800: { total: 799, coverageRatio: 0.75 },
     };
     const pepInfo = pepMap[l];
-    const pepCoveredCount = Math.min(pepInfo.total, Math.round(tc * pepInfo.coverageRatio));
-    const charMasteryRate = tc > 0 ? cc / tc : 0;
+    const pepCoveredCount = Math.min(pepInfo.total, Math.round(testedC * pepInfo.coverageRatio));
+    const charMasteryRate = testedC > 0 ? correctC / testedC : 0;
     setPepTotal(pepInfo.total);
     setPepCovered(pepCoveredCount);
     setPepCoveredCorrect(Math.round(pepCoveredCount * charMasteryRate));
@@ -325,7 +341,7 @@ export default function ResultPage() {
         {/* 操作按钮 */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
-            href="/growth-map"
+            href={`/growth-map?level=${level}&testedChars=${testedChars}&correctChars=${correctChars}&testedVocab=${testedVocab}&correctVocab=${correctVocab}`}
             className="bg-[var(--color-src-primary)] text-white px-8 py-4 rounded-full text-lg font-bold hover:scale-105 transition-transform text-center shadow-lg"
           >
             🌱 查看成长地图

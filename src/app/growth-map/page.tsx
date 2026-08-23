@@ -2,42 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Level } from '@/lib/types';
-
-interface GrowthMapData {
-  childId: string;
-  currentLevel: Level;
-  srcMastery: {
-    level: Level;
-    mastered: number;
-    learning: number;
-    untested: number;
-    masteryRate: number;
-    total: number;
-    isFullTest: boolean;
-  };
-  pepMastery: {
-    level: string;
-    mastered: number;
-    total: number;
-    masteryRate: number;
-    covered: number;
-    coverageRate: number;
-  };
-  vocabMastery: {
-    mastered: number;
-    tested: number;
-    masteryRate: number;
-  };
-  nextLevel: Level | null;
-  trend: {
-    charMastery: { date: string; rate: number }[];
-    vocabMastery: { date: string; rate: number }[];
-  };
-  strengths: string[];
-  areasToImprove: string[];
-  recommendations: string[];
-}
+import { Level, LEVEL_CONFIG, RJBLevel } from '@/lib/types';
+import type { GrowthMapData } from '@/lib/types';
+import { calculateDualSystemResult, getNextLevel, getPepLevelName } from '@/lib/dual-system';
+import { getCharList, getWordList, getRJBCharList } from '@/lib/questions';
 
 export default function GrowthMapPage() {
   const [data, setData] = useState<GrowthMapData | null>(null);
@@ -47,7 +15,90 @@ export default function GrowthMapPage() {
     const params = new URLSearchParams(window.location.search);
     const childId = params.get('child_id') || 'demo_child';
     const level = (params.get('level') || 'SRC300') as Level;
+    const testedChars = parseInt(params.get('testedChars') || '0');
+    const correctChars = parseInt(params.get('correctChars') || '0');
+    const testedVocab = parseInt(params.get('testedVocab') || '0');
+    const correctVocab = parseInt(params.get('correctVocab') || '0');
 
+    // 如果URL带了测试数据，直接计算显示（从结果页跳转过来）
+    if (testedChars > 0 && correctChars > 0) {
+      const config = LEVEL_CONFIG[level];
+      const totalChars = config.charCount;
+      const charMasteryRate = correctChars / testedChars;
+      const estimatedMastered = Math.round(totalChars * charMasteryRate);
+      const isFullTest = testedChars >= totalChars;
+
+      // 人教版映射
+      const srcChars = getCharList(level);
+      const pepLevelName = getPepLevelName(level) as RJBLevel;
+      const rjbChars = getRJBCharList(pepLevelName);
+      const srcKnownSet = new Set(srcChars.slice(0, correctChars)); // 近似：假设前N个是已掌握的
+      const pepTotal = rjbChars.length;
+      const pepCovered = rjbChars.filter(c => srcChars.slice(0, testedChars).includes(c)).length;
+      const pepCoveredCorrect = rjbChars.filter(c => srcKnownSet.has(c)).length;
+      const pepMasteryRate = pepCovered > 0 ? pepCoveredCorrect / pepCovered : 0;
+      const pepEstimated = Math.round(pepTotal * pepMasteryRate);
+
+      const vocabMasteryRate = testedVocab > 0 ? correctVocab / testedVocab : 0;
+      const vocabEstimated = Math.round(config.vocabCount * vocabMasteryRate);
+
+      const nextLv = getNextLevel(level);
+      const nextLevelVal = nextLv ? (nextLv as Level) : undefined;
+
+      setData({
+        childId,
+        currentLevel: level,
+        srcMastery: {
+          level,
+          mastered: estimatedMastered,
+          learning: 0,
+          untested: totalChars - estimatedMastered,
+          masteryRate: charMasteryRate,
+          total: totalChars,
+          isFullTest,
+        },
+        pepMastery: {
+          level: pepLevelName,
+          mastered: pepEstimated,
+          total: pepTotal,
+          masteryRate: pepMasteryRate,
+          covered: pepCovered,
+          coverageRate: pepCovered / pepTotal,
+        },
+        vocabMastery: {
+          mastered: vocabEstimated,
+          tested: testedVocab,
+          masteryRate: vocabMasteryRate,
+        },
+        nextLevel: nextLevelVal,
+        trend: {
+          charMastery: [
+            { date: '本次', rate: charMasteryRate },
+          ],
+          vocabMastery: [
+            { date: '本次', rate: vocabMasteryRate },
+          ],
+        },
+        strengths: charMasteryRate >= 0.85
+          ? ['单字掌握扎实，基础框架已建立', '识字量增长稳定']
+          : charMasteryRate >= 0.7
+            ? ['单字识别有一定基础', '对常用字的辨识能力良好']
+            : ['已经开始建立中文识字基础'],
+        areasToImprove: charMasteryRate < 0.8
+          ? ['继续扩大识字量，建议多接触中文读物', '建议通过阅读在真实语境中加深印象']
+          : vocabMasteryRate < 0.7
+            ? ['词组应用需要加强，建议多阅读积累词语']
+            : ['继续挑战更多字词，扩大阅读范围'],
+        recommendations: [
+          '每日15分钟中文绘本阅读',
+          '每周1次测字，跟踪成长进度',
+        ],
+      });
+      setLoading(false);
+      return;
+    }
+
+    // 否则调用API获取历史数据
     fetch(`/api/growth-map?child_id=${childId}&level=${level}`)
       .then((res) => res.json())
       .then((json) => {
