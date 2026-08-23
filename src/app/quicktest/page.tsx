@@ -268,7 +268,9 @@ export default function QuickTestPage() {
           </div>
           <div 
             className="text-7xl md:text-8xl font-bold text-gray-800"
-            style={{ fontFamily: 'ZCOOL KuaiLe, cursive' }}
+            style={{
+              fontFamily: "'KaiTi', 'STKaiti', '楷体', 'Microsoft YaHei', '微软雅黑', 'SimHei', '黑体', sans-serif",
+            }}
           >
             {currentQuestion?.content}
           </div>
