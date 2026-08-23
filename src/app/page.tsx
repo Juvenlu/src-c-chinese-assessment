@@ -72,6 +72,29 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Quick test - free entry */}
+        <Link href="/quicktest" className="block mb-6">
+          <div
+            className="relative rounded-3xl p-6 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+            style={{
+              background: 'linear-gradient(135deg, #FF6B35 0%, #FFB347 100%)',
+            }}
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-5xl">🚀</div>
+              <div className="flex-1 text-left">
+                <h3 className="font-display text-2xl text-white mb-1">
+                  直接测试
+                </h3>
+                <p className="text-sm text-white/90">
+                  3分钟快速了解孩子的中文阅读字词基础 · 无需注册
+                </p>
+              </div>
+              <div className="text-white text-2xl">→</div>
+            </div>
+          </div>
+        </Link>
+
         {/* Mode selection - Two cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           {/* 逐字测试 */}
