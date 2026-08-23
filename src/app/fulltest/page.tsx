@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCharList, getWordList } from '@/lib/questions';
-import { generateCharacterTest, generateVocabTest } from '@/lib/item-selection';
-import { LEVEL_CONFIG, type Level, type CharTestResult, type SampledItem, type MasteryStatus } from '@/lib/types';
+import { generateCharacterTest } from '@/lib/item-selection';
+import { selectVocabularyTest, type SampledVocabulary } from '@/lib/vocabulary-sampling';
+import { LEVEL_CONFIG, type Level, type CharTestResult, type SampledItem } from '@/lib/types';
 
 // Fisher-Yates shuffle
 function shuffleArray<T>(array: T[], seed: number): T[] {
@@ -84,31 +85,35 @@ function FullTestContent() {
       } else {
         // Phase complete
         if (phase === 'chars') {
-          // Run smart word sampling based on char test results
+          // V1.0 分层词组抽测算法
           const allCharResults = [...results, { character: currentItem, recognized, reaction_time_ms: reactionTime }];
-          
-          // Build character mastery from char test results
-          const now = Date.now();
-          
-          // Smart word sampling using V1.0 algorithm
-          const testedChars = allCharResults.map(r => r.character);
-          const charMasteryMap = new Map<string, { status: MasteryStatus; lastResult?: boolean }>(
-            allCharResults.map(r => [
-              r.character,
-              {
-                status: r.recognized ? 'basic_mastery' : 'needs_review',
-                lastResult: r.recognized,
-              },
-            ]),
-          );
-          const sampled = generateVocabTest({
-            allWords: wordList,
-            testedChars,
-            charMasteryMap,
-            wordMasteryMap: new Map(),
+
+          const { sampled: sampledVocab } = selectVocabularyTest(
+            wordList,
             level,
-          });
-          setSampledWords(sampled);
+            charList,
+            allCharResults.map(r => ({
+              character: r.character,
+              is_correct: r.recognized,
+              reaction_time_ms: r.reaction_time_ms,
+            })),
+          );
+
+          // 转换为 SampledItem 格式以兼容现有UI
+          const poolMap: Record<string, 'review' | 'new' | 'retention'> = {
+            core: 'new',        // 核心词组 → 新题
+            validation: 'review', // 单字验证 → 复测
+            coverage: 'retention', // 覆盖补充 → 稳定性
+          };
+          const vocabItems: SampledItem[] = sampledVocab.map(v => ({
+            content: v.vocabulary,
+            type: 'word',
+            poolType: poolMap[v.pool],
+            priority: v.selection_score,
+            level,
+          }));
+
+          setSampledWords(vocabItems);
           setPhase('words');
           setCurrentIndex(0);
           setQuestionStartTime(Date.now());
