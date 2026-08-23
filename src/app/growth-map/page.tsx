@@ -1,488 +1,372 @@
 'use client';
 
-/**
- * 中文成长地图页面
- * 
- * 这是V1.0的核心输出页面，展示孩子的：
- * - 当前SRC等级与三维度掌握度
- * - 基础/教材识字（人教版）
- * - 阅读高频识字（SRC）
- * - 词组掌握
- * - 下一步行动推荐
- * - 未来模块预留（闯关/阅读/输出）
- * 
- * 设计原则：
- * - 不改变现有UI视觉设计（沿用暖橘色主题 + 卡通风格）
- * - 儿童端简洁，家长端详细
- */
-
-import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Star, Trophy, BookOpen, Gamepad2, PenTool, ArrowRight, ChevronRight, Lock, Sparkles, TrendingUp, Target, Award } from 'lucide-react';
-import type { Level, GrowthMapData } from '@/lib/types';
-import { LEVEL_CONFIG } from '@/lib/types';
+import { Level } from '@/lib/types';
 
-function GrowthMapContent() {
-  const searchParams = useSearchParams();
-  const childId = searchParams.get('childId') || '';
-  const level = (searchParams.get('level') || 'SRC300') as Level;
-  const charMastery = parseInt(searchParams.get('charMastery') || '75');
-  const vocabMastery = parseInt(searchParams.get('vocabMastery') || '65');
-  const knownCount = parseInt(searchParams.get('known') || '0');
-  const totalChar = parseInt(searchParams.get('total') || '300');
-  const mode = searchParams.get('mode') || 'full';
+interface GrowthMapData {
+  childId: string;
+  currentLevel: Level;
+  srcMastery: {
+    level: Level;
+    mastered: number;
+    learning: number;
+    untested: number;
+    masteryRate: number;
+    total: number;
+    isFullTest: boolean;
+  };
+  pepMastery: {
+    level: string;
+    mastered: number;
+    total: number;
+    masteryRate: number;
+    covered: number;
+    coverageRate: number;
+  };
+  vocabMastery: {
+    mastered: number;
+    tested: number;
+    masteryRate: number;
+  };
+  nextLevel: Level | null;
+  trend: {
+    charMastery: { date: string; rate: number }[];
+    vocabMastery: { date: string; rate: number }[];
+  };
+  strengths: string[];
+  areasToImprove: string[];
+  recommendations: string[];
+}
 
-  const [viewMode, setViewMode] = useState<'child' | 'parent'>('parent');
+export default function GrowthMapPage() {
+  const [data, setData] = useState<GrowthMapData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [growthData, setGrowthData] = useState<GrowthMapData | null>(null);
 
   useEffect(() => {
-    // 模拟生成成长地图数据
-    // 实际项目中从 /api/growth-map 获取
-    const rjbMastery = Math.round(charMastery * 0.92); // 人教版略低于SRC
-    const nextLevel = getNextLevel(level);
+    const params = new URLSearchParams(window.location.search);
+    const childId = params.get('child_id') || 'demo_child';
+    const level = (params.get('level') || 'SRC300') as Level;
 
-    const data: GrowthMapData = {
-      childId,
-      currentLevel: level,
-      srcMastery: {
-        level,
-        mastered: knownCount,
-        learning: Math.round(totalChar * 0.15),
-        untested: totalChar - knownCount - Math.round(totalChar * 0.15),
-        masteryRate: charMastery / 100,
-      },
-      rjbMastery: {
-        level: getRJBLevel(level),
-        mastered: Math.round(totalChar * (rjbMastery / 100)),
-        total: getRJBCharTotal(level),
-        masteryRate: rjbMastery / 100,
-      },
-      vocabMastery: {
-        mastered: Math.round(knownCount * 2.86 * (vocabMastery / 100)),
-        tested: Math.round(knownCount * 2.86),
-        masteryRate: vocabMastery / 100,
-      },
-      nextLevel,
-      trend: {
-        charMastery: [
-          { date: '2026-06', rate: 0.58 },
-          { date: '2026-08', rate: 0.68 },
-          { date: '2026-10', rate: charMastery / 100 },
-        ],
-        vocabMastery: [
-          { date: '2026-06', rate: 0.45 },
-          { date: '2026-08', rate: 0.56 },
-          { date: '2026-10', rate: vocabMastery / 100 },
-        ],
-      },
-      strengths: generateStrengths(charMastery, vocabMastery),
-      areasToImprove: generateAreasToImprove(charMastery, vocabMastery),
-      recommendations: generateRecommendations(level, charMastery, vocabMastery),
-    };
+    fetch(`/api/growth-map?child_id=${childId}&level=${level}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success) {
+          setData(json.data);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-    setGrowthData(data);
-    setLoading(false);
-  }, [childId, level, charMastery, vocabMastery, knownCount, totalChar]);
-
-  if (loading || !growthData) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFF8F0]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#FF6B35] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[#636E72]">正在生成成长地图...</p>
+      <div className="min-h-screen bg-[var(--color-src-bg)] flex items-center justify-center">
+        <div className="text-xl text-[var(--color-src-primary)] animate-pulse">
+          正在生成成长地图...
         </div>
       </div>
     );
   }
 
-  const levelConfig = LEVEL_CONFIG[level];
-
-  return (
-    <div className="min-h-screen bg-[#FFF8F0] py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* 顶部标题 */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-[#2D3436] mb-2" style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}>
-            🌟 我的中文成长地图
-          </h1>
-          <p className="text-[#636E72]">记录每一步成长，点亮中文世界</p>
-        </div>
-
-        {/* 当前等级大徽章 */}
-        <div className="bg-white rounded-3xl p-8 mb-6 shadow-lg border-2 border-[#FFE66D]/30">
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <div className="w-24 h-24 bg-gradient-to-br from-[#FF6B35] to-[#FFE66D] rounded-full flex items-center justify-center shadow-lg">
-              <Trophy className="w-12 h-12 text-white" />
-            </div>
-            <div className="text-center">
-              <p className="text-[#636E72] text-sm mb-1">当前阅读等级</p>
-              <h2 className="text-5xl font-bold text-[#FF6B35]" style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}>
-                {level}
-              </h2>
-              <p className="text-[#4ECDC4] font-semibold">{levelConfig.label}</p>
-            </div>
-          </div>
-
-          {/* 等级进度条 */}
-          {growthData.nextLevel && (
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-[#636E72] mb-2">
-                <span>{level}</span>
-                <span>→ {growthData.nextLevel}</span>
-              </div>
-              <div className="h-4 bg-[#FFF8F0] rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-[#4ECDC4] to-[#FFE66D] rounded-full transition-all duration-1000"
-                  style={{ width: `${growthData.srcMastery.masteryRate * 100}%` }}
-                />
-              </div>
-              <p className="text-center text-sm text-[#636E72] mt-2">
-                已完成 {Math.round(growthData.srcMastery.masteryRate * 100)}%，加油向 {growthData.nextLevel} 进发！
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* 三维度掌握度卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* 基础识字 */}
-          <div className="bg-white rounded-2xl p-6 shadow-md">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-[#4ECDC4]/20 rounded-full flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-[#4ECDC4]" />
-              </div>
-              <div>
-                <h3 className="font-bold text-[#2D3436]">基础识字</h3>
-                <p className="text-xs text-[#636E72]">人教版</p>
-              </div>
-            </div>
-            <div className="text-center mb-3">
-              <span className="text-4xl font-bold text-[#4ECDC4]" style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}>
-                {Math.round(growthData.rjbMastery.masteryRate * 100)}%
-              </span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-[#4ECDC4] rounded-full transition-all duration-1000"
-                style={{ width: `${growthData.rjbMastery.masteryRate * 100}%` }}
-              />
-            </div>
-            <p className="text-xs text-[#636E72] mt-2 text-center">
-              {growthData.rjbMastery.mastered} / {growthData.rjbMastery.total} 字
-            </p>
-          </div>
-
-          {/* 阅读高频识字 */}
-          <div className="bg-white rounded-2xl p-6 shadow-md">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-[#FF6B35]/20 rounded-full flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-[#FF6B35]" />
-              </div>
-              <div>
-                <h3 className="font-bold text-[#2D3436]">阅读识字</h3>
-                <p className="text-xs text-[#636E72]">SRC高频字</p>
-              </div>
-            </div>
-            <div className="text-center mb-3">
-              <span className="text-4xl font-bold text-[#FF6B35]" style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}>
-                {Math.round(growthData.srcMastery.masteryRate * 100)}%
-              </span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-[#FF6B35] rounded-full transition-all duration-1000"
-                style={{ width: `${growthData.srcMastery.masteryRate * 100}%` }}
-              />
-            </div>
-            <p className="text-xs text-[#636E72] mt-2 text-center">
-              {growthData.srcMastery.mastered} / {levelConfig.charCount} 字
-            </p>
-          </div>
-
-          {/* 词组掌握 */}
-          <div className="bg-white rounded-2xl p-6 shadow-md">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-[#FFE66D]/40 rounded-full flex items-center justify-center">
-                <Star className="w-5 h-5 text-[#E6B800]" />
-              </div>
-              <div>
-                <h3 className="font-bold text-[#2D3436]">词组掌握</h3>
-                <p className="text-xs text-[#636E72]">高频词汇</p>
-              </div>
-            </div>
-            <div className="text-center mb-3">
-              <span className="text-4xl font-bold text-[#E6B800]" style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}>
-                {Math.round(growthData.vocabMastery.masteryRate * 100)}%
-              </span>
-            </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-[#FFE66D] rounded-full transition-all duration-1000"
-                style={{ width: `${growthData.vocabMastery.masteryRate * 100}%` }}
-              />
-            </div>
-            <p className="text-xs text-[#636E72] mt-2 text-center">
-              {growthData.vocabMastery.mastered} / {growthData.vocabMastery.tested} 词
-            </p>
-          </div>
-        </div>
-
-        {/* 优势与建议 */}
-        {viewMode === 'parent' && (
-          <div className="bg-white rounded-2xl p-6 mb-6 shadow-md">
-            <h3 className="font-bold text-[#2D3436] text-lg mb-4 flex items-center gap-2">
-              <Target className="w-5 h-5 text-[#FF6B35]" />
-              综合分析
-            </h3>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="font-semibold text-[#4ECDC4] mb-2 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" /> 当前优势
-                </h4>
-                <ul className="space-y-2">
-                  {growthData.strengths.map((s, i) => (
-                    <li key={i} className="text-sm text-[#2D3436] flex items-start gap-2">
-                      <span className="text-[#4ECDC4] mt-0.5">✓</span>
-                      {s}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-semibold text-[#FF6B35] mb-2 flex items-center gap-2">
-                  <Award className="w-4 h-4" /> 需要加强
-                </h4>
-                <ul className="space-y-2">
-                  {growthData.areasToImprove.map((a, i) => (
-                    <li key={i} className="text-sm text-[#2D3436] flex items-start gap-2">
-                      <span className="text-[#FFE66D] mt-0.5">★</span>
-                      {a}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 成长趋势图 */}
-        {viewMode === 'parent' && growthData.trend.charMastery.length > 1 && (
-          <div className="bg-white rounded-2xl p-6 mb-6 shadow-md">
-            <h3 className="font-bold text-[#2D3436] text-lg mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-[#4ECDC4]" />
-              成长趋势
-            </h3>
-            <div className="h-40 flex items-end gap-6 justify-around px-4">
-              {growthData.trend.charMastery.map((item, i) => (
-                <div key={i} className="flex flex-col items-center">
-                  <div className="text-xs text-[#636E72] mb-1">
-                    {Math.round(item.rate * 100)}%
-                  </div>
-                  <div 
-                    className="w-12 bg-gradient-to-t from-[#FF6B35] to-[#FFE66D] rounded-t-lg transition-all duration-700"
-                    style={{ height: `${item.rate * 120}px` }}
-                  />
-                  <div className="text-xs text-[#636E72] mt-2">{item.date}</div>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-[#636E72] text-center mt-3">单字掌握度变化</p>
-          </div>
-        )}
-
-        {/* 下一步行动 */}
-        <div className="bg-white rounded-2xl p-6 mb-6 shadow-md">
-          <h3 className="font-bold text-[#2D3436] text-lg mb-4">🎯 下一步行动</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Link 
-              href={`/test?level=${level}&childId=${childId}`}
-              className="block p-4 bg-[#FF6B35]/10 rounded-xl hover:bg-[#FF6B35]/20 transition-colors group"
-            >
-              <Gamepad2 className="w-8 h-8 text-[#FF6B35] mb-2" />
-              <h4 className="font-bold text-[#2D3436]">抽测闯关</h4>
-              <p className="text-xs text-[#636E72] mt-1">四部分综合测试</p>
-              <ChevronRight className="w-4 h-4 text-[#FF6B35] mt-2 group-hover:translate-x-1 transition-transform" />
-            </Link>
-            
-            <Link 
-              href="/book-select"
-              className="block p-4 bg-[#4ECDC4]/10 rounded-xl hover:bg-[#4ECDC4]/20 transition-colors group"
-            >
-              <BookOpen className="w-8 h-8 text-[#4ECDC4] mb-2" />
-              <h4 className="font-bold text-[#2D3436]">定制绘本</h4>
-              <p className="text-xs text-[#636E72] mt-1">个性化中文阅读</p>
-              <ChevronRight className="w-4 h-4 text-[#4ECDC4] mt-2 group-hover:translate-x-1 transition-transform" />
-            </Link>
-            
-            <Link 
-              href={`/fulltest?level=${level}&childId=${childId}`}
-              className="block p-4 bg-[#FFE66D]/30 rounded-xl hover:bg-[#FFE66D]/50 transition-colors group"
-            >
-              <Target className="w-8 h-8 text-[#E6B800] mb-2" />
-              <h4 className="font-bold text-[#2D3436]">逐字复测</h4>
-              <p className="text-xs text-[#636E72] mt-1">巩固薄弱汉字</p>
-              <ChevronRight className="w-4 h-4 text-[#E6B800] mt-2 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </div>
-        </div>
-
-        {/* 未来模块预留 */}
-        <div className="bg-white rounded-2xl p-6 mb-6 shadow-md">
-          <h3 className="font-bold text-[#2D3436] text-lg mb-4">🚀 成长路线图</h3>
-          <div className="space-y-3">
-            {/* 闯关 - 已开放占位 */}
-            <div className="flex items-center gap-4 p-4 bg-[#FFF8F0] rounded-xl">
-              <div className="w-12 h-12 bg-[#FF6B35]/20 rounded-full flex items-center justify-center">
-                <Gamepad2 className="w-6 h-6 text-[#FF6B35]" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-bold text-[#2D3436]">闯关成长区</h4>
-                <p className="text-sm text-[#636E72]">词语理解 · 句子理解 · 阅读理解</p>
-              </div>
-              <div className="flex items-center gap-1 text-xs text-[#636E72] bg-white px-3 py-1 rounded-full">
-                <Lock className="w-3 h-3" />
-                即将开放
-              </div>
-            </div>
-
-            {/* 阅读 */}
-            <div className="flex items-center gap-4 p-4 bg-[#FFF8F0] rounded-xl">
-              <div className="w-12 h-12 bg-[#4ECDC4]/20 rounded-full flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-[#4ECDC4]" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-bold text-[#2D3436]">我的中文阅读</h4>
-                <p className="text-sm text-[#636E72]">阅读数量 · 阅读质量 · 生词记录</p>
-              </div>
-              <div className="flex items-center gap-1 text-xs text-[#636E72] bg-white px-3 py-1 rounded-full">
-                <Lock className="w-3 h-3" />
-                即将开放
-              </div>
-            </div>
-
-            {/* 输出 */}
-            <div className="flex items-center gap-4 p-4 bg-[#FFF8F0] rounded-xl">
-              <div className="w-12 h-12 bg-[#FFE66D]/40 rounded-full flex items-center justify-center">
-                <PenTool className="w-6 h-6 text-[#E6B800]" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-bold text-[#2D3436]">中文输出</h4>
-                <p className="text-sm text-[#636E72]">朗读 · 口语 · 复述 · 写作</p>
-              </div>
-              <div className="flex items-center gap-1 text-xs text-[#636E72] bg-white px-3 py-1 rounded-full">
-                <Lock className="w-3 h-3" />
-                即将开放
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 底部操作 */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-          <Link 
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-[var(--color-src-bg)] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-[var(--color-src-text-light)] mb-4">
+            暂无数据
+          </p>
+          <Link
             href="/"
-            className="px-8 py-3 bg-white text-[#FF6B35] border-2 border-[#FF6B35] rounded-full font-bold hover:bg-[#FFF8F0] transition-colors text-center"
+            className="text-[var(--color-src-primary)] underline"
           >
             返回首页
           </Link>
-          <button
-            onClick={() => setViewMode(viewMode === 'child' ? 'parent' : 'child')}
-            className="px-8 py-3 bg-[#4ECDC4] text-white rounded-full font-bold hover:bg-[#3DBDB5] transition-colors"
-          >
-            {viewMode === 'child' ? '查看家长版' : '查看儿童版'}
-          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const nextLevel = data.nextLevel;
+
+  return (
+    <div className="min-h-screen bg-[var(--color-src-bg)] py-8 px-4">
+      <div className="max-w-3xl mx-auto">
+        {/* 标题 */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-display text-[var(--color-src-text)] mb-2">
+            🌱 我的中文成长地图
+          </h1>
+          <p className="text-[var(--color-src-text-light)]">
+            当前等级：{data.currentLevel}
+          </p>
         </div>
 
-        <p className="text-center text-xs text-[#636E72] mt-6">
-          SRC-C 中文成长评估系统 · 每一个字都是成长的脚印
-        </p>
+        {/* 第一阶段：教材基础识字 */}
+        <div className="bg-white rounded-3xl p-6 shadow-lg mb-4 border-l-4 border-blue-400">
+          <div className="flex items-start gap-4">
+            <div className="text-4xl">📘</div>
+            <div className="flex-1">
+              <h2 className="text-xl font-display text-[var(--color-src-text)] mb-2">
+                第一阶段：教材基础识字
+              </h2>
+              <div className="text-3xl font-display text-[var(--color-src-primary)] mb-2">
+                {data.pepMastery.mastered}
+                <span className="text-lg text-[var(--color-src-text-light)]">
+                  {' '}
+                  / {data.pepMastery.total}
+                </span>
+              </div>
+              <p className="text-sm text-[var(--color-src-text-light)] mb-3">
+                已掌握{data.pepMastery.level}中的{data.pepMastery.mastered}字
+              </p>
+              <div className="w-full bg-gray-100 rounded-full h-3">
+                <div
+                  className="bg-blue-400 h-3 rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${Math.min(100, (data.pepMastery.mastered / data.pepMastery.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                本次测试覆盖 {data.pepMastery.covered} 个教材汉字（覆盖率{' '}
+                {Math.round(data.pepMastery.coverageRate * 100)}%）
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 连线箭头 */}
+        <div className="flex justify-center my-2">
+          <div className="text-gray-300 text-2xl">↓</div>
+        </div>
+
+        {/* 第二阶段：阅读常用字 */}
+        <div className="bg-white rounded-3xl p-6 shadow-lg mb-4 border-l-4 border-orange-400">
+          <div className="flex items-start gap-4">
+            <div className="text-4xl">📚</div>
+            <div className="flex-1">
+              <h2 className="text-xl font-display text-[var(--color-src-text)] mb-2">
+                第二阶段：阅读常用字
+              </h2>
+              <div className="text-3xl font-display text-[var(--color-src-primary)] mb-2">
+                {data.srcMastery.isFullTest ? '' : '约'}
+                {data.srcMastery.mastered}
+                <span className="text-lg text-[var(--color-src-text-light)]">
+                  {' '}
+                  / {data.srcMastery.total}
+                </span>
+              </div>
+              <p className="text-sm text-[var(--color-src-text-light)] mb-3">
+                已掌握{data.srcMastery.level}中的{data.srcMastery.mastered}字
+              </p>
+              <div className="w-full bg-gray-100 rounded-full h-3">
+                <div
+                  className="bg-[var(--color-src-primary)] h-3 rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${Math.min(100, data.srcMastery.masteryRate * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                {data.srcMastery.isFullTest
+                  ? '全量测试'
+                  : `抽测估算，掌握度 ${Math.round(data.srcMastery.masteryRate * 100)}%`}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 连线箭头 */}
+        <div className="flex justify-center my-2">
+          <div className="text-gray-300 text-2xl">↓</div>
+        </div>
+
+        {/* 第三阶段：词组掌握 */}
+        <div className="bg-white rounded-3xl p-6 shadow-lg mb-6 border-l-4 border-green-400">
+          <div className="flex items-start gap-4">
+            <div className="text-4xl">🔤</div>
+            <div className="flex-1">
+              <h2 className="text-xl font-display text-[var(--color-src-text)] mb-2">
+                第三阶段：词语应用
+              </h2>
+              <div className="text-3xl font-display text-[var(--color-src-secondary)] mb-2">
+                {Math.round(data.vocabMastery.masteryRate * 100)}%
+              </div>
+              <p className="text-sm text-[var(--color-src-text-light)] mb-3">
+                常用词组掌握情况
+              </p>
+              <div className="w-full bg-gray-100 rounded-full h-3">
+                <div
+                  className="bg-[var(--color-src-secondary)] h-3 rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${Math.min(100, data.vocabMastery.masteryRate * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                已测试 {data.vocabMastery.tested} 个词组，答对{' '}
+                {data.vocabMastery.mastered} 个
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 下一步 */}
+        <div className="bg-gradient-to-r from-[var(--color-src-primary)] to-[var(--color-src-accent)] rounded-3xl p-6 shadow-lg text-white text-center mb-6">
+          <h2 className="text-2xl font-display mb-2">🚀 下一步</h2>
+          {nextLevel ? (
+            <>
+              <p className="text-lg mb-4">{nextLevel}</p>
+              <p className="text-sm opacity-90 mb-4">
+                继续扩大阅读常用字，并通过词组和闯关进一步提升中文理解能力。
+              </p>
+              <Link
+                href={`/profile?mode=full&level=${nextLevel}`}
+                className="inline-block bg-white text-[var(--color-src-primary)] px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform"
+              >
+                进入下一阶段 →
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-lg mb-4">恭喜你完成最高等级！</p>
+              <p className="text-sm opacity-90">
+                继续通过阅读和闯关保持你的中文能力。
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* 成长趋势 */}
+        <div className="bg-white rounded-3xl p-6 shadow-lg mb-6">
+          <h2 className="text-xl font-display text-[var(--color-src-text)] mb-4">
+            📈 成长趋势
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-[var(--color-src-text-light)]">
+                  阅读识字
+                </span>
+                <span className="text-[var(--color-src-primary)] font-bold">
+                  {Math.round(data.trend.charMastery[data.trend.charMastery.length - 1]?.rate * 100 || 0)}%
+                </span>
+              </div>
+              <div className="flex gap-1 h-8">
+                {data.trend.charMastery.map((point, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 bg-[var(--color-src-primary)]/20 rounded-t relative"
+                  >
+                    <div
+                      className="absolute bottom-0 left-0 right-0 bg-[var(--color-src-primary)] rounded-t"
+                      style={{ height: `${point.rate * 100}%` }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                {data.trend.charMastery.map((p, i) => (
+                  <span key={i}>{p.date}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 优势与弱项 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-white rounded-2xl p-5 shadow-md">
+            <h3 className="text-lg font-display text-green-500 mb-3">
+              ⭐ 优势
+            </h3>
+            <ul className="space-y-2">
+              {data.strengths.map((s, i) => (
+                <li
+                  key={i}
+                  className="text-sm text-[var(--color-src-text)] flex items-start gap-2"
+                >
+                  <span className="text-green-400">✓</span>
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="bg-white rounded-2xl p-5 shadow-md">
+            <h3 className="text-lg font-display text-[var(--color-src-primary)] mb-3">
+              💪 继续努力
+            </h3>
+            <ul className="space-y-2">
+              {data.areasToImprove.map((s, i) => (
+                <li
+                  key={i}
+                  className="text-sm text-[var(--color-src-text)] flex items-start gap-2"
+                >
+                  <span className="text-[var(--color-src-primary)]">○</span>
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* 建议 */}
+        <div className="bg-white rounded-2xl p-5 shadow-md mb-6">
+          <h3 className="text-lg font-display text-[var(--color-src-text)] mb-3">
+            💡 学习建议
+          </h3>
+          <ul className="space-y-2">
+            {data.recommendations.map((r, i) => (
+              <li
+                key={i}
+                className="text-sm text-[var(--color-src-text)] flex items-center gap-3"
+              >
+                <span className="w-6 h-6 bg-[var(--color-src-accent)] rounded-full flex items-center justify-center text-xs font-bold text-white">
+                  {i + 1}
+                </span>
+                {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* 未来模块预留 */}
+        <div className="bg-white/50 rounded-3xl p-6 mb-6">
+          <h3 className="text-lg font-display text-[var(--color-src-text-light)] mb-4 text-center">
+            🔜 即将开放
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white/80 rounded-2xl p-4 text-center border-2 border-dashed border-gray-200">
+              <div className="text-3xl mb-2">🎮</div>
+              <div className="text-sm text-[var(--color-src-text-light)]">
+                中文闯关
+              </div>
+            </div>
+            <div className="bg-white/80 rounded-2xl p-4 text-center border-2 border-dashed border-gray-200">
+              <div className="text-3xl mb-2">📚</div>
+              <div className="text-sm text-[var(--color-src-text-light)]">
+                定制绘本
+              </div>
+            </div>
+            <div className="bg-white/80 rounded-2xl p-4 text-center border-2 border-dashed border-gray-200">
+              <div className="text-3xl mb-2">✍</div>
+              <div className="text-sm text-[var(--color-src-text-light)]">
+                中文输出
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 返回按钮 */}
+        <div className="text-center">
+          <Link
+            href="/"
+            className="text-[var(--color-src-primary)] hover:underline"
+          >
+            ← 返回首页
+          </Link>
+        </div>
       </div>
     </div>
-  );
-}
-
-// 辅助函数
-function getNextLevel(level: Level): Level | undefined {
-  const levels: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
-  const idx = levels.indexOf(level);
-  return idx < levels.length - 1 ? levels[idx + 1] : undefined;
-}
-
-function getRJBLevel(level: Level): 'RJB100' | 'RJB300' | 'RJB500' | 'RJB800' {
-  const map: Record<Level, 'RJB100' | 'RJB300' | 'RJB500' | 'RJB800'> = {
-    SRC100: 'RJB100',
-    SRC300: 'RJB300',
-    SRC500: 'RJB500',
-    SRC800: 'RJB800',
-  };
-  return map[level];
-}
-
-function getRJBCharTotal(level: Level): number {
-  const map: Record<Level, number> = {
-    SRC100: 100,
-    SRC300: 300,
-    SRC500: 499,
-    SRC800: 799,
-  };
-  return map[level];
-}
-
-function generateStrengths(charRate: number, vocabRate: number): string[] {
-  const strengths: string[] = [];
-  if (charRate >= 80) {
-    strengths.push('单字基础扎实，已达到同级别上等水平');
-  } else if (charRate >= 60) {
-    strengths.push('单字掌握稳步提升中，基础框架已建立');
-  }
-  if (vocabRate >= 70) {
-    strengths.push('词组理解能力强，能够在语境中灵活运用');
-  }
-  if (charRate > vocabRate + 10) {
-    strengths.push('识字量增长较快，阅读接触广泛');
-  }
-  if (strengths.length < 2) {
-    strengths.push('学习态度积极，每次测试都有新进步');
-  }
-  return strengths.slice(0, 3);
-}
-
-function generateAreasToImprove(charRate: number, vocabRate: number): string[] {
-  const areas: string[] = [];
-  if (vocabRate < charRate - 10) {
-    areas.push('词组应用需要加强，建议多阅读加强词语积累');
-  }
-  if (charRate < 70) {
-    areas.push('核心高频字需要继续巩固，建议每日坚持识字练习');
-  }
-  if (charRate < 50) {
-    areas.push('基础字库覆盖面需要扩大，建议从SRC低一级别巩固');
-  }
-  areas.push('建议通过阅读在真实语境中加深对汉字的理解');
-  return areas.slice(0, 3);
-}
-
-function generateRecommendations(level: Level, charRate: number, vocabRate: number): string[] {
-  const recs: string[] = [];
-  if (charRate >= 80 && vocabRate >= 70) {
-    recs.push('可以尝试更高一级的绘本阅读');
-  }
-  recs.push('每日15分钟中文绘本阅读');
-  recs.push('每周1次完整测字，跟踪成长进度');
-  if (vocabRate < 60) {
-    recs.push('增加词汇专项练习');
-  }
-  return recs;
-}
-
-export default function GrowthMapPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#FFF8F0]">
-      <div className="text-center text-[#636E72]">加载中...</div>
-    </div>}>
-      <GrowthMapContent />
-    </Suspense>
   );
 }

@@ -118,10 +118,10 @@ export interface SubmitAnswerInput {
 }
 
 export const LEVEL_CONFIG: Record<Level, { timeLimitSeconds: number; charCount: number; vocabMultiplier: number; label: string; vocabCount: number; charSampleRatio: number; wordSampleRatio: number }> = {
-  SRC100: { timeLimitSeconds: 300, charCount: 114, vocabMultiplier: 2.86, label: '入门级', vocabCount: 128, charSampleRatio: 1.0, wordSampleRatio: 0.3 },
-  SRC300: { timeLimitSeconds: 480, charCount: 317, vocabMultiplier: 2.86, label: '基础级', vocabCount: 346, charSampleRatio: 0.3, wordSampleRatio: 0.15 },
-  SRC500: { timeLimitSeconds: 720, charCount: 528, vocabMultiplier: 2.86, label: '进阶级', vocabCount: 558, charSampleRatio: 0.25, wordSampleRatio: 0.12 },
-  SRC800: { timeLimitSeconds: 900, charCount: 813, vocabMultiplier: 2.86, label: '高级', vocabCount: 820, charSampleRatio: 0.2, wordSampleRatio: 0.1 },
+  SRC100: { timeLimitSeconds: 300, charCount: 114, vocabMultiplier: 2.86, label: '入门级', vocabCount: 128, charSampleRatio: 1.0, wordSampleRatio: 0.5 },
+  SRC300: { timeLimitSeconds: 480, charCount: 317, vocabMultiplier: 2.86, label: '基础级', vocabCount: 346, charSampleRatio: 0.3, wordSampleRatio: 0.12 },
+  SRC500: { timeLimitSeconds: 720, charCount: 528, vocabMultiplier: 2.86, label: '进阶级', vocabCount: 558, charSampleRatio: 0.25, wordSampleRatio: 0.1 },
+  SRC800: { timeLimitSeconds: 900, charCount: 813, vocabMultiplier: 2.86, label: '高级', vocabCount: 820, charSampleRatio: 0.2, wordSampleRatio: 0.08 },
 };
 
 // 人教版识字表配置
@@ -331,13 +331,17 @@ export interface GrowthMapData {
     learning: number;
     untested: number;
     masteryRate: number;  // 已测试中的掌握率
+    total: number;       // 该级字库总量
+    isFullTest: boolean; // 是否为全测（掌握率≥95%）
   };
   
-  rjbMastery: {
+  pepMastery: {
     level: RJBLevel;
     mastered: number;
     total: number;
     masteryRate: number;
+    covered: number;     // 双体系重合字数
+    coverageRate: number; // 重合率
   };
   
   vocabMastery: {

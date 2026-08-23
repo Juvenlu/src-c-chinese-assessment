@@ -113,12 +113,16 @@ async function calculateGrowthMap(
       learning: learningCount,
       untested: untestedCount,
       masteryRate,
+      total: allSrcChars.length,
+      isFullTest: testedCount >= allSrcChars.length * 0.95,
     },
-    rjbMastery: {
+    pepMastery: {
       level: rjbLevel,
       mastered: rjbMastered,
       total: rjbTotal,
       masteryRate: rjbMasteryRate,
+      covered: overlapChars.length,
+      coverageRate: overlapChars.length / rjbTotal,
     },
     vocabMastery: {
       mastered: vocabMastered,
