@@ -4,77 +4,139 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { LEVEL_CONFIG, Level } from '@/lib/types';
 
+// 综合评价等级与文案
+const getEvaluation = (score: number, isFirst: boolean) => {
+  if (score >= 95) {
+    return {
+      stars: 5,
+      half: 0,
+      title: '阅读基础非常扎实',
+      desc: '你的阅读基础非常扎实，已经具备继续扩大中文阅读范围的良好基础！',
+    };
+  }
+  if (score >= 90) {
+    return {
+      stars: 4,
+      half: 1,
+      title: '阅读基础较扎实',
+      desc: '你的阅读基础已经比较扎实，可以继续挑战更丰富的中文故事和词语。',
+    };
+  }
+  if (score >= 80) {
+    return {
+      stars: 3,
+      half: 1,
+      title: '正在形成稳定阅读基础',
+      desc: '你的阅读基础正在变得更加稳定，下一步可以通过词组和闯关提升理解能力。',
+    };
+  }
+  if (score >= 70) {
+    return {
+      stars: 2,
+      half: 1,
+      title: '正在积累阅读基础',
+      desc: '你的中文阅读基础正在形成，继续积累常用字词，你会发现阅读越来越轻松。',
+    };
+  }
+  return {
+    stars: 1,
+    half: 0,
+    title: '正在打好中文阅读基础',
+    desc: '你已经开始建立中文阅读基础，接下来通过闯关和定制绘本继续积累，会越来越容易读懂中文故事。',
+  };
+};
+
 export default function ResultPage() {
   const [level, setLevel] = useState<Level>('SRC300');
   const [showResult, setShowResult] = useState(false);
-  const [charCount, setCharCount] = useState(0);
-  const [totalChars, setTotalChars] = useState(0);
-  const [vocabCount, setVocabCount] = useState(0);
+
+  // 单字测试数据
+  const [testedChars, setTestedChars] = useState(0); // 本次抽测/测试的字数
+  const [correctChars, setCorrectChars] = useState(0); // 答对数
+  const [totalChars, setTotalChars] = useState(0); // 字库总字数
+  const [isFullTest, setIsFullTest] = useState(false); // 是否全测（SRC100）
+
+  // 词组测试数据
+  const [testedVocab, setTestedVocab] = useState(0);
+  const [correctVocab, setCorrectVocab] = useState(0);
   const [totalVocab, setTotalVocab] = useState(0);
-  const [pepMastered, setPepMastered] = useState(0);
+
+  // 人教版映射数据
   const [pepTotal, setPepTotal] = useState(0);
-  const [pepCovered, setPepCovered] = useState(0);
-  const [stars, setStars] = useState(0);
-  const [isFullTest, setIsFullTest] = useState(false);
+  const [pepCovered, setPepCovered] = useState(0); // 被SRC测试覆盖到的教材字数
+  const [pepCoveredCorrect, setPepCoveredCorrect] = useState(0); // 覆盖范围内答对数
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const l = (params.get('level') || 'SRC300') as Level;
-    const c = parseInt(params.get('charCount') || '0');
-    const v = parseInt(params.get('vocabCount') || '0');
-    const tv = parseInt(params.get('totalVocab') || '0');
-    const s = parseInt(params.get('score') || '0');
+    const tc = parseInt(params.get('testedChars') || params.get('charCount') || '0');
+    const cc = parseInt(params.get('correctChars') || params.get('charCount') || '0');
+    const tv = parseInt(params.get('testedVocab') || params.get('vocabCount') || '0');
+    const cv = parseInt(params.get('correctVocab') || params.get('vocabCount') || '0');
+    const totalV = parseInt(params.get('totalVocab') || '0');
 
     setLevel(l);
     const config = LEVEL_CONFIG[l];
     setTotalChars(config.charCount);
-    setTotalVocab(tv || config.vocabCount);
+    setTotalVocab(totalV || config.vocabCount);
     setIsFullTest(config.charSampleRatio >= 0.95);
 
-    // 从SRC测试结果估算人教版掌握（模拟映射）
-    const pepMap: Record<Level, { total: number; coveredRate: number }> = {
-      SRC100: { total: 100, coveredRate: 0.85 },
-      SRC300: { total: 300, coveredRate: 0.82 },
-      SRC500: { total: 499, coveredRate: 0.78 },
-      SRC800: { total: 799, coveredRate: 0.75 },
+    // 单字：如果传了correctChars用correct，否则用charCount当答对（兼容旧调用）
+    setTestedChars(tc || cc);
+    setCorrectChars(cc);
+
+    // 词组：同理
+    setTestedVocab(tv || cv);
+    setCorrectVocab(cv);
+
+    // 人教版映射：根据SRC等级估算覆盖率与掌握情况
+    const pepMap: Record<Level, { total: number; coverageRatio: number }> = {
+      SRC100: { total: 100, coverageRatio: 0.85 },
+      SRC300: { total: 300, coverageRatio: 0.82 },
+      SRC500: { total: 499, coverageRatio: 0.78 },
+      SRC800: { total: 799, coverageRatio: 0.75 },
     };
     const pepInfo = pepMap[l];
-    const pepCoveredCount = Math.round(c * pepInfo.coveredRate);
+    const pepCoveredCount = Math.min(pepInfo.total, Math.round(tc * pepInfo.coverageRatio));
+    const charMasteryRate = tc > 0 ? cc / tc : 0;
     setPepTotal(pepInfo.total);
     setPepCovered(pepCoveredCount);
-    setPepMastered(Math.round(pepCoveredCount * (c / config.charCount)));
-
-    const correctRate = c / config.charCount;
-    if (correctRate >= 0.9) {
-      setStars(5);
-    } else if (correctRate >= 0.8) {
-      setStars(4);
-    } else if (correctRate >= 0.7) {
-      setStars(3);
-    } else if (correctRate >= 0.6) {
-      setStars(2);
-    } else {
-      setStars(1);
-    }
-
-    setCharCount(c);
-    setVocabCount(v);
+    setPepCoveredCorrect(Math.round(pepCoveredCount * charMasteryRate));
 
     setTimeout(() => setShowResult(true), 100);
   }, []);
 
-  const srcMasteryRate = totalChars > 0 ? charCount / totalChars : 0;
-  const vocabRate = totalVocab > 0 ? vocabCount / totalVocab : 0;
+  // 单字掌握率 = 答对 / 抽测数
+  const charMasteryRate = testedChars > 0 ? correctChars / testedChars : 0;
+  // 词组掌握率
+  const vocabMasteryRate = testedVocab > 0 ? correctVocab / testedVocab : 0;
+  // 人教版覆盖内掌握率
+  const pepMasteryRate = pepCovered > 0 ? pepCoveredCorrect / pepCovered : 0;
 
-  // 估算SRC掌握量（抽测情况下）
-  const estimatedMastered = isFullTest
-    ? charCount
-    : Math.round(srcMasteryRate * totalChars);
+  // 估算掌握量
+  const estimatedCharMastered = isFullTest ? correctChars : Math.round(totalChars * charMasteryRate);
+  const estimatedPepMastered = Math.round(pepTotal * pepMasteryRate);
+  const estimatedVocabMastered = Math.round(totalVocab * vocabMasteryRate);
+
+  // 综合评价（单字60% + 词组30% + 历史稳定性10%，首测把10%分给单字和词组）
+  const isFirstTest = true; // 暂时默认首测，后续接入历史后动态判断
+  const overallScore = isFirstTest
+    ? charMasteryRate * 65 + vocabMasteryRate * 35
+    : charMasteryRate * 60 + vocabMasteryRate * 30 + 0.85 * 10;
+
+  const evaluation = getEvaluation(overallScore, isFirstTest);
 
   const pepLevelName = level.replace('SRC', '人教版');
+  const nextLevelMap: Record<Level, { label: string; desc: string }> = {
+    SRC100: { label: 'SRC300', desc: '进入更丰富的中文阅读常用字阶段' },
+    SRC300: { label: 'SRC500', desc: '继续扩大阅读常用字，通过词组、闯关和定制绘本阅读，进一步提升中文理解能力' },
+    SRC500: { label: 'SRC800', desc: '向更高阶的阅读常用字进阶，建立更完整的中文阅读基础' },
+    SRC800: { label: '中文阅读与理解', desc: '进入更丰富的中文阅读与理解阶段' },
+  };
+  const nextInfo = nextLevelMap[level];
 
   return (
-    <div className="min-h-screen bg-[var(--color-src-bg)] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--color-src-bg)] flex items-center justify-center p-4 py-8">
       <div
         className={`max-w-2xl w-full transition-all duration-700 ${
           showResult ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
@@ -84,10 +146,10 @@ export default function ResultPage() {
         <div className="text-center mb-8">
           <div className="text-6xl mb-2">🎉</div>
           <h1 className="text-3xl font-display text-[var(--color-src-text)]">
-            测试完成！
+            测字完成！
           </h1>
           <p className="text-[var(--color-src-text-light)] mt-2">
-            {level} 测字结果
+            {level} · 中文成长基础评估
           </p>
         </div>
 
@@ -96,45 +158,41 @@ export default function ResultPage() {
           {/* 卡片1：基础识字（人教版映射） */}
           <div className="bg-white rounded-3xl p-6 shadow-lg text-center border-2 border-blue-100 hover:scale-105 transition-transform">
             <div className="text-4xl mb-2">📘</div>
-            <div className="text-sm text-[var(--color-src-text-light)] mb-1">
+            <div className="text-sm text-[var(--color-src-text-light)] mb-2">
               基础识字
             </div>
             <div className="text-4xl font-display text-[var(--color-src-primary)] mb-1">
-              {pepMastered}
-              <span className="text-xl text-[var(--color-src-text-light)]">
-                {' '}
-                / {pepTotal}
-              </span>
+              {Math.round(pepMasteryRate * 100)}
+              <span className="text-xl text-[var(--color-src-text-light)]">%</span>
             </div>
             <div className="text-xs text-[var(--color-src-text-light)] mb-3">
-              {pepLevelName}
+              {pepLevelName}基础汉字
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
               <div
                 className="bg-blue-400 h-2 rounded-full transition-all duration-1000"
-                style={{
-                  width: `${Math.min(100, (pepMastered / pepTotal) * 100)}%`,
-                }}
+                style={{ width: `${Math.min(100, pepMasteryRate * 100)}%` }}
               />
             </div>
             <div className="text-xs text-gray-400">
-              本次测试覆盖 {pepCovered} 个教材汉字
+              本次覆盖 {pepCovered} 个教材汉字
             </div>
+            {!isFullTest && (
+              <div className="text-xs text-blue-400 mt-1">
+                预计已掌握约 {estimatedPepMastered} 字
+              </div>
+            )}
           </div>
 
           {/* 卡片2：阅读识字（SRC） */}
           <div className="bg-white rounded-3xl p-6 shadow-lg text-center border-2 border-orange-100 hover:scale-105 transition-transform">
             <div className="text-4xl mb-2">📚</div>
-            <div className="text-sm text-[var(--color-src-text-light)] mb-1">
+            <div className="text-sm text-[var(--color-src-text-light)] mb-2">
               阅读识字
             </div>
             <div className="text-4xl font-display text-[var(--color-src-primary)] mb-1">
-              {isFullTest ? '' : '约'}
-              {estimatedMastered}
-              <span className="text-xl text-[var(--color-src-text-light)]">
-                {' '}
-                / {totalChars}
-              </span>
+              {Math.round(charMasteryRate * 100)}
+              <span className="text-xl text-[var(--color-src-text-light)]">%</span>
             </div>
             <div className="text-xs text-[var(--color-src-text-light)] mb-3">
               SRC阅读常用字
@@ -142,24 +200,28 @@ export default function ResultPage() {
             <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
               <div
                 className="bg-[var(--color-src-primary)] h-2 rounded-full transition-all duration-1000"
-                style={{
-                  width: `${Math.min(100, srcMasteryRate * 100)}%`,
-                }}
+                style={{ width: `${Math.min(100, charMasteryRate * 100)}%` }}
               />
             </div>
             <div className="text-xs text-gray-400">
-              {isFullTest ? '全量测试' : `抽测 ${charCount} 字，掌握度 ${Math.round(srcMasteryRate * 100)}%`}
+              {isFullTest ? `全量测试 ${testedChars} 字` : `本次抽测 ${testedChars} 字`}
             </div>
+            {!isFullTest && (
+              <div className="text-xs text-orange-400 mt-1">
+                预计已掌握约 {estimatedCharMastered} 字
+              </div>
+            )}
           </div>
 
           {/* 卡片3：词组掌握 */}
           <div className="bg-white rounded-3xl p-6 shadow-lg text-center border-2 border-green-100 hover:scale-105 transition-transform">
             <div className="text-4xl mb-2">🔤</div>
-            <div className="text-sm text-[var(--color-src-text-light)] mb-1">
+            <div className="text-sm text-[var(--color-src-text-light)] mb-2">
               词组掌握
             </div>
             <div className="text-4xl font-display text-[var(--color-src-secondary)] mb-1">
-              {Math.round(vocabRate * 100)}%
+              {Math.round(vocabMasteryRate * 100)}
+              <span className="text-xl text-[var(--color-src-text-light)]">%</span>
             </div>
             <div className="text-xs text-[var(--color-src-text-light)] mb-3">
               常用词组
@@ -167,13 +229,14 @@ export default function ResultPage() {
             <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
               <div
                 className="bg-[var(--color-src-secondary)] h-2 rounded-full transition-all duration-1000"
-                style={{
-                  width: `${Math.min(100, vocabRate * 100)}%`,
-                }}
+                style={{ width: `${Math.min(100, vocabMasteryRate * 100)}%` }}
               />
             </div>
             <div className="text-xs text-gray-400">
-              测试 {vocabCount} / {totalVocab} 个词组
+              本次抽测 {testedVocab} 个词组
+            </div>
+            <div className="text-xs text-teal-500 mt-1">
+              估算词汇量约 {estimatedVocabMastered} 词
             </div>
           </div>
         </div>
@@ -184,7 +247,7 @@ export default function ResultPage() {
             课本基础 → 阅读基础 → 词语应用
           </p>
           <p className="text-xs text-[var(--color-src-text-light)] mt-1">
-            一次测字，三维评估，全面了解孩子的中文阅读能力
+            一次测字，三维评估，看见孩子的中文成长基础
           </p>
         </div>
 
@@ -193,28 +256,70 @@ export default function ResultPage() {
           <h2 className="text-xl font-display text-[var(--color-src-text)] mb-4">
             综合评价
           </h2>
-          <div className="text-4xl mb-4">
-            {[...Array(5)].map((_, i) => (
-              <span
-                key={i}
-                className={`inline-block mx-1 ${
-                  i < stars
-                    ? 'text-[var(--color-src-accent)] animate-bounce-in'
-                    : 'text-gray-200'
-                }`}
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                ★
-              </span>
-            ))}
+          <div className="text-4xl mb-3">
+            {[...Array(5)].map((_, i) => {
+              const fill = i < evaluation.stars;
+              const isHalf = i === evaluation.stars && evaluation.half === 1;
+              return (
+                <span
+                  key={i}
+                  className={`inline-block mx-0.5 ${
+                    fill
+                      ? 'text-[var(--color-src-accent)]'
+                      : isHalf
+                        ? 'text-[var(--color-src-accent)]'
+                        : 'text-gray-200'
+                  }`}
+                  style={{
+                    animation: fill || isHalf ? 'bounce-in 0.5s ease-out backwards' : undefined,
+                    animationDelay: `${i * 100}ms`,
+                  }}
+                >
+                  {isHalf ? '☆' : '★'}
+                </span>
+              );
+            })}
           </div>
-          <p className="text-[var(--color-src-text-light)]">
-            {stars === 5 && '太厉害了！你已经非常熟练地掌握了这些字！'}
-            {stars === 4 && '很棒！继续保持，你快要全部掌握啦！'}
-            {stars === 3 && '不错哦！再多练习一下就能更上一层楼！'}
-            {stars === 2 && '加油！每天进步一点点，你会越来越棒！'}
-            {stars === 1 && '没关系，我们一起努力，慢慢就会认识更多字啦！'}
+          <p className="text-[var(--color-src-primary)] font-bold mb-1">
+            {evaluation.title}
           </p>
+          <p className="text-sm text-[var(--color-src-text-light)]">
+            {evaluation.desc}
+          </p>
+          {!isFullTest && (
+            <p className="text-xs text-gray-400 mt-3">
+              根据本次抽测结果估算，继续测字可以获得更准确的成长画像
+            </p>
+          )}
+        </div>
+
+        {/* 下一步 */}
+        <div className="bg-white rounded-3xl p-6 shadow-lg mb-6">
+          <h2 className="text-lg font-display text-[var(--color-src-text)] mb-3 text-center">
+            🚀 下一步
+          </h2>
+          <div className="text-center">
+            <p className="text-[var(--color-src-primary)] font-bold">{nextInfo.label}</p>
+            <p className="text-sm text-[var(--color-src-text-light)] mt-1">
+              {nextInfo.desc}
+            </p>
+          </div>
+
+          {/* 未来模块预留 */}
+          <div className="grid grid-cols-3 gap-3 mt-5">
+            <div className="bg-gray-50 rounded-2xl p-3 text-center border border-gray-100 opacity-60">
+              <div className="text-2xl mb-1">🎮</div>
+              <p className="text-xs text-gray-400">闯关挑战</p>
+            </div>
+            <div className="bg-gray-50 rounded-2xl p-3 text-center border border-gray-100 opacity-60">
+              <div className="text-2xl mb-1">📖</div>
+              <p className="text-xs text-gray-400">定制绘本</p>
+            </div>
+            <div className="bg-gray-50 rounded-2xl p-3 text-center border border-gray-100 opacity-60">
+              <div className="text-2xl mb-1">✍️</div>
+              <p className="text-xs text-gray-400">中文输出</p>
+            </div>
+          </div>
         </div>
 
         {/* 操作按钮 */}
@@ -247,9 +352,6 @@ export default function ResultPage() {
             transform: scale(1);
             opacity: 1;
           }
-        }
-        .animate-bounce-in {
-          animation: bounce-in 0.5s ease-out backwards;
         }
       `}</style>
     </div>
