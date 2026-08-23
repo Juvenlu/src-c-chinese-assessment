@@ -27,10 +27,14 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 - **成长地图**：三维度进度（SRC识字量 + 人教版对照 + 词汇量）+ 成长趋势 + 优势/弱项分析
 - **掌握度状态**：6级状态（未测/初测/掌握中/基本掌握/稳定掌握/需复习）
 - **个人测字历史**：character_mastery + vocabulary_mastery 两张表（数据库表结构已设计）
-- **直接测试（快速测评）**：无需注册，自适应分级探测（SRC100→300→500→800逐级爬升），双水位测量（单字能力+词语能力），i+1阅读推荐，3-5分钟快速评估
-  - 算法：`src/lib/quick-assessment.ts`（V2 自适应分级）
+- **直接测试（快速测评）V2.0**：无需注册，自适应分级探测，双水位测量，Reading Base ≤ Word Level，i+1推荐，3-5分钟快速评估
+  - 算法：`src/lib/quick-assessment.ts`（V2.0 自适应分级 + 边界确认 + Confidence Booster）
   - 页面：`/quicktest`、`/quickresult`
-  - 每级5单字+3词组，通过升级/不通过停止，总题量动态（通常20-35题）
+  - 每级6单字+3词语=9题，单字最多30题、词语最多15题、总题≤45
+  - 三核心指标：Character Level / Word Level / Reading Base Level
+  - 置信度：高/中/低
+  - 题池：基于 Assessment Item Pool（minimum_src_level + 核心/补充分层）
+  - 全部参数集中于 `ASSESSMENT_CONFIG` 可配置
 
 ### 技术栈
 

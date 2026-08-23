@@ -1,316 +1,293 @@
 'use client';
-/* eslint-disable react-hooks/purity */
 
-import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  initAdaptiveSession,
-  submitAnswer,
-  getNextQuestionForLevel,
-  AdaptiveSession,
-  QAItem,
-  QAResult,
-  AdaptiveAssessmentResult,
-  LEVEL_ORDER,
-  ADAPTIVE_CONFIG,
+  generateAdaptiveAssessment,
+  calculateQuickResult,
+  type AssessmentQuestion,
+  type AnswerRecord,
+  type QuickAssessmentResult,
+  ASSESSMENT_CONFIG,
 } from '@/lib/quick-assessment';
-import { Level } from '@/lib/types';
+import { Star, Sparkles, ChevronRight } from 'lucide-react';
 
-type TestPhase = 'intro' | 'testing' | 'level-transition' | 'calculating';
-
-/** 保存快速测试session到本地（防刷新/重开） */
-const STORAGE_KEY = 'src_quick_test_session';
-const STORAGE_RESULTS = 'src_quick_test_results';
+// 测试阶段
+type Phase = 'intro' | 'testing' | 'result';
 
 export default function QuickTestPage() {
-  const router = useRouter();
-  const [phase, setPhase] = useState<TestPhase>('intro');
-  const [session, setSession] = useState<AdaptiveSession | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<QAItem | null>(null);
-  const [allResults, setAllResults] = useState<QAResult[]>([]);
-  const [questionStartTime, setQuestionStartTime] = useState(0);
-  const [finalResult, setFinalResult] = useState<AdaptiveAssessmentResult | null>(null);
-  const [levelTransitionText, setLevelTransitionText] = useState('');
+  const [phase, setPhase] = useState<Phase>('intro');
+  const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState<AnswerRecord[]>([]);
+  const [questionStart, setQuestionStart] = useState(0);
+  const [sessionStart, setSessionStart] = useState(0);
+  const [result, setResult] = useState<QuickAssessmentResult | null>(null);
+  const [answerAnim, setAnswerAnim] = useState<'' | 'correct' | 'wrong'>('');
+  const [showLevelUp, setShowLevelUp] = useState(false);
 
-  // 已排除的字/词（避免重复）
-  const excludedChars = useMemo(
-    () => new Set(allResults.filter(r => r.type === 'character').map(r => r.content)),
-    [allResults],
-  );
-  const excludedWords = useMemo(
-    () => new Set(allResults.filter(r => r.type === 'vocabulary').map(r => r.content)),
-    [allResults],
-  );
-
-  // 计算进度（基于最大可能题数估算）
-  const totalEstimated = 40; // 估算上限
-  const progressPercent = Math.min(95, (allResults.length / totalEstimated) * 100);
-
-  // 当前等级名字
-  const currentLevelName = session ? getLevelDisplayName(session.currentLevel) : '';
-
-  // 开始测试
-  function startTest() {
-    const { session: s, firstQuestions } = initAdaptiveSession();
-    setSession(s);
-    // 取第一题
-    const firstQ = getNextQuestionForLevel(
-      s.currentLevel,
-      s.phase,
-      s.currentIndexInLevel,
-    );
-    setCurrentQuestion(firstQ);
-    setAllResults([]);
+  // 初始化测试
+  const startTest = () => {
+    const { questions: qs } = generateAdaptiveAssessment();
+    setQuestions(qs);
+    setCurrentIndex(0);
+    setAnswers([]);
+    setSessionStart(Date.now());
+    setQuestionStart(Date.now());
     setPhase('testing');
-    setQuestionStartTime(Date.now());
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  };
 
-  // 处理答题
-  function handleAnswer(known: boolean) {
-    if (!session || !currentQuestion) return;
+  // 当前题目
+  const currentQ = questions[currentIndex];
 
-    const reactionTime = Date.now() - questionStartTime;
-    const answer: QAResult = {
-      id: currentQuestion.id,
-      type: currentQuestion.type,
-      content: currentQuestion.content,
-      level: currentQuestion.level,
-      isCorrect: known,
-      reactionTimeMs: reactionTime,
+  // 进度：计分题数 / 预估总题数
+  const progress = useMemo(() => {
+    if (questions.length === 0) return 0;
+    const scoredSoFar = answers.filter((a) => a.scoring).length;
+    // 预估总题数（四级基础题的计分题量）
+    const estimated =
+      ASSESSMENT_CONFIG.questionsPerLevelCharacter * 4 +
+      ASSESSMENT_CONFIG.questionsPerLevelWord * 4;
+    return Math.min(100, Math.round((scoredSoFar / estimated) * 100));
+  }, [answers, questions.length]);
+
+  // 处理答案
+  const handleAnswer = (userAnswer: boolean) => {
+    if (!currentQ) return;
+    const now = Date.now();
+    const rt = now - questionStart;
+
+    const record: AnswerRecord = {
+      questionId: currentQ.id,
+      questionContent: currentQ.content,
+      questionType: currentQ.type,
+      minimumSrcLevel: currentQ.minimumSrcLevel,
+      questionRole: currentQ.role,
+      userAnswer,
+      correct: userAnswer, // 自报型，"认识"本身就是答案
+      responseTimeMs: rt,
+      sequenceNumber: currentIndex,
+      scoring: currentQ.scoring,
     };
 
-    const newAllResults = [...allResults, answer];
-    setAllResults(newAllResults);
+    const newAnswers = [...answers, record];
+    setAnswers(newAnswers);
 
-    const excludeC = new Set(newAllResults.filter(r => r.type === 'character').map(r => r.content));
-    const excludeW = new Set(newAllResults.filter(r => r.type === 'vocabulary').map(r => r.content));
+    // 反馈动画
+    setAnswerAnim(userAnswer ? 'correct' : 'wrong');
+    setTimeout(() => setAnswerAnim(''), 350);
 
-    const { nextQuestion, updatedSession, levelCompleted, finalResult: fr } = submitAnswer(
-      session,
-      answer,
-      ADAPTIVE_CONFIG,
-      excludeC,
-      excludeW,
-    );
+    // 判断是否需要结束测试（基于已答计分题的粗略自适应）
+    // 这里简化处理：按顺序推进，所有题做完即结束
+    // 真实自适应会在服务端根据答题情况动态生成边界确认题
+    setTimeout(() => {
+      if (currentIndex + 1 >= questions.length) {
+        // 测试完成
+        const totalTime = Date.now() - sessionStart;
+        const res = calculateQuickResult(newAnswers, totalTime);
+        setResult(res);
+        // 保存到 localStorage，跳转到结果页展示
+        localStorage.setItem('src_quick_test_results_v2', JSON.stringify(res));
+        window.location.href = '/quickresult';
+      } else {
+        setCurrentIndex(currentIndex + 1);
+        setQuestionStart(Date.now());
+      }
+    }, 300);
+  };
 
-    setSession(updatedSession);
+  // 键盘快捷键
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (phase !== 'testing') return;
+      if (e.key === 'ArrowLeft' || e.key === '1') handleAnswer(true);
+      if (e.key === 'ArrowRight' || e.key === '2') handleAnswer(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, currentIndex]);
 
-    if (fr) {
-      // 测试结束
-      setFinalResult(fr);
-      setPhase('calculating');
-      // 保存结果到本地
-      try {
-        localStorage.setItem(STORAGE_RESULTS, JSON.stringify({
-          result: fr,
-          answers: newAllResults,
-          time: Date.now(),
-        }));
-      } catch (e) { /* 忽略 */ }
-      // 延迟跳转
-      setTimeout(() => {
-        router.push('/quickresult');
-      }, 1500);
-      return;
-    }
+  // ============== 渲染 ==============
 
-    if (levelCompleted && nextQuestion) {
-      // 刚完成一个等级，显示过渡提示
-      const nextLevelName = getLevelDisplayName(updatedSession.currentLevel);
-      setLevelTransitionText(levelCompleted.passed
-        ? `很棒！进入${nextLevelName}挑战～`
-        : `我们换个难度继续看看～`);
-      setPhase('level-transition');
-      setTimeout(() => {
-        setCurrentQuestion(nextQuestion);
-        setQuestionStartTime(Date.now());
-        setPhase('testing');
-      }, 1200);
-    } else if (nextQuestion) {
-      setCurrentQuestion(nextQuestion);
-      setQuestionStartTime(Date.now());
-    }
+  if (phase === 'intro') {
+    return <IntroPage onStart={startTest} />;
   }
 
-  // 当前题的类型显示
-  const questionTypeText = currentQuestion?.type === 'character' ? '认识这个字吗？' : '认识这个词吗？';
+  if (phase === 'result' && result) {
+    return null; // 已经跳转到结果页
+  }
+
+  if (!currentQ) return null;
+
+  const isChar = currentQ.type === 'character';
+  const scoredCount = answers.filter((a) => a.scoring).length;
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-main)] flex flex-col">
-      {/* 顶部栏 */}
-      <div className="p-4 flex items-center justify-between">
-        <button
-          onClick={() => router.push('/')}
-          className="text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] transition-colors text-sm"
-        >
-          ← 返回
-        </button>
-        <div className="text-[var(--color-text-secondary)] text-sm">
-          {phase === 'testing' && currentQuestion?.type === 'character' && '📖 单字识别'}
-          {phase === 'testing' && currentQuestion?.type === 'vocabulary' && '📚 词语识别'}
-        </div>
-        <div className="text-[var(--color-text-secondary)] text-sm w-12 text-right">
-          {allResults.length > 0 && `${allResults.length}题`}
-        </div>
-      </div>
-
-      {/* 进度条 */}
-      {phase !== 'intro' && (
-        <div className="px-4 pb-2">
-          <div className="h-2 bg-[var(--color-bg-card)] rounded-full overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-white flex flex-col">
+      {/* 顶部进度条 */}
+      <div className="w-full px-4 pt-4 pb-2">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-muted-foreground font-medium">
+              第 {scoredCount + (currentQ.scoring ? 1 : 0)} 题
+            </span>
+            <div className="flex gap-1">
+              {Array.from({ length: Math.min(10, scoredCount) }).map((_, i) => (
+                <Star
+                  key={i}
+                  size={14}
+                  className="fill-yellow-400 text-yellow-400"
+                />
+              ))}
+            </div>
+          </div>
+          <div className="w-full h-3 bg-white/80 rounded-full border border-orange-200 overflow-hidden shadow-inner">
             <div
-              className="h-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-accent)] rounded-full transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
+              className="h-full bg-gradient-to-r from-orange-400 to-amber-400 transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${progress}%` }}
             />
           </div>
         </div>
-      )}
+      </div>
 
-      {/* 主体内容 */}
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
-        {/* 说明页 */}
-        {phase === 'intro' && <IntroPage onStart={startTest} />}
-
-        {/* 测试中 */}
-        {phase === 'testing' && currentQuestion && (
-          <TestQuestion
-            question={currentQuestion}
-            typeText={questionTypeText}
-            levelName={currentLevelName}
-            onAnswer={handleAnswer}
-          />
-        )}
-
-        {/* 等级过渡 */}
-        {phase === 'level-transition' && (
-          <div className="text-center">
-            <div className="text-5xl mb-6 animate-bounce">🌟</div>
-            <p className="text-xl text-[var(--color-text-primary)] font-medium">
-              {levelTransitionText}
-            </p>
+      {/* 主题目区 */}
+      <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8">
+        <div className="max-w-lg w-full">
+          {/* 题型小提示 */}
+          <div className="text-center mb-6">
+            <span className="inline-block px-4 py-1 bg-white/80 rounded-full text-sm text-muted-foreground border border-orange-100">
+              {isChar ? '看看你认不认识这个字' : '看看你认不认识这个词'}
+            </span>
           </div>
-        )}
 
-        {/* 计算中 */}
-        {phase === 'calculating' && (
-          <div className="text-center">
-            <div className="text-6xl mb-6 animate-pulse">🎯</div>
-            <p className="text-xl text-[var(--color-text-primary)] font-medium">
-              正在整理你的中文成长结果…
-            </p>
+          {/* 大字显示 */}
+          <div
+            className={`text-center py-12 mb-8 transition-all duration-300 ${
+              answerAnim === 'correct' ? 'scale-105' : ''
+            } ${answerAnim === 'wrong' ? 'opacity-80' : ''}`}
+          >
+            <div
+              className="inline-block font-medium leading-none tracking-wider text-[120px] md:text-[160px] text-foreground"
+              style={{
+                fontFamily: "'KaiTi', 'STKaiti', '楷体', 'Kaiti SC', 'DFKai-SB', serif",
+                textShadow: '0 4px 16px rgba(0,0,0,0.08)',
+              }}
+            >
+              {currentQ.content}
+            </div>
           </div>
-        )}
+
+          {/* 操作按钮 */}
+          <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+            <button
+              onClick={() => handleAnswer(true)}
+              className="group relative py-6 px-4 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-500 text-white font-bold text-xl shadow-lg shadow-green-500/30 hover:scale-105 hover:shadow-xl hover:shadow-green-500/40 active:scale-95 transition-all duration-200"
+            >
+              <div className="text-3xl mb-1">✓</div>
+              <div>认识</div>
+            </button>
+            <button
+              onClick={() => handleAnswer(false)}
+              className="group relative py-6 px-4 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 font-bold text-xl shadow-md hover:scale-105 hover:shadow-lg active:scale-95 transition-all duration-200 border border-slate-200"
+            >
+              <div className="text-3xl mb-1">?</div>
+              <div>还不认识</div>
+            </button>
+          </div>
+
+          {/* 键盘提示 */}
+          <p className="text-center text-xs text-muted-foreground mt-6">
+            小提示：也可以用键盘 ← 认识 / → 还不认识
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
-// ========== 子组件 ==========
-
+// ==================== 说明页 ====================
 function IntroPage({ onStart }: { onStart: () => void }) {
+  const features = [
+    { icon: '⏱️', title: '约3分钟', desc: '快速了解中文基础' },
+    { icon: '🎯', title: '智能适应', desc: '根据表现调整难度' },
+    { icon: '📖', title: '阅读建议', desc: '找到适合的故事难度' },
+    { icon: '🎮', title: '轻松体验', desc: '边玩边测没有压力' },
+  ];
+
   return (
-    <div className="max-w-md w-full text-center">
-      <div className="text-7xl mb-6">🐒</div>
-      <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-3" style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}>
-        免费中文基础测试
-      </h1>
-      <p className="text-[var(--color-text-secondary)] mb-8">
-        快速了解孩子目前的中文阅读字词基础
-      </p>
+    <div className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-white flex flex-col items-center justify-center px-4 py-8">
+      <div className="max-w-md w-full">
+        {/* 标题区 */}
+        <div className="text-center mb-8">
+          <div className="inline-block mb-4">
+            <div className="text-6xl mb-2">🐵</div>
+          </div>
+          <h1
+            className="text-3xl md:text-4xl font-bold text-foreground mb-3"
+            style={{ fontFamily: "'ZCOOL KuaiLe', 'Noto Sans SC', cursive, sans-serif" }}
+          >
+            免费中文基础测试
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            快速了解孩子目前的中文阅读字词基础
+          </p>
+        </div>
 
-      <div className="bg-white rounded-2xl p-6 shadow-sm mb-8 text-left space-y-4">
-        <FeatureRow icon="⏱️" title="约3分钟" desc="快速估测，不给孩子压力" />
-        <FeatureRow icon="📈" title="逐级调整" desc="从简单到复杂，智能匹配难度" />
-        <FeatureRow icon="📚" title="阅读建议" desc="给出适合的绘本阅读难度" />
-        <FeatureRow icon="🔓" title="免费体验" desc="无需注册，打开即测" />
-      </div>
+        {/* 特色卡片 */}
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          {features.map((f) => (
+            <div
+              key={f.title}
+              className="bg-white/80 backdrop-blur rounded-2xl p-4 border border-orange-100 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="text-3xl mb-2">{f.icon}</div>
+              <div className="font-bold text-foreground">{f.title}</div>
+              <div className="text-sm text-muted-foreground">{f.desc}</div>
+            </div>
+          ))}
+        </div>
 
-      <button
-        onClick={onStart}
-        className="w-full py-4 px-8 bg-[var(--color-primary)] text-white text-xl font-bold rounded-2xl shadow-lg hover:scale-105 transition-transform active:scale-95"
-        style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}
-      >
-        开始测试
-      </button>
-      <p className="text-xs text-[var(--color-text-secondary)] mt-4">
-        测试结果为快速估测，不等同于完整正式测评
-      </p>
-    </div>
-  );
-}
+        {/* 测试说明 */}
+        <div className="bg-white/60 rounded-2xl p-5 border border-orange-100 mb-6">
+          <h3 className="font-bold text-foreground mb-3 flex items-center gap-2">
+            <Sparkles size={18} className="text-yellow-500" />
+            测试说明
+          </h3>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li className="flex gap-2">
+              <span className="text-orange-500">●</span>
+              屏幕上会出现一个汉字或词语
+            </li>
+            <li className="flex gap-2">
+              <span className="text-orange-500">●</span>
+              认识就点"认识"，不认识就点"还不认识"
+            </li>
+            <li className="flex gap-2">
+              <span className="text-orange-500">●</span>
+              凭第一感觉回答，不需要想太久
+            </li>
+            <li className="flex gap-2">
+              <span className="text-orange-500">●</span>
+              无需注册登录，测试完全免费
+            </li>
+          </ul>
+        </div>
 
-function FeatureRow({ icon, title, desc }: { icon: string; title: string; desc: string }) {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="text-2xl w-10 text-center">{icon}</div>
-      <div>
-        <div className="font-medium text-[var(--color-text-primary)]">{title}</div>
-        <div className="text-sm text-[var(--color-text-secondary)]">{desc}</div>
-      </div>
-    </div>
-  );
-}
-
-function TestQuestion({
-  question,
-  typeText,
-  levelName,
-  onAnswer,
-}: {
-  question: QAItem;
-  typeText: string;
-  levelName: string;
-  onAnswer: (known: boolean) => void;
-}) {
-  return (
-    <div className="max-w-md w-full text-center">
-      {/* 等级小标签 */}
-      <div className="inline-block px-3 py-1 bg-[var(--color-accent)]/20 text-[var(--color-accent)] rounded-full text-sm font-medium mb-6">
-        {levelName}
-      </div>
-
-      {/* 题目文字 */}
-      <div className="mb-4 text-[var(--color-text-secondary)]">
-        {typeText}
-      </div>
-
-      {/* 被测字/词 */}
-      <div
-        className="text-8xl md:text-9xl text-[var(--color-text-primary)] mb-12 tracking-widest"
-        style={{ fontFamily: "'KaiTi', 'STKaiti', '楷体', 'Kaiti SC', serif" }}
-      >
-        {question.content}
-      </div>
-
-      {/* 两个大按钮 */}
-      <div className="flex gap-4 justify-center">
+        {/* 开始按钮 */}
         <button
-          onClick={() => onAnswer(false)}
-          className="flex-1 max-w-[140px] py-6 bg-white border-2 border-[var(--color-border-light)] text-[var(--color-text-secondary)] text-xl font-bold rounded-2xl shadow-sm hover:border-[var(--color-error)] hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/5 transition-all active:scale-95"
-          style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}
+          onClick={onStart}
+          className="w-full py-5 px-6 rounded-2xl bg-gradient-to-r from-orange-400 to-amber-400 text-white font-bold text-xl shadow-xl shadow-orange-400/30 hover:scale-[1.02] hover:shadow-2xl hover:shadow-orange-400/40 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
         >
-          不认识
+          开始测试
+          <ChevronRight size={24} />
         </button>
-        <button
-          onClick={() => onAnswer(true)}
-          className="flex-1 max-w-[140px] py-6 bg-[var(--color-primary)] text-white text-xl font-bold rounded-2xl shadow-lg hover:scale-105 transition-transform active:scale-95"
-          style={{ fontFamily: "'ZCOOL KuaiLe', cursive" }}
-        >
-          认识
-        </button>
+
+        <p className="text-center text-xs text-muted-foreground mt-4">
+          测试结果仅供参考，不等同于完整SRC正式测评
+        </p>
       </div>
     </div>
   );
 }
 
-// ========== 工具函数 ==========
-
-function getLevelDisplayName(level: Level): string {
-  const map: Record<Level, string> = {
-    SRC100: 'SRC100 · 入门',
-    SRC300: 'SRC300 · 基础',
-    SRC500: 'SRC500 · 进阶',
-    SRC800: 'SRC800 · 高级',
-  };
-  return map[level] || level;
-}

@@ -1,20 +1,23 @@
 /**
- * 快速体验测评 V2 - 自适应分级测试核心算法
- * 
+ * 快速体验测评 V2.0 - 自适应分级测试核心算法
+ *
  * 核心机制：
- * 1. 逐级探测：SRC100 → 300 → 500 → 800（根据系统字库可扩展到1200）
- * 2. 每级验证：5个单字 + 3个词组
- * 3. 升级/降级规则：达到阈值升级，低于阈值降级
- * 4. 提前终止：连续两级不通过 或 已到最高/最低级
- * 5. 双水位测量：单字能力水位 + 词语能力水位，分别计算
- * 6. 阅读等级 = min(单字水位, 词语水位) （短板效应）
- * 7. i+1推荐 = 阅读等级 + 轻度提升
- * 
+ * 1. 逐级探测：SRC100 → 300 → 500 → 800
+ * 2. 每级验证：6个单字 + 3个词语 = 9题/级
+ * 3. 升级/停止/临界三种状态判断
+ * 4. 临界状态：追加边界确认题（单字最多30，词语最多15，总题≤45）
+ * 5. Confidence Booster：每级升级后混入1道上一级核心题，不计分
+ * 6. 双水位测量：Character Level + Word Level 独立计算
+ * 7. Reading Base Level ≤ Word Level（短板效应）
+ * 8. i+1推荐：阅读基础 + 轻度提升
+ * 9. 置信度：高/中/低
+ *
  * 设计原则：
- * - 总题量不超过30单字 + 15词语 = 45题（最大值）
- * - 大多数孩子在20-35题之间完成
- * - 不使用"分数""考试"等压力词汇
- * - 所有参数可配置
+ * - 孩子在体验，系统在测量
+ * - 前端不显示题目SRC等级
+ * - 单字能力不能掩盖词语能力不足
+ * - 所有参数后台可配置
+ * - 不修改原始SRC字库
  */
 
 import { Level, LEVEL_CONFIG } from './types';
@@ -27,776 +30,855 @@ import {
 // 可配置参数（后台可调整）
 // ============================================================
 
-/** 自适应测试配置 */
-export const ADAPTIVE_CONFIG = {
-  /** 每个等级测试的单字数量 */
-  charsPerLevel: 5,
-  /** 每个等级测试的词组数量 */
-  wordsPerLevel: 3,
-  /** 升级阈值 - 单字正确率（达到或超过则升级尝试下一级） */
-  upgradeCharThreshold: 0.70,
-  /** 升级阈值 - 词组正确率 */
-  upgradeVocabThreshold: 0.60,
-  /** 降级阈值 - 单字正确率（低于则不再往上测，已在最低级则停止） */
-  downgradeCharThreshold: 0.40,
-  /** 降级阈值 - 词组正确率 */
-  downgradeVocabThreshold: 0.30,
+/** 自适应测试配置 - 所有阈值与限制均在此集中管理 */
+export const ASSESSMENT_CONFIG = {
+  /** 每级基础测试：单字数量 */
+  questionsPerLevelCharacter: 6,
+  /** 每级基础测试：词语数量 */
+  questionsPerLevelWord: 3,
+  /** 单字最大测试数量（含边界确认） */
+  maxCharacterQuestions: 30,
+  /** 词语最大测试数量（含边界确认） */
+  maxWordQuestions: 15,
+  /** 总题量上限（单字+词语） */
+  maxTotalQuestions: 45,
   /** 起始测试等级 */
   startLevel: 'SRC100' as Level,
-  /** 最高测试等级（受当前字库限制） */
+  /** 最高测试等级 */
   maxLevel: 'SRC800' as Level,
-  /** 连续多少级不通过则停止测试 */
-  maxConsecutiveFailLevels: 2,
-  /** i+1 轻度提升比例（推荐阅读难度在稳定基础上提升多少） */
-  iPlusOneBoost: 0.15,
-  /** 置信度等级阈值 */
+
+  /** 各等级单字通过率阈值 */
+  characterPassThreshold: {
+    SRC100: 0.80,
+    SRC300: 0.80,
+    SRC500: 0.75,
+    SRC800: 0.75,
+  } as Record<Level, number>,
+
+  /** 各等级词语通过率阈值 */
+  wordPassThreshold: {
+    SRC100: 0.80,
+    SRC300: 0.80,
+    SRC500: 0.75,
+    SRC800: 0.75,
+  } as Record<Level, number>,
+
+  /**
+   * 临界区间（在阈值 ± 范围内视为临界，需要追加边界确认题）
+   * 例如阈值0.80，range=0.15 → 0.65~0.95为临界
+   */
+  borderlineRange: 0.15,
+
+  /** 每次边界确认追加的单字题数 */
+  borderlineAddChars: 3,
+  /** 每次边界确认追加的词语题数 */
+  borderlineAddWords: 2,
+
+  /** 核心题占比目标（实际可在附近浮动） */
+  coreRatioTarget: 0.70,
+
+  /** 是否启用 Confidence Booster */
+  enableConfidenceBooster: true,
+  /** Confidence Booster 插入位置（每题组第几题后插入） */
+  boosterInsertPosition: 2,
+
+  /** i+1 轻度提升规则：按reading base提升比例 */
+  iPlus1Ratio: 0.10,
+  /** i+1 最小提升字数 */
+  iPlus1MinAdd: 30,
+  /** i+1 最大提升字数 */
+  iPlus1MaxAdd: 80,
+
+  /** 置信度规则 */
   confidence: {
-    high: { minLevels: 3, minTotalItems: 20 },
-    medium: { minLevels: 2, minTotalItems: 12 },
+    /** 总题数 ≥ 此值 → 有机会高置信 */
+    highMinQuestions: 25,
+    /** 总题数 < 此值 → 低置信 */
+    lowMaxQuestions: 12,
+    /** 是否使用了边界确认 → 中等及以上 */
+    borderlineBonus: true,
+    /** 单字/词语结果一致性差 → 降一级 */
+    consistencyPenalty: true,
+  },
+
+  /** 答题异常检测 */
+  quality: {
+    /** 单题最短响应时间（毫秒），低于此值标记为过快 */
+    minResponseTimeMs: 300,
+    /** 连续同答案最大次数 */
+    maxConsecutiveSameAnswer: 8,
   },
 };
-
-/** 等级顺序（用于逐级推进） */
-export const LEVEL_ORDER: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
 
 // ============================================================
 // 类型定义
 // ============================================================
 
-/** 测试题目类型 */
-export type QAItem = {
-  id: string;
-  type: 'character' | 'vocabulary';
-  content: string;
-  level: Level;
-  /** 该题在本级内的序号（0-7） */
-  indexInLevel: number;
-};
+/** 题目角色 */
+export type QuestionRole =
+  | 'scoring'       // 正常计分题
+  | 'confidence_booster' // 信心缓冲题（不计分）
+  | 'borderline';   // 边界确认题（计分）
 
-/** 答题结果 */
-export type QAResult = {
-  id: string;
-  type: 'character' | 'vocabulary';
-  content: string;
-  level: Level;
-  isCorrect: boolean;
-  reactionTimeMs: number;
-};
+/** 测试题型 */
+export type AssessmentQuestionType = 'character' | 'word';
 
-/** 单级测试结果 */
-export type LevelResult = {
+/** 单道测试题 */
+export interface AssessmentQuestion {
+  id: string;
+  content: string;
+  type: AssessmentQuestionType;
+  minimumSrcLevel: Level;
+  role: QuestionRole;
+  scoring: boolean; // 是否参与能力计算
+  sequenceNumber: number;
+  tags: string[]; // core / supplement / polyphonic / etc.
+}
+
+/** 单道答题记录 */
+export interface AnswerRecord {
+  questionId: string;
+  questionContent: string;
+  questionType: AssessmentQuestionType;
+  minimumSrcLevel: Level;
+  questionRole: QuestionRole;
+  userAnswer: boolean; // true=认识, false=不认识
+  correct: boolean;    // 对于视觉识字，"认识"的自报型题目，这里等同userAnswer的"自报"
+  responseTimeMs: number;
+  sequenceNumber: number;
+  scoring: boolean;
+}
+
+/** 等级测试结果 */
+export interface LevelResult {
   level: Level;
+  /** 单字：计分题数 */
   charTested: number;
+  /** 单字：正确题数 */
   charCorrect: number;
-  charRate: number;
-  vocabTested: number;
-  vocabCorrect: number;
-  vocabRate: number;
-  /** 该级是否"通过"（达到升级阈值） */
-  passed: boolean;
-  /** 该级是否"不通过"（低于降级阈值，不足以支持此级） */
-  failed: boolean;
-};
+  /** 单字：正确率 */
+  charAccuracy: number;
+  /** 词语：计分题数 */
+  wordTested: number;
+  /** 词语：正确题数 */
+  wordCorrect: number;
+  /** 词语：正确率 */
+  wordAccuracy: number;
+  /** 是否使用了边界确认题 */
+  usedBorderline: boolean;
+  /** 等级状态 */
+  status: 'clear_pass' | 'clear_fail' | 'borderline_pass' | 'borderline_fail';
+}
 
-/** 最终能力评估结果 */
-export type AdaptiveAssessmentResult = {
-  /** 单字能力水位（最高稳定通过的等级） */
-  charWaterLevel: Level;
-  /** 词语能力水位 */
-  vocabWaterLevel: Level;
-  /** 阅读基础等级（取较低者，短板效应） */
-  readingLevel: Level;
-  /** i+1 推荐阅读难度等级（轻度提升） */
-  recommendedLevel: Level;
+/** 置信度等级 */
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+/** 最终测评结果 */
+export interface QuickAssessmentResult {
+  /** 单字识别能力水位（等级） */
+  characterLevel: Level;
+  /** 单字能力区间下限 */
+  characterLevelLower: Level;
+  /** 单字能力区间上限 */
+  characterLevelUpper: Level;
+  /** 词语识别能力水位 */
+  wordLevel: Level;
+  /** 词语能力区间下限 */
+  wordLevelLower: Level;
+  /** 词语能力区间上限 */
+  wordLevelUpper: Level;
+  /** 阅读基础等级（≤ wordLevel） */
+  readingBaseLevel: Level;
+  /** 阅读基础等级描述 */
+  readingBaseDesc: string;
+  /** 推荐阅读难度等级 */
+  recommendedReadingLevel: Level;
+  /** 推荐阅读描述（如 "SRC500–550"） */
+  recommendedReadingDesc: string;
   /** 置信度 */
-  confidence: 'low' | 'medium' | 'high';
-  /** 各级别测试明细 */
-  levelBreakdown: Record<Level, {
-    charTested: number; charCorrect: number; charRate: number;
-    vocabTested: number; vocabCorrect: number; vocabRate: number;
-    tested: boolean; passed: boolean; failed: boolean;
-  }>;
-  /** 总题数 */
-  totalTested: number;
-  charTotalTested: number;
-  charTotalCorrect: number;
-  vocabTotalTested: number;
-  vocabTotalCorrect: number;
-  charOverallRate: number;
-  vocabOverallRate: number;
-  /** 测试了几个完整等级 */
-  levelsTested: number;
-  /** 结束原因 */
-  endReason: 'max_level_reached' | 'consecutive_fail' | 'lowest_level_fail' | 'all_levels_done';
-};
+  confidence: ConfidenceLevel;
+  /** 各等级明细 */
+  levelResults: LevelResult[];
+  /** 总答题数 */
+  totalQuestions: number;
+  /** 总单字题数 */
+  totalCharQuestions: number;
+  /** 总词语题数 */
+  totalWordQuestions: number;
+  /** 总时长（毫秒） */
+  totalTimeMs: number;
+  /** 测试质量标记 */
+  qualityFlags: string[];
+}
 
-/** 测试会话状态（用于追踪进度） */
-export type AdaptiveSession = {
-  /** 当前测试到的等级 */
-  currentLevel: Level;
-  /** 当前在本级中的题目索引（0-7：0-4单字，5-7词组） */
-  currentIndexInLevel: number;
-  /** 当前是单字阶段还是词组阶段 */
-  phase: 'character' | 'vocabulary';
-  /** 已完成的等级结果 */
-  completedLevels: LevelResult[];
-  /** 本级已答的单字结果 */
-  currentLevelCharResults: QAResult[];
-  /** 本级已答的词组结果 */
-  currentLevelVocabResults: QAResult[];
-  /** 连续失败的等级数 */
-  consecutiveFailCount: number;
-  /** 是否已结束 */
-  isFinished: boolean;
-  /** 结束原因 */
-  endReason?: AdaptiveAssessmentResult['endReason'];
-  /** 方向：up=向上升级探索，down=向下降级确认 */
-  direction: 'up' | 'down';
-};
+/** 测试会话状态（供前端步进使用） */
+export interface AssessmentSession {
+  questions: AssessmentQuestion[];
+  currentIndex: number;
+  answers: AnswerRecord[];
+  startedAt: number;
+  completed: boolean;
+  result: QuickAssessmentResult | null;
+}
 
 // ============================================================
 // 工具函数
 // ============================================================
 
+/** 所有等级顺序（从低到高） */
+const ALL_LEVELS: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
+
+/** 获取等级在序列中的索引 */
+function levelIndex(level: Level): number {
+  return ALL_LEVELS.indexOf(level);
+}
+
 /** 获取下一个等级 */
-function getNextLevel(level: Level): Level | null {
-  const idx = LEVEL_ORDER.indexOf(level);
-  if (idx < 0 || idx >= LEVEL_ORDER.length - 1) return null;
-  return LEVEL_ORDER[idx + 1];
+function nextLevel(level: Level): Level | null {
+  const idx = levelIndex(level);
+  return idx >= 0 && idx < ALL_LEVELS.length - 1 ? ALL_LEVELS[idx + 1] : null;
 }
 
-/** 获取上一个等级 */
-function getPrevLevel(level: Level): Level | null {
-  const idx = LEVEL_ORDER.indexOf(level);
-  if (idx <= 0) return null;
-  return LEVEL_ORDER[idx - 1];
+/** 取随机n个元素（Fisher-Yates） */
+function sample<T>(arr: T[], n: number, exclude: Set<string> = new Set(), keyFn: (x: T) => string = (x) => String(x)): T[] {
+  const candidates = arr.filter((x) => !exclude.has(keyFn(x)));
+  const shuffled = [...candidates];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, Math.min(n, shuffled.length));
 }
 
-/** Fisher-Yates 洗牌 */
-function shuffle<T>(arr: T[]): T[] {
+/**
+ * 打乱数组，同时尽量打散"相似"项（简单策略：同字开头/结尾不连续）
+ */
+function shuffleWithDiversity<T>(arr: T[], getKey: (x: T) => string): T[] {
   const result = [...arr];
+  // Fisher-Yates 基础打乱
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [result[i], result[j]] = [result[j], result[i]];
   }
+  // 简单相邻去聚集：从前向后，如果i和i-1首字相同，尝试与后面的交换
+  for (let i = 1; i < result.length; i++) {
+    const prevKey = getKey(result[i - 1]);
+    const currKey = getKey(result[i]);
+    if (prevKey[0] === currKey[0]) {
+      // 向后找一个首字不同的交换
+      for (let k = i + 1; k < result.length; k++) {
+        if (getKey(result[k])[0] !== prevKey[0]) {
+          [result[i], result[k]] = [result[k], result[i]];
+          break;
+        }
+      }
+    }
+  }
   return result;
 }
 
-/**
- * 从指定等级的 minimum_src_level 题池中抽取n个单字
- * - 优先从core（核心实词）中抽
- * - 不足时从supplemental（多音字/虚词）中补
- * - 排除low_value
- * - 排除已测试过的
- */
-function sampleChars(
-  level: Level,
-  count: number,
-  coreRatio: number = 0.7,
-  excludeChars: Set<string> = new Set(),
-): string[] {
-  const coreChars = getAssessmentCharsForLevel(level, 'core').filter(c => !excludeChars.has(c));
-  const suppChars = getAssessmentCharsForLevel(level, 'supplemental').filter(c => !excludeChars.has(c));
-
-  const coreCount = Math.min(Math.round(count * coreRatio), coreChars.length);
-  const suppNeeded = count - coreCount;
-
-  const result: string[] = [];
-  // 核心字
-  const shuffledCore = shuffle(coreChars);
-  result.push(...shuffledCore.slice(0, coreCount));
-
-  // 补充字（如果核心不够，先从核心全拿，再从补充拿）
-  const remaining = count - result.length;
-  if (remaining > 0) {
-    const shuffledSupp = shuffle(suppChars);
-    result.push(...shuffledSupp.slice(0, remaining));
-  }
-
-  return shuffle(result);
-}
-
-/**
- * 从指定等级的 minimum_src_level 题池中抽取n个词语
- * - 优先从core（常用词、成语）中抽
- * - 不足时从supplemental中补
- * - 排除low_value
- */
-function sampleWords(
-  level: Level,
-  count: number,
-  coreRatio: number = 0.8,
-  excludeWords: Set<string> = new Set(),
-): string[] {
-  const coreWords = getAssessmentWordsForLevel(level, 'core').filter(w => !excludeWords.has(w));
-  const suppWords = getAssessmentWordsForLevel(level, 'supplemental').filter(w => !excludeWords.has(w));
-
-  const coreCount = Math.min(Math.round(count * coreRatio), coreWords.length);
-  const result: string[] = [];
-
-  const shuffledCore = shuffle(coreWords);
-  result.push(...shuffledCore.slice(0, coreCount));
-
-  const remaining = count - result.length;
-  if (remaining > 0) {
-    const shuffledSupp = shuffle(suppWords);
-    result.push(...shuffledSupp.slice(0, remaining));
-  }
-
-  return shuffle(result);
-}
-
 // ============================================================
-// 生成新一级的题目
+// 题目生成 - 为指定等级生成一组基础题 + Confidence Booster
 // ============================================================
 
 /**
- * 为指定等级生成一套测试题（5单字 + 3词组）
+ * 生成某个等级的基础题组（6单字 + 3词语）
+ * Booster：如果prevLevel存在，在第3题位置插入1道上一级核心单字题（不计分）
  */
-export function generateLevelQuestions(
+function generateLevelQuestions(
   level: Level,
-  config = ADAPTIVE_CONFIG,
-  excludeChars: Set<string> = new Set(),
-  excludeWords: Set<string> = new Set(),
-): { chars: QAItem[]; words: QAItem[] } {
-  const chars = sampleChars(level, config.charsPerLevel, 0.7, excludeChars);
-  const words = sampleWords(level, config.wordsPerLevel, 0.8, excludeWords);
+  prevLevel: Level | null,
+  charCount: number,
+  wordCount: number,
+  usedCharSet: Set<string>,
+  usedWordSet: Set<string>,
+  startSeq: number,
+): { questions: AssessmentQuestion[]; newUsedChars: Set<string>; newUsedWords: Set<string> } {
+  const config = ASSESSMENT_CONFIG;
+  const result: AssessmentQuestion[] = [];
+  const newUsedChars = new Set(usedCharSet);
+  const newUsedWords = new Set(usedWordSet);
 
-  const charItems: QAItem[] = chars.map((c, i) => ({
-    id: `char_${level}_${i}_${Date.now()}`,
-    type: 'character',
-    content: c,
-    level,
-    indexInLevel: i,
+  // 取出该等级的核心与补充字
+  const coreChars = getAssessmentCharsForLevel(level, 'core');
+  const supplementChars = getAssessmentCharsForLevel(level, 'supplemental');
+  const coreWords = getAssessmentWordsForLevel(level, 'core');
+  const supplementWords = getAssessmentWordsForLevel(level, 'supplemental');
+
+  // 单字：目标 70% 核心 + 30% 补充，按比例随机取
+  const coreCharTarget = Math.round(charCount * config.coreRatioTarget);
+  const supplementCharTarget = charCount - coreCharTarget;
+
+  const selectedCoreChars = sample(coreChars, coreCharTarget, newUsedChars);
+  selectedCoreChars.forEach((c) => newUsedChars.add(c));
+
+  const suppCharsNeeded = supplementCharTarget + (coreCharTarget - selectedCoreChars.length);
+  const selectedSuppChars = sample(supplementChars, suppCharsNeeded, newUsedChars);
+  selectedSuppChars.forEach((c) => newUsedChars.add(c));
+
+  const allSelectedChars = [...selectedCoreChars, ...selectedSuppChars];
+  const charItems = shuffleWithDiversity(allSelectedChars, (c) => c).map((char, idx) => ({
+    id: `char-${level}-${idx}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    content: char,
+    type: 'character' as AssessmentQuestionType,
+    minimumSrcLevel: level,
+    role: 'scoring' as QuestionRole,
+    scoring: true,
+    sequenceNumber: startSeq + idx,
+    tags: [coreChars.includes(char) ? 'core' : 'supplement'],
   }));
 
-  const wordItems: QAItem[] = words.map((w, i) => ({
-    id: `word_${level}_${i}_${Date.now()}`,
-    type: 'vocabulary',
-    content: w,
-    level,
-    indexInLevel: config.charsPerLevel + i,
+  // 词语：核心优先，补充补缺
+  const selectedCoreWords = sample(coreWords, wordCount, newUsedWords);
+  selectedCoreWords.forEach((w) => newUsedWords.add(w));
+
+  let wordsNeeded = wordCount - selectedCoreWords.length;
+  const selectedSuppWords = wordsNeeded > 0 ? sample(supplementWords, wordsNeeded, newUsedWords) : [];
+  selectedSuppWords.forEach((w) => newUsedWords.add(w));
+
+  const allSelectedWords = [...selectedCoreWords, ...selectedSuppWords];
+  const wordItems = shuffleWithDiversity(allSelectedWords, (w) => w).map((word, idx) => ({
+    id: `word-${level}-${idx}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    content: word,
+    type: 'word' as AssessmentQuestionType,
+    minimumSrcLevel: level,
+    role: 'scoring' as QuestionRole,
+    scoring: true,
+    sequenceNumber: startSeq + charItems.length + idx,
+    tags: [coreWords.includes(word) ? 'core' : 'supplement'],
   }));
 
-  return { chars: charItems, words: wordItems };
+  // 随机交错排列单字和词语题（不让孩子明显感觉"先单字后词语"）
+  // 策略：先单字题组，再词语题组，但整体打乱前2题和末2题做轻度混合
+  // 为了孩子体验连贯，保持"先单字再词语"的大致顺序，但每3题中插入轻微顺序调整
+  const mixed: AssessmentQuestion[] = [];
+  const charQ = [...charItems];
+  const wordQ = [...wordItems];
+  // 简单交错：前半以单字为主，后半以词语为主
+  while (charQ.length > 0 || wordQ.length > 0) {
+    if (charQ.length > 0 && (wordQ.length === 0 || Math.random() < 0.65)) {
+      mixed.push(charQ.shift()!);
+    } else if (wordQ.length > 0) {
+      mixed.push(wordQ.shift()!);
+    }
+  }
+
+  // 重新编号
+  mixed.forEach((q, idx) => {
+    q.sequenceNumber = startSeq + idx;
+  });
+
+  // Confidence Booster：在第 boosterInsertPosition 后插入 1 道上一级核心单字题
+  if (config.enableConfidenceBooster && prevLevel) {
+    const prevCoreChars = getAssessmentCharsForLevel(prevLevel, 'core');
+    const booster = sample(prevCoreChars, 1, new Set([...newUsedChars]));
+    if (booster.length > 0) {
+      const boosterQ: AssessmentQuestion = {
+        id: `booster-${prevLevel}-${Date.now().toString(36)}`,
+        content: booster[0],
+        type: 'character',
+        minimumSrcLevel: prevLevel,
+        role: 'confidence_booster',
+        scoring: false,
+        sequenceNumber: config.boosterInsertPosition, // 插入位置
+        tags: ['booster', 'core'],
+      };
+      newUsedChars.add(booster[0]);
+      // 将 booster 插入指定位置
+      const before = mixed.slice(0, config.boosterInsertPosition);
+      const after = mixed.slice(config.boosterInsertPosition);
+      mixed.splice(config.boosterInsertPosition, 0, boosterQ);
+      // 重新排号
+      before.forEach((q, i) => { q.sequenceNumber = startSeq + i; });
+      boosterQ.sequenceNumber = startSeq + config.boosterInsertPosition;
+      after.forEach((q, i) => { q.sequenceNumber = startSeq + config.boosterInsertPosition + 1 + i; });
+      // 为简化：直接整体重编号
+      mixed.forEach((q, idx) => { q.sequenceNumber = startSeq + idx; });
+      result.push(...mixed);
+    } else {
+      result.push(...mixed);
+    }
+  } else {
+    result.push(...mixed);
+  }
+
+  return { questions: result, newUsedChars, newUsedWords };
 }
 
 // ============================================================
-// 会话管理
+// 等级状态判断
 // ============================================================
 
-/**
- * 初始化一个自适应测试会话
- */
-export function initAdaptiveSession(
-  startLevel: Level = ADAPTIVE_CONFIG.startLevel,
-  config = ADAPTIVE_CONFIG,
-): { session: AdaptiveSession; firstQuestions: QAItem[] } {
-  const { chars, words } = generateLevelQuestions(startLevel, config);
-  
-  const session: AdaptiveSession = {
-    currentLevel: startLevel,
-    currentIndexInLevel: 0,
-    phase: 'character',
-    completedLevels: [],
-    currentLevelCharResults: [],
-    currentLevelVocabResults: [],
-    consecutiveFailCount: 0,
-    isFinished: false,
-    direction: 'up',
-  };
-
-  return {
-    session,
-    firstQuestions: chars, // 先返回单字题
-  };
-}
-
-/**
- * 计算一个等级的测试结果
- */
-function computeLevelResult(
+/** 判断一个等级的测试结果属于哪种状态 */
+function judgeLevelStatus(
   level: Level,
-  charResults: QAResult[],
-  vocabResults: QAResult[],
-  config = ADAPTIVE_CONFIG,
-): LevelResult {
-  const charTested = charResults.length;
-  const charCorrect = charResults.filter(r => r.isCorrect).length;
-  const charRate = charTested > 0 ? charCorrect / charTested : 0;
-
-  const vocabTested = vocabResults.length;
-  const vocabCorrect = vocabResults.filter(r => r.isCorrect).length;
-  const vocabRate = vocabTested > 0 ? vocabCorrect / vocabTested : 0;
-
-  // 通过：单字≥70% 且 词组≥60%
-  const passed = charRate >= config.upgradeCharThreshold && vocabRate >= config.upgradeVocabThreshold;
-
-  // 不通过：单字＜40% 且 词组＜30%（足以判断此级不稳定）
-  const failed = charRate < config.downgradeCharThreshold && vocabRate < config.downgradeVocabThreshold;
-
-  return {
-    level,
-    charTested,
-    charCorrect,
-    charRate,
-    vocabTested,
-    vocabCorrect,
-    vocabRate,
-    passed,
-    failed,
-  };
-}
-
-/**
- * 提交一道题的答案，返回下一道题或测试结束
- * 
- * 返回：
- * - nextQuestion: 下一道题（如果还有）
- * - updatedSession: 更新后的会话状态
- * - levelCompleted: 如果刚完成一个等级，返回该级结果
- * - finalResult: 如果测试结束，返回最终评估结果
- */
-export function submitAnswer(
-  session: AdaptiveSession,
-  answer: QAResult,
-  config = ADAPTIVE_CONFIG,
-  excludeChars: Set<string> = new Set(),
-  excludeWords: Set<string> = new Set(),
+  charCorrect: number,
+  charTested: number,
+  wordCorrect: number,
+  wordTested: number,
 ): {
-  nextQuestion: QAItem | null;
-  updatedSession: AdaptiveSession;
-  levelCompleted: LevelResult | null;
-  finalResult: AdaptiveAssessmentResult | null;
+  status: 'clear_pass' | 'clear_fail' | 'borderline';
+  charAccuracy: number;
+  wordAccuracy: number;
+  charPassed: boolean;
+  wordPassed: boolean;
 } {
-  const s: AdaptiveSession = { ...session };
-  let levelCompleted: LevelResult | null = null;
-  let finalResult: AdaptiveAssessmentResult | null = null;
-  let nextQuestion: QAItem | null = null;
+  const config = ASSESSMENT_CONFIG;
+  const charAcc = charTested > 0 ? charCorrect / charTested : 0;
+  const wordAcc = wordTested > 0 ? wordCorrect / wordTested : 0;
+  const charThresh = config.characterPassThreshold[level];
+  const wordThresh = config.wordPassThreshold[level];
+  const range = config.borderlineRange;
 
-  // 保存当前答案
-  if (answer.type === 'character') {
-    s.currentLevelCharResults = [...s.currentLevelCharResults, answer];
-  } else {
-    s.currentLevelVocabResults = [...s.currentLevelVocabResults, answer];
+  const charPassed = charAcc >= charThresh;
+  const wordPassed = wordAcc >= wordThresh;
+
+  // 判断是否在临界区间内（任一项处于阈值±range）
+  const charBorderline = Math.abs(charAcc - charThresh) <= range;
+  const wordBorderline = Math.abs(wordAcc - wordThresh) <= range;
+
+  // 两项都明显通过 → clear_pass
+  if (charAcc > charThresh + range && wordAcc > wordThresh + range) {
+    return { status: 'clear_pass', charAccuracy: charAcc, wordAccuracy: wordAcc, charPassed, wordPassed };
+  }
+  // 两项都明显未通过 → clear_fail
+  if (charAcc < charThresh - range && wordAcc < wordThresh - range) {
+    return { status: 'clear_fail', charAccuracy: charAcc, wordAccuracy: wordAcc, charPassed, wordPassed };
+  }
+  // 其它情况 → 临界
+  return { status: 'borderline', charAccuracy: charAcc, wordAccuracy: wordAcc, charPassed, wordPassed };
+}
+
+// ============================================================
+// 自适应测试生成（一次性生成完整流程）
+// ============================================================
+
+/**
+ * 生成一次完整的自适应测试题单
+ *
+ * 说明：由于"直接测试"是自报型（认识/不认识），
+ * 自适应逻辑理论上应根据答题结果动态调整。
+ * 但为了前端实现简单、体验流畅，我们采用"预生成 + 提前终止"策略：
+ * - 预生成全部四级的基础题
+ * - 前端按顺序推进，到某级明显失败时提前结束
+ * - 边界确认题在判定临界时再追加
+ *
+ * 这个函数负责生成"基础题单"（不含边界确认题）
+ */
+export function generateAdaptiveAssessment(): {
+  questions: AssessmentQuestion[];
+  levelRanges: Record<Level, { start: number; end: number }>; // 每级在questions数组中的索引范围
+} {
+  const config = ASSESSMENT_CONFIG;
+  const levels: Level[] = [];
+  let cur: Level | null = config.startLevel;
+  while (cur && levelIndex(cur) <= levelIndex(config.maxLevel)) {
+    levels.push(cur);
+    cur = nextLevel(cur);
   }
 
-  // 判断是否完成了本级的单字阶段
-  if (s.phase === 'character' && s.currentLevelCharResults.length >= config.charsPerLevel) {
-    // 切换到词组阶段
-    s.phase = 'vocabulary';
-    s.currentIndexInLevel = config.charsPerLevel;
-  }
+  const allQuestions: AssessmentQuestion[] = [];
+  const levelRanges: Record<string, { start: number; end: number }> = {};
+  let usedChars = new Set<string>();
+  let usedWords = new Set<string>();
+  let seq = 0;
 
-  // 判断是否完成了整个等级的测试
-  const levelDone = s.currentLevelVocabResults.length >= config.wordsPerLevel;
-
-  if (levelDone) {
-    // 计算本级结果
-    const result = computeLevelResult(
-      s.currentLevel,
-      s.currentLevelCharResults,
-      s.currentLevelVocabResults,
-      config,
+  for (let i = 0; i < levels.length; i++) {
+    const level = levels[i];
+    const prev = i > 0 ? levels[i - 1] : null;
+    const { questions, newUsedChars, newUsedWords } = generateLevelQuestions(
+      level,
+      prev,
+      config.questionsPerLevelCharacter,
+      config.questionsPerLevelWord,
+      usedChars,
+      usedWords,
+      seq,
     );
-    levelCompleted = result;
-    s.completedLevels = [...s.completedLevels, result];
 
-    // 判断下一步方向
-    if (s.direction === 'up') {
-      if (result.passed) {
-        // 通过，尝试升级
-        const nextLv = getNextLevel(s.currentLevel);
-        s.consecutiveFailCount = 0;
-        if (nextLv) {
-          // 还能升级
-          s.currentLevel = nextLv;
-          s.phase = 'character';
-          s.currentIndexInLevel = 0;
-          s.currentLevelCharResults = [];
-          s.currentLevelVocabResults = [];
-        } else {
-          // 已到最高级，测试结束
-          s.isFinished = true;
-          s.endReason = 'max_level_reached';
-        }
-      } else if (result.failed) {
-        // 不通过
-        s.consecutiveFailCount++;
-        if (s.consecutiveFailCount >= config.maxConsecutiveFailLevels) {
-          // 连续失败，结束
-          s.isFinished = true;
-          s.endReason = 'consecutive_fail';
-        } else {
-          // 还要继续往下测吗？如果现在是SRC100且失败，那就到此为止
-          const prevLv = getPrevLevel(s.currentLevel);
-          if (!prevLv) {
-            s.isFinished = true;
-            s.endReason = 'lowest_level_fail';
-          } else {
-            // 这里我们保持方向还是up，但连续失败计数增加
-            // 如果只失败了一级，我们继续看是否要往下探测确认
-            // 简化处理：连续两级fail就停，否则继续
-            // 但对于第一次fail，我们不主动降级，因为可能下一级也fail但题目数量还不够
-            // 简化方案：向上探索只升不降；连续两级不通过就停止
-            s.isFinished = true;
-            s.endReason = 'consecutive_fail';
-          }
-        }
-      } else {
-        // 介于通过和不通过之间（灰色地带）
-        // 不再继续升级，停在当前级别作为稳定上限
-        s.isFinished = true;
-        s.endReason = 'all_levels_done';
-      }
-    }
-  } else {
-    // 还在本级中，生成下一道题
-    if (s.phase === 'character') {
-      // 下一道单字题
-      const nextIdx = s.currentLevelCharResults.length;
-      s.currentIndexInLevel = nextIdx;
-      // 动态生成下一题
-      const remainingChars = sampleChars(
-        s.currentLevel,
-        1,
-        0.7,
-        new Set([...excludeChars, ...s.currentLevelCharResults.map(r => r.content)]),
-      );
-      if (remainingChars.length > 0) {
-        nextQuestion = {
-          id: `char_${s.currentLevel}_${nextIdx}_${Date.now()}`,
-          type: 'character',
-          content: remainingChars[0],
-          level: s.currentLevel,
-          indexInLevel: nextIdx,
-        };
-      }
-    } else {
-      // 下一道词组题
-      const nextIdx = s.currentLevelVocabResults.length;
-      s.currentIndexInLevel = config.charsPerLevel + nextIdx;
-      const remainingWords = sampleWords(
-        s.currentLevel,
-        1,
-        0.8,
-        new Set([...excludeWords, ...s.currentLevelVocabResults.map(r => r.content)]),
-      );
-      if (remainingWords.length > 0) {
-        nextQuestion = {
-          id: `word_${s.currentLevel}_${nextIdx}_${Date.now()}`,
-          type: 'vocabulary',
-          content: remainingWords[0],
-          level: s.currentLevel,
-          indexInLevel: config.charsPerLevel + nextIdx,
-        };
-      }
-    }
+    levelRanges[level] = { start: seq, end: seq + questions.length };
+    allQuestions.push(...questions);
+    usedChars = newUsedChars;
+    usedWords = newUsedWords;
+    seq += questions.length;
   }
 
-  // 如果测试结束，计算最终结果
-  if (s.isFinished) {
-    finalResult = computeFinalAssessment(s.completedLevels, s.endReason!, config);
-  }
-
-  return {
-    nextQuestion,
-    updatedSession: s,
-    levelCompleted,
-    finalResult,
-  };
-}
-
-/**
- * 获取一个等级的第一题（用于初始化后）
- */
-export function getNextQuestionForLevel(
-  level: Level,
-  phase: 'character' | 'vocabulary',
-  indexInLevel: number,
-  excludeChars: Set<string> = new Set(),
-  excludeWords: Set<string> = new Set(),
-  config = ADAPTIVE_CONFIG,
-): QAItem | null {
-  if (phase === 'character') {
-    const chars = sampleChars(level, 1, 0.7, excludeChars);
-    if (chars.length === 0) return null;
-    return {
-      id: `char_${level}_${indexInLevel}_${Date.now()}`,
-      type: 'character',
-      content: chars[0],
-      level,
-      indexInLevel,
-    };
-  } else {
-    const words = sampleWords(level, 1, 0.8, excludeWords);
-    if (words.length === 0) return null;
-    return {
-      id: `word_${level}_${indexInLevel}_${Date.now()}`,
-      type: 'vocabulary',
-      content: words[0],
-      level,
-      indexInLevel,
-    };
-  }
+  return { questions: allQuestions, levelRanges };
 }
 
 // ============================================================
-// 最终评估计算
+// 结果计算
 // ============================================================
 
 /**
- * 计算最终评估结果
- * 
- * 核心逻辑：
- * 1. 分别找到单字和词语的"最高稳定通过等级"
- * 2. 阅读等级 = min(单字水位, 词语水位) — 短板效应
- * 3. i+1推荐 = 在阅读等级基础上轻度提升
+ * 根据答题记录计算各等级结果 + 双水位 + Reading Base + 置信度
  */
-export function computeFinalAssessment(
-  completedLevels: LevelResult[],
-  endReason: AdaptiveAssessmentResult['endReason'],
-  config = ADAPTIVE_CONFIG,
-): AdaptiveAssessmentResult {
-  // 初始化各级别明细
-  const breakdown: AdaptiveAssessmentResult['levelBreakdown'] = {} as any;
-  for (const lv of LEVEL_ORDER) {
-    breakdown[lv] = {
-      charTested: 0, charCorrect: 0, charRate: 0,
-      vocabTested: 0, vocabCorrect: 0, vocabRate: 0,
-      tested: false, passed: false, failed: false,
-    };
-  }
+export function calculateQuickResult(
+  answers: AnswerRecord[],
+  totalTimeMs: number,
+): QuickAssessmentResult {
+  const config = ASSESSMENT_CONFIG;
 
-  // 填充已测试的级别
-  let charTotalTested = 0, charTotalCorrect = 0;
-  let vocabTotalTested = 0, vocabTotalCorrect = 0;
+  // 按等级 + 类型汇总（仅计分题参与能力计算）
+  const scoringAnswers = answers.filter((a) => a.scoring);
+  const levelMap = new Map<Level, {
+    charCorrect: number; charTested: number;
+    wordCorrect: number; wordTested: number;
+    usedBorderline: boolean;
+  }>();
 
-  for (const lr of completedLevels) {
-    breakdown[lr.level] = {
-      charTested: lr.charTested,
-      charCorrect: lr.charCorrect,
-      charRate: lr.charRate,
-      vocabTested: lr.vocabTested,
-      vocabCorrect: lr.vocabCorrect,
-      vocabRate: lr.vocabRate,
-      tested: true,
-      passed: lr.passed,
-      failed: lr.failed,
-    };
-    charTotalTested += lr.charTested;
-    charTotalCorrect += lr.charCorrect;
-    vocabTotalTested += lr.vocabTested;
-    vocabTotalCorrect += lr.vocabCorrect;
-  }
-
-  const charOverallRate = charTotalTested > 0 ? charTotalCorrect / charTotalTested : 0;
-  const vocabOverallRate = vocabTotalTested > 0 ? vocabTotalCorrect / vocabTotalTested : 0;
-
-  // ---- 单字能力水位 ----
-  // 找到最高的"通过"级别
-  let charWaterLevel: Level = 'SRC100';
-  let foundCharWater = false;
-  // 从高到低遍历，找第一个通过的级别
-  for (let i = completedLevels.length - 1; i >= 0; i--) {
-    const lr = completedLevels[i];
-    if (lr.passed) {
-      charWaterLevel = lr.level;
-      foundCharWater = true;
-      break;
+  for (const ans of scoringAnswers) {
+    const lv = ans.minimumSrcLevel;
+    if (!levelMap.has(lv)) {
+      levelMap.set(lv, { charCorrect: 0, charTested: 0, wordCorrect: 0, wordTested: 0, usedBorderline: false });
     }
-  }
-  // 如果没有明确通过的级别，找第一个不是failed的（灰色地带）
-  if (!foundCharWater) {
-    for (let i = 0; i < completedLevels.length; i++) {
-      const lr = completedLevels[i];
-      if (!lr.failed && lr.charRate >= 0.5) {
-        charWaterLevel = lr.level;
-        break;
-      }
-    }
-  }
-
-  // ---- 词语能力水位 ----
-  let vocabWaterLevel: Level = 'SRC100';
-  let foundVocabWater = false;
-  for (let i = completedLevels.length - 1; i >= 0; i--) {
-    const lr = completedLevels[i];
-    if (lr.passed) {
-      vocabWaterLevel = lr.level;
-      foundVocabWater = true;
-      break;
-    }
-  }
-  if (!foundVocabWater) {
-    for (let i = 0; i < completedLevels.length; i++) {
-      const lr = completedLevels[i];
-      if (!lr.failed && lr.vocabRate >= 0.4) {
-        vocabWaterLevel = lr.level;
-        break;
-      }
-    }
-  }
-
-  // ---- 阅读基础等级（短板效应）----
-  // 取单字和词语中较低的那个
-  const charIdx = LEVEL_ORDER.indexOf(charWaterLevel);
-  const vocabIdx = LEVEL_ORDER.indexOf(vocabWaterLevel);
-  const readingIdx = Math.min(charIdx, vocabIdx);
-  const readingLevel = LEVEL_ORDER[Math.max(0, readingIdx)];
-
-  // ---- i+1 推荐阅读等级 ----
-  // 在阅读基础上轻度提升
-  const recommendedIdx = Math.min(
-    LEVEL_ORDER.length - 1,
-    readingIdx + 1, // 先升一级
-  );
-  
-  // 如果阅读等级和词语等级相同，且词语在边界上，就只提升半个等级（用同一级但更高置信）
-  let recommendedLevel: Level = LEVEL_ORDER[recommendedIdx];
-  
-  // 更保守的i+1：只在当前等级基础上给一点余量，不直接跳到下一级
-  // 如果阅读等级已经是最高级，那就保持
-  if (readingIdx >= LEVEL_ORDER.length - 1) {
-    recommendedLevel = LEVEL_ORDER[LEVEL_ORDER.length - 1];
-  } else {
-    // 根据词语和单字的差距决定i+1幅度
-    // 如果词语和单字差距不大，可以升一级
-    const gap = Math.abs(charIdx - vocabIdx);
-    if (gap <= 1) {
-      // 差距小，可以升到下一级
-      recommendedLevel = LEVEL_ORDER[readingIdx + 1];
+    const rec = levelMap.get(lv)!;
+    if (ans.questionType === 'character') {
+      rec.charTested++;
+      if (ans.userAnswer) rec.charCorrect++;
     } else {
-      // 差距大（比如单字好但词语差很多），就保持当前
-      recommendedLevel = readingLevel;
+      rec.wordTested++;
+      if (ans.userAnswer) rec.wordCorrect++;
+    }
+    if (ans.questionRole === 'borderline') {
+      rec.usedBorderline = true;
     }
   }
+
+  // 构建各等级结果
+  const levelResults: LevelResult[] = [];
+  for (const lv of ALL_LEVELS) {
+    const rec = levelMap.get(lv);
+    if (!rec || (rec.charTested === 0 && rec.wordTested === 0)) continue;
+
+    const charAcc = rec.charTested > 0 ? rec.charCorrect / rec.charTested : 0;
+    const wordAcc = rec.wordTested > 0 ? rec.wordCorrect / rec.wordTested : 0;
+    const judge = judgeLevelStatus(lv, rec.charCorrect, rec.charTested, rec.wordCorrect, rec.wordTested);
+
+    levelResults.push({
+      level: lv,
+      charTested: rec.charTested,
+      charCorrect: rec.charCorrect,
+      charAccuracy: charAcc,
+      wordTested: rec.wordTested,
+      wordCorrect: rec.wordCorrect,
+      wordAccuracy: wordAcc,
+      usedBorderline: rec.usedBorderline,
+      status: judge.status === 'borderline'
+        ? (judge.charPassed && judge.wordPassed ? 'borderline_pass' : 'borderline_fail')
+        : judge.status,
+    });
+  }
+
+  // ---- 计算 Character Level ----
+  // 从高到低找第一个"通过（含临界通过）"的等级作为能力上界；下界为其下一级
+  const charLevel = findAbilityLevel(levelResults, 'char');
+
+  // ---- 计算 Word Level ----
+  const wordLevel = findAbilityLevel(levelResults, 'word');
+
+  // ---- Reading Base Level：取较低者（且 ≤ wordLevel）----
+  const readingBase = lowerOf(charLevel.estimated, wordLevel.estimated);
+
+  // ---- 推荐阅读等级：轻度 i+1 ----
+  const recommended = calcIPlus1Reading(readingBase);
 
   // ---- 置信度 ----
-  const levelsTested = completedLevels.length;
-  const totalItems = charTotalTested + vocabTotalTested;
-  let confidence: 'low' | 'medium' | 'high' = 'low';
-  if (levelsTested >= config.confidence.high.minLevels && totalItems >= config.confidence.high.minTotalItems) {
-    confidence = 'high';
-  } else if (levelsTested >= config.confidence.medium.minLevels && totalItems >= config.confidence.medium.minTotalItems) {
-    confidence = 'medium';
-  }
+  const confidence = calcConfidence(
+    answers,
+    levelResults,
+    charLevel,
+    wordLevel,
+    totalTimeMs,
+  );
+
+  const totalCharQ = answers.filter((a) => a.questionType === 'character').length;
+  const totalWordQ = answers.filter((a) => a.questionType === 'word').length;
+
+  // 质量检测
+  const qualityFlags = detectQualityIssues(answers, totalTimeMs);
 
   return {
-    charWaterLevel,
-    vocabWaterLevel,
-    readingLevel,
-    recommendedLevel,
+    characterLevel: charLevel.estimated,
+    characterLevelLower: charLevel.lower,
+    characterLevelUpper: charLevel.upper,
+    wordLevel: wordLevel.estimated,
+    wordLevelLower: wordLevel.lower,
+    wordLevelUpper: wordLevel.upper,
+    readingBaseLevel: readingBase,
+    readingBaseDesc: getReadingBaseDesc(readingBase),
+    recommendedReadingLevel: recommended.level,
+    recommendedReadingDesc: recommended.desc,
     confidence,
-    levelBreakdown: breakdown,
-    totalTested: totalItems,
-    charTotalTested,
-    charTotalCorrect,
-    vocabTotalTested,
-    vocabTotalCorrect,
-    charOverallRate,
-    vocabOverallRate,
-    levelsTested,
-    endReason,
+    levelResults,
+    totalQuestions: answers.length,
+    totalCharQuestions: totalCharQ,
+    totalWordQuestions: totalWordQ,
+    totalTimeMs,
+    qualityFlags,
   };
 }
 
+/** 单/词能力水位计算结果 */
+interface AbilityLevel {
+  estimated: Level;
+  lower: Level;
+  upper: Level;
+}
+
+/** 从等级结果中找出能力水位（char 或 word） */
+function findAbilityLevel(levelResults: LevelResult[], type: 'char' | 'word'): AbilityLevel {
+  // 从高到低遍历，找第一个"通过"的等级
+  const passed: Level[] = [];
+  const failed: Level[] = [];
+
+  for (const lr of levelResults) {
+    const acc = type === 'char' ? lr.charAccuracy : lr.wordAccuracy;
+    const tested = type === 'char' ? lr.charTested : lr.wordTested;
+    if (tested === 0) continue;
+    const threshKey = type === 'char'
+      ? ASSESSMENT_CONFIG.characterPassThreshold[lr.level]
+      : ASSESSMENT_CONFIG.wordPassThreshold[lr.level];
+
+    if (acc >= threshKey) {
+      passed.push(lr.level);
+    } else {
+      failed.push(lr.level);
+    }
+  }
+
+  // 找到最高通过等级
+  let highestPass: Level | null = null;
+  for (let i = ALL_LEVELS.length - 1; i >= 0; i--) {
+    if (passed.includes(ALL_LEVELS[i])) {
+      highestPass = ALL_LEVELS[i];
+      break;
+    }
+  }
+
+  // 找到最低失败等级
+  let lowestFail: Level | null = null;
+  for (let i = 0; i < ALL_LEVELS.length; i++) {
+    if (failed.includes(ALL_LEVELS[i])) {
+      lowestFail = ALL_LEVELS[i];
+      break;
+    }
+  }
+
+  // 估算
+  if (highestPass && lowestFail && levelIndex(highestPass) < levelIndex(lowestFail)) {
+    // 有上界有下界 → 区间
+    return {
+      estimated: highestPass,
+      lower: highestPass,
+      upper: lowestFail,
+    };
+  }
+  if (highestPass) {
+    // 全部通过 → 最高等级作为下界
+    return {
+      estimated: highestPass,
+      lower: highestPass,
+      upper: highestPass,
+    };
+  }
+  if (lowestFail) {
+    // 全部失败 → 最低级
+    return {
+      estimated: ALL_LEVELS[0],
+      lower: ALL_LEVELS[0],
+      upper: ALL_LEVELS[0],
+    };
+  }
+  return { estimated: 'SRC100', lower: 'SRC100', upper: 'SRC100' };
+}
+
+/** 取两个等级中较低者 */
+function lowerOf(a: Level, b: Level): Level {
+  return levelIndex(a) <= levelIndex(b) ? a : b;
+}
+
+/** i+1 阅读推荐 */
+function calcIPlus1Reading(base: Level): { level: Level; desc: string } {
+  const config = ASSESSMENT_CONFIG;
+  const baseCount = LEVEL_CONFIG[base].charCount;
+  const add = Math.max(
+    config.iPlus1MinAdd,
+    Math.min(config.iPlus1MaxAdd, Math.round(baseCount * config.iPlus1Ratio)),
+  );
+  const recCount = baseCount + add;
+
+  // 找到这个估算量落在哪个等级范围
+  let recLevel: Level = base;
+  for (const lv of ALL_LEVELS) {
+    if (recCount >= LEVEL_CONFIG[lv].charCount) {
+      recLevel = lv;
+    }
+  }
+
+  const desc = `${base.replace('SRC', '')}–${Math.min(
+    LEVEL_CONFIG[recLevel].charCount,
+    recCount,
+  )}`;
+
+  return { level: recLevel, desc: `SRC${desc} 左右` };
+}
+
+/** 阅读基础描述文字 */
+function getReadingBaseDesc(level: Level): string {
+  switch (level) {
+    case 'SRC100': return '起步中文基础';
+    case 'SRC300': return '基础阅读';
+    case 'SRC500': return '初步阅读基础';
+    case 'SRC800': return '进阶阅读基础';
+    default: return '基础阅读';
+  }
+}
+
+/** 置信度计算 */
+function calcConfidence(
+  answers: AnswerRecord[],
+  levelResults: LevelResult[],
+  charLevel: AbilityLevel,
+  wordLevel: AbilityLevel,
+  totalTimeMs: number,
+): ConfidenceLevel {
+  const config = ASSESSMENT_CONFIG.confidence;
+  const scoringCount = answers.filter((a) => a.scoring).length;
+  const usedBorderline = levelResults.some((lr) => lr.usedBorderline);
+
+  // 题量太少 → 低
+  if (scoringCount < config.lowMaxQuestions) return 'low';
+
+  // 单字和词语差距超过两级 → 降为低（一致性差）
+  const levelGap = Math.abs(levelIndex(charLevel.estimated) - levelIndex(wordLevel.estimated));
+  if (config.consistencyPenalty && levelGap >= 2) return 'low';
+
+  // 题量够 + 有边界确认 + 一致性好 → 高
+  if (scoringCount >= config.highMinQuestions
+    && usedBorderline
+    && levelGap <= 1) {
+    return 'high';
+  }
+
+  // 其它 → 中
+  return 'medium';
+}
+
+/** 答题质量检测 */
+function detectQualityIssues(answers: AnswerRecord[], totalTimeMs: number): string[] {
+  const flags: string[] = [];
+  const config = ASSESSMENT_CONFIG.quality;
+  const avgTime = answers.length > 0 ? totalTimeMs / answers.length : 0;
+
+  // 平均每题过快
+  if (avgTime < config.minResponseTimeMs && answers.length >= 5) {
+    flags.push('too_fast');
+  }
+
+  // 连续同答案
+  let maxStreak = 0;
+  let streak = 0;
+  let last: boolean | null = null;
+  for (const a of answers) {
+    if (last === a.userAnswer) {
+      streak++;
+      maxStreak = Math.max(maxStreak, streak);
+    } else {
+      streak = 1;
+      last = a.userAnswer;
+    }
+  }
+  if (maxStreak >= config.maxConsecutiveSameAnswer) {
+    flags.push('consecutive_same_answer');
+  }
+
+  return flags;
+}
+
 // ============================================================
-// 结果文案生成
+// 学习建议（供结果页使用）
 // ============================================================
 
-/** 阅读建议类型 */
-export type ReadingRecommendation = {
-  headline: string;
-  description: string;
-  bookLevel: string;
-  tips: string[];
-  nextStep: string;
-};
-
-/**
- * 生成阅读建议
- */
-export function generateRecommendation(result: AdaptiveAssessmentResult): ReadingRecommendation {
-  const { readingLevel, recommendedLevel, charWaterLevel, vocabWaterLevel, confidence } = result;
+export function generateLearningRecommendation(result: QuickAssessmentResult): string[] {
+  const base = result.readingBaseLevel;
+  const wordLower = result.wordLevel;
+  const charHigher = result.characterLevel;
 
   const tips: string[] = [];
-  let headline = '';
-  let description = '';
-  let bookLevel = '';
-  let nextStep = '';
 
-  const isCharStronger = LEVEL_ORDER.indexOf(charWaterLevel) > LEVEL_ORDER.indexOf(vocabWaterLevel);
-  const isVocabStronger = LEVEL_ORDER.indexOf(vocabWaterLevel) > LEVEL_ORDER.indexOf(charWaterLevel);
+  // 词语是短板
+  if (levelIndex(wordLower) < levelIndex(charHigher)) {
+    tips.push('词语识别是当前阅读提升的关键，建议通过分级绘本在语境中积累常用词语。');
+  }
 
-  switch (readingLevel) {
+  switch (base) {
     case 'SRC100':
-      headline = '中文阅读启蒙阶段';
-      description = '孩子已经开始认识一些基础中文常用字，可以从最简单的绘本和日常对话开始培养阅读兴趣。';
-      bookLevel = '入门级 · 一页1~2句话的绘本';
-      tips.push('每天10分钟亲子共读，从图多字少的绘本开始');
-      tips.push('优先读生活主题的故事，建立字词与生活的联系');
-      tips.push('多鼓励孩子说出认识的字，建立识字成就感');
-      nextStep = '继续积累SRC100核心字词，逐步向SRC300过渡';
+      tips.push('从最常见的生活场景汉字开始，结合图片和简单故事建立识字兴趣。');
+      tips.push('每天认识3-5个新字，在亲子共读中反复出现，孩子更容易记住。');
       break;
     case 'SRC300':
-      headline = '初级阅读阶段';
-      description = '孩子已经具备基础阅读能力，可以阅读简单的分级读物和短篇故事。词语积累是下一步的重点。';
-      bookLevel = '初级 · 每页3~5句话的分级读物';
-      if (isVocabStronger) {
-        tips.push('继续扩大单字量，为更高阶阅读打基础');
-      } else if (isCharStronger) {
-        tips.push('多在阅读中学习词语，提升字词组合能力');
-      } else {
-        tips.push('保持每日阅读习惯，逐步增加阅读量');
-      }
-      tips.push('可以开始读简单的桥梁书，一页一段文字');
-      tips.push('遇到不认识的字先猜再查，培养独立阅读能力');
-      nextStep = '向SRC500进阶，同时加强词语在语境中的理解';
+      tips.push('已经具备基础识字量，可以开始尝试简单的分级绘本和短句故事。');
+      tips.push('重点扩展常用两字词，让孩子在语境中理解字义和词意。');
       break;
     case 'SRC500':
-      headline = '独立阅读起步阶段';
-      description = '孩子已经可以独立阅读中等难度的中文故事，阅读流畅度正在快速提升。';
-      bookLevel = '中级 · 章节书入门 / 短篇桥梁书';
-      if (isVocabStronger) {
-        tips.push('继续拓展识字量，支撑更高难度的阅读');
-      } else if (isCharStronger) {
-        tips.push('多读不同类型的故事，丰富词汇量和表达');
-      } else {
-        tips.push('开始接触不同体裁的中文读物（故事、科普、童话）');
-      }
-      tips.push('可以尝试让孩子朗读，提升语感和流利度');
-      tips.push('鼓励用中文复述故事，锻炼理解和表达');
-      nextStep = '向SRC800进阶，阅读更多元化的中文内容';
+      tips.push('阅读基础初步形成，可以读懂大部分低幼儿童绘本和简单中文故事。');
+      tips.push('下一步可以增加四字词和简单句式的练习，逐步提升理解深度。');
       break;
     case 'SRC800':
-    default:
-      headline = '自主阅读阶段';
-      description = '孩子已经具备较强的中文阅读能力，可以自主阅读大部分儿童文学作品，阅读正在从"学习阅读"转向"通过阅读学习"。';
-      bookLevel = '高级 · 中长篇儿童文学 / 科普读物';
-      tips.push('广泛阅读各类中文好书，让阅读成为一种习惯');
-      tips.push('可以开始接触中国传统文化相关的故事和知识');
-      tips.push('鼓励孩子用中文写日记、读后感，连接阅读与表达');
-      nextStep = '持续扩大阅读广度和深度，进入真正的中文阅读世界';
+      tips.push('已经具备较好的阅读基础，可以独立阅读大多数儿童中文读物。');
+      tips.push('建议开始接触更丰富的文体（科普、童话、历史），在阅读中持续扩大词汇量。');
       break;
   }
 
-  return {
-    headline,
-    description,
-    bookLevel,
-    tips,
-    nextStep,
-  };
+  return tips;
+}
+
+// ============================================================
+// 向后端兼容：保留 generateQuickAssessment 函数名（旧接口）
+// ============================================================
+
+/**
+ * 生成快速测试题（旧函数名保留，内部调用新版）
+ * @deprecated 请使用 generateAdaptiveAssessment
+ */
+export function generateQuickAssessment() {
+  const { questions } = generateAdaptiveAssessment();
+  return questions;
 }
 
 /**
- * 置信度文案
+ * 估算SRC等级（旧函数名保留，内部调用新版）
+ * @deprecated 请使用 calculateQuickResult
  */
-export function getConfidenceText(confidence: 'low' | 'medium' | 'high'): string {
-  switch (confidence) {
-    case 'high': return '（基于多级别测试，结果较为稳定）';
-    case 'medium': return '（基于有限测试，为初步估测）';
-    case 'low': return '（题量较少，仅供参考）';
+export function estimateSRCLevel(
+  charAnswers: Record<string, boolean>,
+  wordAnswers: Record<string, boolean>,
+) {
+  // 简化适配：构造 AnswerRecord 数组
+  const answers: AnswerRecord[] = [];
+  let seq = 0;
+  for (const [char, correct] of Object.entries(charAnswers)) {
+    // 粗略猜测等级（按字在哪级新增）
+    let lv: Level = 'SRC100';
+    for (const l of ALL_LEVELS) {
+      const chars = [...getAssessmentCharsForLevel(l, 'core'), ...getAssessmentCharsForLevel(l, 'supplemental')];
+      // 这里只做近似
+      if (chars.includes(char)) { lv = l; break; }
+    }
+    answers.push({
+      questionId: `char-${seq}`,
+      questionContent: char,
+      questionType: 'character',
+      minimumSrcLevel: lv,
+      questionRole: 'scoring',
+      userAnswer: correct,
+      correct,
+      responseTimeMs: 1500,
+      sequenceNumber: seq++,
+      scoring: true,
+    });
   }
+  const result = calculateQuickResult(answers, 120000);
+  return result.readingBaseLevel;
 }
