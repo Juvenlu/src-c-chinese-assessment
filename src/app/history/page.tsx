@@ -70,7 +70,7 @@ function HistoryContent() {
             成长曲线
           </h1>
           <p className="text-[var(--color-src-text-light)]">
-            {child?.name || '小朋友'}的中文学习轨迹
+            {child?.nickname || '小朋友'}的中文学习轨迹
           </p>
         </div>
 

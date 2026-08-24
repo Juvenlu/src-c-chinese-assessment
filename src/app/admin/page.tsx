@@ -46,21 +46,34 @@ function AdminContent() {
   const [previewPages, setPreviewPages] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
 
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [qRes, cRes, rRes] = await Promise.all([
+      const [qRes, cRes, rRes, aRes] = await Promise.all([
         fetch(`/api/questions${filterLevel ? `?level=${filterLevel}` : ''}`),
         fetch('/api/children'),
         fetch('/api/results'),
+        fetch('/api/admin/users'),
       ]);
 
       const qData = await qRes.json();
       const cData = await cRes.json();
       const rData = await rRes.json();
+      const aData = await aRes.json();
 
       if (qData.data) setQuestions(qData.data);
-      if (cData.data) setChildren(cData.data);
+      // children 用管理后台API返回的所有孩子（展平）
+      if (aData.users) {
+        const allChildren = aData.users.flatMap((u: any) => u.children || []);
+        setChildren(allChildren);
+        setAdminUsers(aData.users);
+      } else if (cData.children) {
+        setChildren(cData.children);
+      } else if (cData.data) {
+        setChildren(cData.data);
+      }
       if (rData.data) setResults(rData.data);
     } catch (err) {
       console.error(err);
@@ -438,7 +451,7 @@ function AdminContent() {
       const result = results.find((r) => r.child_id === childId);
       return [
         childId,
-        child?.name || '',
+        child?.nickname || '',
         result?.level || '',
         chars.length,
         `"${chars.join(',')}"`,
@@ -528,7 +541,7 @@ function AdminContent() {
                       <tbody>
                         {results.map((r) => {
                           const child = children.find((c) => c.id === r.child_id);
-                          const childName = child?.name || r.child_id.slice(0, 8);
+                          const childName = child?.nickname || r.child_id?.slice(0, 8) || '未命名';
                           const hasLib = r.known_characters && r.known_characters.length > 0;
                           const minutes = Math.floor((r.completion_time_seconds || 0) / 60);
                           const seconds = (r.completion_time_seconds || 0) % 60;
@@ -608,7 +621,7 @@ function AdminContent() {
                         const charCount = chars.length;
                         return (
                           <option key={childId} value={childId}>
-                            {child?.name} ({charCount}字)
+                            {child?.nickname} ({charCount}字)
                           </option>
                         );
                       })}
@@ -626,12 +639,12 @@ function AdminContent() {
                             <div className="bg-white rounded-xl shadow-sm p-6">
                               <div className="flex justify-between items-start mb-4">
                                 <div>
-                                  <h3 className="text-xl font-bold text-gray-800">{child?.name}</h3>
+                                  <h3 className="text-xl font-bold text-gray-800">{child?.nickname}</h3>
                                   <p className="text-sm text-gray-500">
                                     {child?.age}岁 · {child?.grade} · {child?.country} · 
-                                    {child?.language_env === 'chinese_primary' ? '中文为主' :
-                                     child?.language_env === 'bilingual' ? '双语' :
-                                     child?.language_env === 'english_primary' ? '英文为主' : '其他'}
+                                    {child?.home_language === 'chinese_primary' ? '中文为主' :
+                                     child?.home_language === 'bilingual' ? '双语' :
+                                     child?.home_language === 'english_primary' ? '英文为主' : '未填写'}
                                   </p>
                                 </div>
                                 <div className="text-right">
@@ -673,7 +686,7 @@ function AdminContent() {
             {tab === 'users' && (
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-sm text-gray-500">共 {children.length} 个用户</span>
+                  <span className="text-sm text-gray-500">共 {adminUsers.length} 位家长 · {children.length} 个孩子</span>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                   <div className="overflow-x-auto">
@@ -695,14 +708,15 @@ function AdminContent() {
                           const charCount = charLibData[c.id]?.length || 0;
                           return (
                             <tr key={c.id} className="border-t hover:bg-gray-50">
-                              <td className="px-4 py-3 font-medium">{c.name}</td>
+                              <td className="px-4 py-3 font-medium">{c.nickname}</td>
                               <td className="px-4 py-3">{c.age}</td>
                               <td className="px-4 py-3">{c.grade}</td>
                               <td className="px-4 py-3">{c.country}</td>
                               <td className="px-4 py-3">
-                                {c.language_env === 'chinese_primary' ? '中文为主' :
-                                 c.language_env === 'bilingual' ? '双语' :
-                                 c.language_env === 'english_primary' ? '英文为主' : '其他'}
+                                {c.home_language === 'chinese_primary' ? '中文为主' :
+                                 c.home_language === 'bilingual' ? '中英双语' :
+                                 c.home_language === 'english_primary' ? '英文为主' :
+                                 c.home_language === 'other' ? (c.home_language_other || '其他') : '未填写'}
                               </td>
                               <td className="px-4 py-3">
                                 {testCount > 0 ? (
@@ -1028,7 +1042,7 @@ function AdminContent() {
                       >
                         <option value="">请选择</option>
                         {children.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name} ({c.age}岁)</option>
+                          <option key={c.id} value={c.id}>{c.nickname} ({c.age}岁)</option>
                         ))}
                       </select>
                     </div>
@@ -1111,7 +1125,7 @@ function AdminContent() {
                         <div>
                           <div className="font-bold">{b.episodes?.series_name} 第{b.episodes?.episode_number}集</div>
                           <div className="text-sm text-gray-500">
-                            {b.children?.name || b.child_id} · {b.level_tier} · {new Date(b.created_at).toLocaleDateString()}
+                            {b.children?.nickname || b.child_id} · {b.level_tier} · {new Date(b.created_at).toLocaleDateString()}
                           </div>
                         </div>
                         <a href={`/book/${b.id}`} target="_blank" className="text-[var(--color-src-primary)] hover:underline">

@@ -174,11 +174,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 保存 session token
       if (result.session) {
         localStorage.setItem('src_session', result.session);
+        setSessionToken(result.session);
       }
 
       // 登录成功，刷新用户信息
       await refreshUser();
-      return { success: true, child: result.child };
+      return { success: true, child: result.child, children: result.children || (result.child ? [result.child] : []) };
     } catch {
       return { success: false, error: '网络错误，请稍后重试' };
     }
@@ -198,6 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 保存 session token
       if (data.session) {
         localStorage.setItem('src_session', data.session);
+        setSessionToken(data.session);
       }
 
       // 登录成功，刷新用户信息

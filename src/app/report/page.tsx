@@ -93,7 +93,7 @@ function ReportContent() {
             家长成长报告
           </h1>
           <p className="text-[var(--color-src-text-light)]">
-            {child?.name || '小朋友'}的中文学习进度
+            {child?.nickname || '小朋友'}的中文学习进度
           </p>
         </div>
 

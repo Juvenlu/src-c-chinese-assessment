@@ -21,21 +21,26 @@ export type MasteryStatus =
 
 export interface Child {
   id: string;
-  name: string;
+  nickname: string;
   age: number;
   grade: string;
   country: string;
-  language_env: LanguageEnv;
+  home_language: LanguageEnv | null;
+  home_language_other: string | null;
   created_at: string;
-  updated_at?: string;
+  updated_at?: string | null;
+  status?: string;
+  parent_id?: string;
 }
 
 export interface CreateChildInput {
-  name: string;
+  nickname: string;
   age: number;
   grade: string;
   country: string;
-  language_env: LanguageEnv;
+  home_language?: LanguageEnv | null;
+  home_language_other?: string;
+  guest_session_id?: string;
 }
 
 export interface QuestionItem {
