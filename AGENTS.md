@@ -30,6 +30,12 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 - **直接测试（快速测评）V2.0**：无需注册，自适应分级探测，双水位测量，Reading Base ≤ Word Level，i+1推荐，3-5分钟快速评估
   - 算法：`src/lib/quick-assessment.ts`（V2.0 自适应分级 + 边界确认 + Confidence Booster）
   - 页面：`/quicktest`、`/quickresult`
+- **家长邮箱验证码登录 + 孩子成长档案**：Passwordless Email Login，Supabase Auth OTP，无密码
+  - 页面：`/signup`（保存成长）、`/login`（登录）、`/hub`（孩子中文世界）
+  - Auth上下文：`src/lib/auth-context.tsx`
+  - API：`/api/auth/send-otp`、`/api/auth/verify-otp`、`/api/auth/me`、`/api/children`、`/api/guest/test-result`、`/api/quick-results`
+  - 数据库表：parents_profiles、children(parent_id)、guest_test_sessions、quick_assessment_results
+  - 核心原则：游客测试→注册→自动绑定为第一条成长记录；Email只做家长身份；Child ID独立
   - 每级6单字+3词语=9题，单字最多30题、词语最多15题、总题≤45
   - 三核心指标：Character Level / Word Level / Reading Base Level
   - 置信度：高/中/低
@@ -110,6 +116,10 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 | test_sessions | 测试会话 | id, child_id, level, status, started_at, completed_at |
 | test_answers | 答案记录 | id, session_id, question_id, part, is_correct, reaction_time_ms |
 | test_results | 测试结果 | id, session_id, child_id, level, *_score, stable_char/vocab_count |
+| **parents_profiles** | 家长档案（auth.users扩展） | id(uuid→auth.users), email, email_verified, subscription_status, plan_type |
+| **children** | 孩子档案 | id, parent_id, nickname, age, grade, country, home_language, status |
+| **guest_test_sessions** | 游客测试会话 | id, device_id, test_status, result_data, claimed, child_id |
+| **quick_assessment_results** | 快速测评结果 | id, child_id, guest_session_id, character_level_l/u, word_level_l/u, reading_base, confidence |
 | book_episodes | 绘本集 | id, series_name, episode_number, episode_title, page_count, status |
 | book_episode_pages | 绘本页 | id, episode_id, page_number, image_url, original_text |
 | custom_books | 定制绘本 | id, child_id, episode_id, level_tier, initial_char_count, pages_json, new_chars, cumulative_chars, version |

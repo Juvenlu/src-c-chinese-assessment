@@ -1,123 +1,209 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Suspense } from 'react';
+import { useAuth } from '@/lib/auth-context';
 
-function LoginContent() {
+export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { user, children, loading, sendOtp, verifyOtp } = useAuth();
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      alert('请输入邮箱和密码');
+  const [step, setStep] = useState<'email' | 'otp'>('email');
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [countdown, setCountdown] = useState(0);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 已登录直接跳 hub
+  useEffect(() => {
+    if (!loading && user && children.length > 0) {
+      router.push('/hub');
+    }
+  }, [user, children, loading, router]);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  const handleSendOtp = async () => {
+    setError('');
+    if (!email.trim()) { setError('请输入邮箱地址'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('请输入有效的Email地址');
       return;
     }
 
-    setLoading(true);
-    try {
-      // 查询孩子档案
-      const res = await fetch(`/api/children?email=${encodeURIComponent(email)}`);
-      const { data, error } = await res.json();
-
-      if (error || !data || data.length === 0) {
-        alert('未找到该邮箱对应的账户');
-        return;
-      }
-
-      // 登录成功，跳转到绘本选择页
-      const child = data[0];
-      router.push(`/book-select?childId=${child.id}`);
-    } catch (err) {
-      console.error(err);
-      alert('登录失败，请重试');
-    } finally {
-      setLoading(false);
+    const result = await sendOtp(email.trim());
+    if (!result.success) {
+      setError(result.error || '发送失败');
+      return;
     }
+    setMaskedEmail(result.maskedEmail || '');
+    setStep('otp');
+    setCountdown(60);
   };
 
+  const handleResend = async () => {
+    if (countdown > 0) return;
+    setError('');
+    const result = await sendOtp(email.trim());
+    if (!result.success) {
+      setError(result.error || '发送失败');
+      return;
+    }
+    setCountdown(60);
+  };
+
+  const handleVerify = async () => {
+    setError('');
+    if (!/^\d{6,}$/.test(otp.trim())) {
+      setError('请输入6位数字验证码');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await verifyOtp(email.trim(), otp.trim());
+    setIsSubmitting(false);
+
+    if (!result.success) {
+      setError(result.error || '验证失败');
+      return;
+    }
+
+    // 登录成功 → 跳 hub
+    router.push('/hub');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg text-gray-500">加载中...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-[var(--color-src-bg)]">
+    <div className="min-h-screen bg-[var(--color-src-bg)] py-8 px-4 flex items-center justify-center">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto bg-[var(--color-src-accent)] rounded-full flex items-center justify-center mb-4 shadow-md">
-            <span className="text-4xl">🐵</span>
-          </div>
-          <h1 className="font-display text-3xl text-[var(--color-src-text)] mb-1">
+          <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "'ZCOOL KuaiLe', cursive", color: 'var(--color-src-primary)' }}>
             欢迎回来
           </h1>
-          <p className="text-[var(--color-src-text-light)]">
-            登录账户，继续阅读绘本
+          <p className="text-gray-600">
+            使用邮箱验证码登录，继续孩子的中文成长
           </p>
         </div>
 
-        <div className="card-game space-y-5">
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-src-text)] mb-2">
-               邮箱地址
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="parent@example.com"
-              className="w-full px-4 py-3 rounded-xl border-2 border-[var(--color-src-primary)]/20 focus:border-[var(--color-src-primary)] focus:outline-none text-lg bg-white"
-            />
-          </div>
+        <div className="bg-white rounded-2xl shadow-lg p-6 space-y-5">
+          {step === 'email' && (
+            <>
+              {error && (
+                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm">
+                  {error}
+                </div>
+              )}
 
-          {/* Password */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-src-text)] mb-2">
-              🔒 密码
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="请输入密码"
-              className="w-full px-4 py-3 rounded-xl border-2 border-[var(--color-src-primary)]/20 focus:border-[var(--color-src-primary)] focus:outline-none text-lg bg-white"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  家长 Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
+                  placeholder="example@email.com"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-400 focus:outline-none transition-colors"
+                  autoFocus
+                />
+              </div>
 
-          {/* Login button */}
-          <div className="pt-2">
-            <button
-              onClick={handleLogin}
-              disabled={loading}
-              className="w-full rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg disabled:opacity-50"
-              style={{ backgroundColor: 'var(--color-src-primary)' }}
-            >
-              {loading ? '登录中...' : '登录'}
-            </button>
-          </div>
+              <button
+                onClick={handleSendOtp}
+                className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all active:scale-98"
+                style={{ backgroundColor: 'var(--color-src-primary)' }}
+              >
+                发送登录验证码
+              </button>
+            </>
+          )}
+
+          {step === 'otp' && (
+            <>
+              <button
+                onClick={() => setStep('email')}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                ← 修改邮箱
+              </button>
+
+              <div className="text-center">
+                <h2 className="text-xl font-bold text-gray-800 mb-2">
+                  请输入邮箱验证码
+                </h2>
+                <p className="text-sm text-gray-500">
+                  验证码已发送至：<span className="font-medium text-gray-700">{maskedEmail}</span>
+                </p>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm text-center">
+                  {error}
+                </div>
+              )}
+
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setOtp(val);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && otp.length === 6 && !isSubmitting) handleVerify();
+                }}
+                placeholder="6位数字验证码"
+                maxLength={6}
+                className="w-full px-4 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-400 focus:outline-none text-center text-2xl tracking-widest font-bold transition-colors"
+                autoFocus
+              />
+
+              <button
+                onClick={handleVerify}
+                disabled={otp.length < 6 || isSubmitting}
+                className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: 'var(--color-src-primary)' }}
+              >
+                {isSubmitting ? '验证中...' : '登录'}
+              </button>
+
+              <div className="text-center">
+                {countdown > 0 ? (
+                  <span className="text-sm text-gray-400">
+                    重新发送（{countdown}秒）
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleResend}
+                    className="text-sm font-medium hover:underline"
+                    style={{ color: 'var(--color-src-primary)' }}
+                  >
+                    重新发送验证码
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Register link */}
-        <div className="text-center mt-6">
-          <p className="text-sm text-[var(--color-src-text-light)]">
-            还没有账户？{' '}
-            <a href="/register" className="text-[var(--color-src-primary)] font-medium hover:underline">
-              立即注册
-            </a>
-          </p>
-        </div>
+        <p className="text-center text-sm text-gray-500 mt-6">
+          没有账号？<a href="/signup" className="font-medium" style={{ color: 'var(--color-src-primary)' }}>保存孩子的中文成长</a>
+        </p>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)]">
-        <div className="text-2xl animate-bounce">🐵</div>
-      </div>
-    }>
-      <LoginContent />
-    </Suspense>
   );
 }

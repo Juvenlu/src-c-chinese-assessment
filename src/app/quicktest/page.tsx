@@ -86,8 +86,38 @@ export default function QuickTestPage() {
         const totalTime = Date.now() - sessionStart;
         const res = calculateQuickResult(newAnswers, totalTime);
         setResult(res);
-        // 保存到 localStorage，跳转到结果页展示
+        // 保存到 localStorage
         localStorage.setItem('src_quick_test_results_v2', JSON.stringify(res));
+        // 提交到后端保存 guest session（不阻塞跳转）
+        fetch('/api/guest/test-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            result: res,
+            answers: newAnswers.map(a => ({
+              question_id: a.questionId,
+              question_type: a.questionType,
+              minimum_src_level: a.minimumSrcLevel,
+              question_role: a.questionRole,
+              item_content: a.questionContent,
+              user_answer: a.userAnswer,
+              correct: a.correct,
+              response_time_ms: a.responseTimeMs,
+              scoring: a.scoring,
+              sequence_number: a.sequenceNumber,
+            })),
+          }),
+        }).then(async (resp) => {
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.guest_session_id) {
+              localStorage.setItem('src_guest_session_id', data.guest_session_id);
+            }
+          }
+        }).catch(() => {
+          // 失败不影响用户体验
+        });
+        // 立即跳转结果页
         window.location.href = '/quickresult';
       } else {
         setCurrentIndex(currentIndex + 1);

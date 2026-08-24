@@ -71,7 +71,7 @@ export default function QuickResultPage() {
 
   const handleRegister = () => {
     localStorage.setItem('guest_assessment_result', JSON.stringify(result));
-    window.location.href = '/profile?mode=fulltest&from=quicktest';
+    window.location.href = '/signup?from=quicktest';
   };
 
   return (

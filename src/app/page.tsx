@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 
 export default function HomePage() {
   const [hoverFull, setHoverFull] = useState(false);
   const [hoverSampling, setHoverSampling] = useState(false);
   const [showShareToast, setShowShareToast] = useState(false);
+  const { user, loading } = useAuth();
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -30,6 +32,26 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-[var(--color-src-bg)]">
+      {/* Top nav */}
+      <div className="fixed top-4 right-4 z-50">
+        {!loading && user ? (
+          <Link
+            href="/hub"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-md text-[var(--color-src-text)] hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm font-medium"
+          >
+            <span>进入中文世界</span>
+            <span>→</span>
+          </Link>
+        ) : !loading ? (
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur rounded-full shadow-sm text-[var(--color-src-text)] hover:bg-white hover:shadow-md transition-all text-sm font-medium"
+          >
+            登录
+          </Link>
+        ) : null}
+      </div>
+
       {/* Decorative background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-10 left-10 w-32 h-32 bg-[var(--color-src-accent)] rounded-full opacity-20 blur-3xl" />
