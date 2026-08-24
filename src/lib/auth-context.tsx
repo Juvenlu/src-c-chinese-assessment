@@ -31,7 +31,7 @@ interface AuthContextValue {
   error: string | null;
   // 操作
   sendOtp: (email: string) => Promise<{ success: boolean; maskedEmail?: string; isExistingAccount?: boolean; error?: string }>;
-  verifyOtp: (email: string, token: string) => Promise<{ success: boolean; isNewUser?: boolean; children?: ChildInfo[]; error?: string }>;
+  verifyOtp: (email: string, code: string) => Promise<{ success: boolean; isNewUser?: boolean; children?: ChildInfo[]; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   createChild: (data: CreateChildData) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
@@ -65,15 +65,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [kids, setKids] = useState<ChildInfo[]>([]);
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
   const [latestResult, setLatestResult] = useState<QuickResult | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 带身份的 fetch
+  const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers || {});
+    if (sessionToken) {
+      headers.set('x-session', sessionToken);
+    }
+    return fetch(url, { ...options, headers });
+  }, [sessionToken]);
 
   // 获取当前用户
   const refreshUser = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/auth/me');
+      const res = await authFetch('/api/auth/me');
       if (res.status === 401) {
         setUser(null);
         setKids([]);
@@ -96,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (childList.length > 0) {
         const firstChildId = activeChildId || childList[0].id;
         try {
-          const rres = await fetch(`/api/quick-results?child_id=${firstChildId}&limit=1`);
+          const rres = await authFetch(`/api/quick-results?child_id=${firstChildId}&limit=1`);
           if (rres.ok) {
             const rdata = await rres.json();
             if (rdata.results && rdata.results.length > 0) {
@@ -147,15 +157,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 验证验证码并登录
-  const verifyOtp = useCallback(async (email: string, token: string) => {
+  const verifyOtp = useCallback(async (email: string, code: string) => {
     try {
       const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, token }),
+        body: JSON.stringify({ email, code }),
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || '验证失败' };
+      
+      // 保存 session token
+      if (data.session) {
+        localStorage.setItem('src_session', data.session);
+      }
       
       // 登录成功，刷新用户信息
       await refreshUser();
@@ -168,12 +183,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 退出登录
   const logout = useCallback(async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await authFetch('/api/auth/logout', { method: 'POST' });
     } catch {
       // 忽略
     }
+    localStorage.removeItem('src_session');
     setUser(null);
     setKids([]);
+    setActiveChildId(null);
   }, []);
 
   // 创建孩子

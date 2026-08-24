@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, getAdminSupabase } from '@/lib/auth-utils';
+import { getCurrentUser, getSupabaseClient } from '@/lib/auth-utils';
 
 /**
  * PATCH /api/children/[id]
@@ -19,7 +19,7 @@ export async function PATCH(
     const childId = (await params).id;
     const body = await req.json();
 
-    const supabase = getAdminSupabase();
+    const supabase = getSupabaseClient();
 
     // 验证归属
     const { data: child } = await supabase

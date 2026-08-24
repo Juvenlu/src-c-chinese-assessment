@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import {
   getCurrentUser,
-  getAdminSupabase,
+  getSupabaseClient,
   SESSION_COOKIE_NAME,
 } from '@/lib/auth-utils';
 
@@ -12,12 +12,16 @@ import {
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
+    // 优先从 header 取 x-session，其次从 cookie
+    const token = req.headers.get('x-session')?.startsWith('Bearer ')
+      ? req.headers.get('x-session')!.slice(7)
+      : req.headers.get('x-session') || undefined;
+    const user = await getCurrentUser(token);
     if (!user) {
       return NextResponse.json({ user: null, children: [] }, { status: 401 });
     }
 
-    const supabase = getAdminSupabase();
+    const supabase = getSupabaseClient();
 
     // 家长资料
     const { data: profile } = await supabase
@@ -38,7 +42,7 @@ export async function GET(req: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
-        emailVerified: !!user.email_confirmed_at,
+        emailVerified: !!((user as any).email_confirmed_at || profile?.email_verified),
         ...profile,
       },
       children: children || [],
@@ -63,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     if (token) {
       try {
-        const supabase = getAdminSupabase();
+        const supabase = getSupabaseClient();
         await supabase.auth.admin.signOut(token);
       } catch {
         // 忽略登出错误（token 可能已失效）

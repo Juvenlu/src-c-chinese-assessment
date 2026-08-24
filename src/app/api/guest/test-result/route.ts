@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminSupabase } from '@/lib/auth-utils';
+import { getSupabaseClient } from '@/lib/auth-utils';
 
 /**
  * POST /api/guest/test-result
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '缺少测试结果数据' }, { status: 400 });
     }
 
-    const supabase = getAdminSupabase();
+    const supabase = getSupabaseClient();
 
     // 创建或更新游客会话
     const { data: session, error } = await supabase
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '缺少会话ID' }, { status: 400 });
     }
 
-    const supabase = getAdminSupabase();
+    const supabase = getSupabaseClient();
     const { data: session } = await supabase
       .from('guest_test_sessions')
       .select('*')

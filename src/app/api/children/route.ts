@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, getAdminSupabase } from '@/lib/auth-utils';
+import { getCurrentUser, getSupabaseClient } from '@/lib/auth-utils';
 
 /**
  * GET /api/children
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
-    const supabase = getAdminSupabase();
+    const supabase = getSupabaseClient();
     const { data: children } = await supabase
       .from('children')
       .select('*')
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '年龄范围：3-18岁' }, { status: 400 });
     }
 
-    const supabase = getAdminSupabase();
+    const supabase = getSupabaseClient();
 
     // 创建孩子
     const { data: child, error: childError } = await supabase
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
  * 把游客测试结果绑定到孩子
  */
 async function bindGuestTestToChild(
-  supabase: ReturnType<typeof getAdminSupabase>,
+  supabase: ReturnType<typeof getSupabaseClient>,
   guestSessionId: string,
   childId: string
 ) {

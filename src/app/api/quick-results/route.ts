@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, getAdminSupabase } from '@/lib/auth-utils';
+import { getCurrentUser, getSupabaseClient } from '@/lib/auth-utils';
 
 /**
  * GET /api/quick-results?child_id=xxx
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '缺少孩子ID' }, { status: 400 });
     }
 
-    const supabase = getAdminSupabase();
+    const supabase = getSupabaseClient();
 
     // 先验证归属
     const { data: child } = await supabase
