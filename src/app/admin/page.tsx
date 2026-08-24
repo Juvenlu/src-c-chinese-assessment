@@ -64,8 +64,11 @@ function AdminContent() {
       const aData = await aRes.json();
 
       if (qData.data) setQuestions(qData.data);
-      // children 用管理后台API返回的所有孩子（展平）
-      if (aData.users) {
+      // children 用管理后台API返回的 all_children（含无主孩子）
+      if (aData.all_children) {
+        setChildren(aData.all_children);
+        setAdminUsers(aData.users);
+      } else if (aData.users) {
         const allChildren = aData.users.flatMap((u: any) => u.children || []);
         setChildren(allChildren);
         setAdminUsers(aData.users);

@@ -39,6 +39,26 @@ export async function GET(req: NextRequest) {
 
     if (parentsError) throw parentsError;
 
+    // 获取所有孩子（包括没有 parent_id 的旧数据）
+    const { data: allChildren, error: childrenError } = await supabase
+      .from('children')
+      .select(`
+        id,
+        parent_id,
+        nickname,
+        age,
+        grade,
+        country,
+        home_language,
+        home_language_other,
+        created_at,
+        updated_at,
+        status
+      `)
+      .order('created_at', { ascending: false });
+
+    if (childrenError) throw childrenError;
+
     // 获取每个孩子的测试次数
     const { data: results, error: resultsError } = await supabase
       .from('test_results')
@@ -71,10 +91,27 @@ export async function GET(req: NextRequest) {
       })),
     }));
 
+    // 所有孩子（含未分配家长的，方便管理后台直接使用）
+    const parentEmailMap: Record<string, string> = {};
+    (parents || []).forEach((p: any) => {
+      if (p.children) {
+        p.children.forEach((c: any) => {
+          parentEmailMap[c.id] = p.email;
+        });
+      }
+    });
+
+    const all_children = (allChildren || []).map((c: any) => ({
+      ...c,
+      test_count: testCountMap[c.id] || 0,
+      parent_email: parentEmailMap[c.id] || null,
+    }));
+
     return NextResponse.json({
       users,
+      all_children,
       total: users.length,
-      total_children: users.reduce((sum: number, u: any) => sum + u.children.length, 0),
+      total_children: all_children.length,
     });
   } catch (err) {
     console.error('[admin users] error:', err);
