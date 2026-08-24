@@ -30,7 +30,13 @@ interface AuthContextValue {
   loading: boolean;
   error: string | null;
   // 操作
-  sendOtp: (email: string) => Promise<{ success: boolean; maskedEmail?: string; isExistingAccount?: boolean; error?: string }>;
+  sendOtp: (email: string) => Promise<{
+    success: boolean;
+    maskedEmail?: string;
+    isExistingAccount?: boolean;
+    devCode?: string;
+    error?: string;
+  }>;
   verifyOtp: (email: string, code: string) => Promise<{ success: boolean; isNewUser?: boolean; children?: ChildInfo[]; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -150,7 +156,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || '发送失败' };
-      return { success: true, maskedEmail: data.maskedEmail, isExistingAccount: data.isExistingAccount };
+      return {
+        success: true,
+        maskedEmail: data.maskedEmail,
+        isExistingAccount: data.isExistingAccount,
+        devCode: data.dev_code,
+      };
     } catch {
       return { success: false, error: '网络错误，请稍后重试' };
     }

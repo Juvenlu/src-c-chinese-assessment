@@ -30,7 +30,11 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 - **直接测试（快速测评）V2.0**：无需注册，自适应分级探测，双水位测量，Reading Base ≤ Word Level，i+1推荐，3-5分钟快速评估
   - 算法：`src/lib/quick-assessment.ts`（V2.0 自适应分级 + 边界确认 + Confidence Booster）
   - 页面：`/quicktest`、`/quickresult`
-- **家长邮箱验证码登录 + 孩子成长档案**：Passwordless Email Login，Supabase Auth OTP，无密码
+- **家长邮箱验证码登录 + 孩子成长档案**：Passwordless Email Login，自建 OTP 系统（otp_codes表），无密码
+  - 验证码系统：自建 OTP（otp_codes 表，哈希存储，10分钟有效，5次错误上限，60秒频控）
+  - 邮件发送：优先 Resend API（配置 RESEND_API_KEY），其次自定义 SMTP；开发环境返回 dev_code 不发邮件
+  - 原因：Supabase 内置邮件服务对 Outlook/Hotmail 等容易被拦截，切换为自建 OTP + 可配置邮件服务
+  - auth.users 仍通过 admin API 创建（满足 parents_profiles 外键依赖）
   - 页面：`/signup`（注册保存，支持已有账户→选择孩子绑定）、`/login`（登录）、`/hub`（孩子中文世界）
   - 首页按钮：未登录显示注册/登录，已登录显示「进入中文世界」
   - Auth上下文：`src/lib/auth-context.tsx`（user/kids/activeChild/latestResult/logout/sendOtp/verifyOtp）

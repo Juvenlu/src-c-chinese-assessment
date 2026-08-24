@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [devCode, setDevCode] = useState('');
 
   // 已登录直接跳 hub
   useEffect(() => {
@@ -43,6 +44,7 @@ export default function LoginPage() {
       return;
     }
     setMaskedEmail(result.maskedEmail || '');
+    if (result.devCode) setDevCode(result.devCode);
     setStep('otp');
     setCountdown(60);
   };
@@ -55,6 +57,7 @@ export default function LoginPage() {
       setError(result.error || '发送失败');
       return;
     }
+    if (result.devCode) setDevCode(result.devCode);
     setCountdown(60);
   };
 
@@ -196,6 +199,16 @@ export default function LoginPage() {
                   </button>
                 )}
               </div>
+
+              {/* 开发模式验证码提示 */}
+              {devCode && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+                  <p className="text-xs text-yellow-700 mb-1">🛠 开发模式 · 测试验证码</p>
+                  <p className="text-xl font-mono font-bold tracking-widest text-yellow-800">
+                    {devCode}
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>

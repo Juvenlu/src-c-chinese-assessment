@@ -46,6 +46,7 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingChildren, setExistingChildren] = useState<any[]>([]);
   const [guestResult, setGuestResult] = useState<any>(null);
+  const [devCode, setDevCode] = useState(''); // 开发模式下显示的验证码
 
   // 孩子信息
   const [nickname, setNickname] = useState('');
@@ -114,6 +115,7 @@ export default function SignupPage() {
     }
     setIsNewAccount(!result.isExistingAccount);
     setMaskedEmail(result.maskedEmail || '');
+    if (result.devCode) setDevCode(result.devCode);
     setStep('otp');
     setCountdown(60);
   };
@@ -127,6 +129,7 @@ export default function SignupPage() {
       setError(result.error || '发送失败');
       return;
     }
+    if (result.devCode) setDevCode(result.devCode);
     setCountdown(60);
   };
 
@@ -267,6 +270,7 @@ export default function SignupPage() {
               onResend={handleResend}
               onVerify={handleVerify}
               isSubmitting={isSubmitting}
+              devCode={devCode}
             />
           )}
 
@@ -497,8 +501,9 @@ function OtpStep(props: {
   onResend: () => void;
   onVerify: () => void;
   isSubmitting: boolean;
+  devCode?: string;
 }) {
-  const { maskedEmail, otp, setOtp, countdown, error, onBack, onResend, onVerify, isSubmitting } = props;
+  const { maskedEmail, otp, setOtp, countdown, error, onBack, onResend, onVerify, isSubmitting, devCode } = props;
 
   return (
     <>
@@ -564,6 +569,16 @@ function OtpStep(props: {
           </button>
         )}
       </div>
+
+      {/* 开发模式验证码提示 */}
+      {devCode && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+          <p className="text-xs text-yellow-700 mb-1">🛠 开发模式 · 测试验证码</p>
+          <p className="text-xl font-mono font-bold tracking-widest text-yellow-800">
+            {devCode}
+          </p>
+        </div>
+      )}
     </>
   );
 }

@@ -105,10 +105,18 @@ export function generateOtpCode(): string {
 
 /**
  * 简单哈希验证码（保存时使用）
+ * 别名兼容
  */
 export function hashOtp(code: string): string {
   // 开发环境用简单 hash，生产环境应使用 bcrypt/argon2
   return Buffer.from(code + ':src_salt_v1').toString('base64');
+}
+
+/**
+ * 哈希验证码（别名，供 send-otp 使用）
+ */
+export async function hashOtpCode(code: string): Promise<string> {
+  return hashOtp(code);
 }
 
 /**
@@ -135,4 +143,44 @@ export function maskEmail(email: string): string {
  */
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/**
+ * 检查 OTP 发送频率限制
+ * - 60 秒内不能重复发送
+ * - 1 小时内最多 5 次
+ * 返回 null 表示可以发送，返回字符串表示错误信息
+ */
+export async function checkOtpRateLimit(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  email: string
+): Promise<string | null> {
+  const now = new Date();
+
+  // 检查 60 秒内是否已发送
+  const sixtySecondsAgo = new Date(now.getTime() - 60 * 1000);
+  const { data: recent } = await supabase
+    .from('otp_codes')
+    .select('id, created_at')
+    .eq('email', email)
+    .gte('created_at', sixtySecondsAgo.toISOString())
+    .limit(1);
+
+  if (recent && recent.length > 0) {
+    return '发送过于频繁，请稍后再试';
+  }
+
+  // 检查 1 小时内发送次数
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const { count } = await supabase
+    .from('otp_codes')
+    .select('*', { count: 'exact', head: true })
+    .eq('email', email)
+    .gte('created_at', oneHourAgo.toISOString());
+
+  if (count && count >= 5) {
+    return '发送次数过多，请稍后再试';
+  }
+
+  return null;
 }
