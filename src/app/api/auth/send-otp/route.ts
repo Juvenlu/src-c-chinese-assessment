@@ -21,14 +21,30 @@ export async function POST(req: NextRequest) {
 
     const supabase = getAdminSupabase();
 
+    // 检查家长档案是否存在
+    const { data: profile } = await supabase
+      .from('parents_profiles')
+      .select('id, email')
+      .eq('email', email)
+      .maybeSingle();
+
+    const isExistingAccount = !!profile;
+    let childCount = 0;
+
+    if (isExistingAccount && profile) {
+      const { count } = await supabase
+        .from('children')
+        .select('*', { count: 'exact', head: true })
+        .eq('parent_id', profile.id)
+        .eq('status', 'active');
+      childCount = count || 0;
+    }
+
     // 使用 Supabase Auth 发送 OTP
-    // signInWithOtp 会自动处理：新用户创建 + 老用户发送
-    const { data, error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        // 不创建 session，验证后再创建
         shouldCreateUser: true,
-        // 邮箱跳转 URL（也支持直接用 token 验证）
         emailRedirectTo: undefined,
       },
     });
@@ -54,6 +70,8 @@ export async function POST(req: NextRequest) {
       success: true,
       maskedEmail: maskEmail(email),
       message: '验证码已发送，请查收邮箱',
+      isExistingAccount,
+      childCount,
     });
   } catch (err) {
     console.error('[OTP] unexpected error:', err);

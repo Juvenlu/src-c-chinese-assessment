@@ -31,11 +31,13 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
   - 算法：`src/lib/quick-assessment.ts`（V2.0 自适应分级 + 边界确认 + Confidence Booster）
   - 页面：`/quicktest`、`/quickresult`
 - **家长邮箱验证码登录 + 孩子成长档案**：Passwordless Email Login，Supabase Auth OTP，无密码
-  - 页面：`/signup`（保存成长）、`/login`（登录）、`/hub`（孩子中文世界）
-  - Auth上下文：`src/lib/auth-context.tsx`
-  - API：`/api/auth/send-otp`、`/api/auth/verify-otp`、`/api/auth/me`、`/api/children`、`/api/guest/test-result`、`/api/quick-results`
-  - 数据库表：parents_profiles、children(parent_id)、guest_test_sessions、quick_assessment_results
-  - 核心原则：游客测试→注册→自动绑定为第一条成长记录；Email只做家长身份；Child ID独立
+  - 页面：`/signup`（注册保存，支持已有账户→选择孩子绑定）、`/login`（登录）、`/hub`（孩子中文世界）
+  - 首页按钮：未登录显示注册/登录，已登录显示「进入中文世界」
+  - Auth上下文：`src/lib/auth-context.tsx`（user/kids/activeChild/latestResult/logout/sendOtp/verifyOtp）
+  - API：`/api/auth/send-otp`、`/api/auth/verify-otp`、`/api/auth/me`、`/api/children`、`/api/children/[id]`、`/api/guest/test-result`、`/api/quick-results`
+  - 数据库表：parents_profiles、children(parent_id)、guest_test_sessions、quick_assessment_results、otp_rate_limit
+  - 核心原则：游客测试→注册→自动绑定为第一条成长记录；Email只做家长身份；Child ID独立；一父多子兼容
+  - 安全：OTP频控（60秒/次，5次/小时）、5次错误失效、10分钟有效期、RLS行级安全
   - 每级6单字+3词语=9题，单字最多30题、词语最多15题、总题≤45
   - 三核心指标：Character Level / Word Level / Reading Base Level
   - 置信度：高/中/低

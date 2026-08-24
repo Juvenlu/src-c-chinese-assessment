@@ -70,6 +70,14 @@ export async function POST(req: NextRequest) {
     // 更新或创建 parents_profiles
     await upsertParentProfile(supabase, user.id, email);
 
+    // 加载孩子列表
+    const { data: children } = await supabase
+      .from('children')
+      .select('*')
+      .eq('parent_id', user.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: true });
+
     // 写入 session cookie
     const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE_NAME, session.access_token, getSessionCookieOptions(SESSION_DURATION_DAYS));
@@ -82,6 +90,7 @@ export async function POST(req: NextRequest) {
         email: user.email,
         emailVerified: !!user.email_confirmed_at,
       },
+      children: children || [],
     });
   } catch (err) {
     console.error('[OTP verify] unexpected error:', err);

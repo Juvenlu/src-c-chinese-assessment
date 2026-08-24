@@ -35,13 +35,17 @@ export default function SignupPage() {
   const searchParams = useSearchParams();
   const { user, children, loading, sendOtp, verifyOtp, createChild } = useAuth();
 
-  const [step, setStep] = useState<'form' | 'otp' | 'creating'>('form');
+  const [step, setStep] = useState<'form' | 'otp' | 'select-child' | 'creating'>('form');
+  const [isNewAccount, setIsNewAccount] = useState(true);
+  const [selectedChildId, setSelectedChildId] = useState<string>('new');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existingChildren, setExistingChildren] = useState<any[]>([]);
+  const [guestResult, setGuestResult] = useState<any>(null);
 
   // 孩子信息
   const [nickname, setNickname] = useState('');
@@ -51,16 +55,24 @@ export default function SignupPage() {
   const [homeLanguage, setHomeLanguage] = useState('');
   const [homeLanguageOther, setHomeLanguageOther] = useState('');
 
-  // 游客测试 session_id
+  // 游客测试 session_id 和结果
   const [guestSessionId, setGuestSessionId] = useState('');
 
   // 从 URL / localStorage 读取游客测试信息
   useEffect(() => {
     const fromQuicktest = searchParams.get('from') === 'quicktest';
     if (fromQuicktest) {
-      // 从 localStorage 读
-      const saved = localStorage.getItem('src_guest_session_id');
-      if (saved) setGuestSessionId(saved);
+      const savedId = localStorage.getItem('src_guest_session_id');
+      if (savedId) setGuestSessionId(savedId);
+      const savedResult = localStorage.getItem('src_quick_test_results_v2');
+      if (savedResult) {
+        try {
+          const parsed = JSON.parse(savedResult);
+          setGuestResult(parsed);
+        } catch (_) {
+          // ignore
+        }
+      }
     }
   }, [searchParams]);
 
@@ -100,6 +112,7 @@ export default function SignupPage() {
       setError(result.error || '发送失败');
       return;
     }
+    setIsNewAccount(!result.isExistingAccount);
     setMaskedEmail(result.maskedEmail || '');
     setStep('otp');
     setCountdown(60);
@@ -115,6 +128,42 @@ export default function SignupPage() {
       return;
     }
     setCountdown(60);
+  };
+
+  // ==================== 选择已有孩子 ====================
+  const handleSelectChild = async (childId: string) => {
+    if (!guestSessionId) {
+      // 没有游客测试，直接进入
+      router.push('/hub');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      // 把游客测试绑定到已有的孩子
+      const res = await fetch('/api/quick-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          child_id: childId,
+          guest_session_id: guestSessionId,
+          ...guestResult,
+        }),
+      });
+      if (!res.ok) throw new Error('绑定失败');
+      router.push('/hub');
+    } catch (err: any) {
+      setError(err.message || '绑定失败');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ==================== 添加新孩子 ====================
+  const handleAddNewChild = () => {
+    // 切回表单，让用户填写新孩子资料
+    setStep('form');
+    setSelectedChildId('');
+    setIsNewAccount(true);
   };
 
   // ==================== 验证 OTP + 创建孩子 ====================
@@ -134,7 +183,15 @@ export default function SignupPage() {
         return;
       }
 
-      // 验证成功 → 创建孩子档案（绑定游客测试）
+      // 已有账户 → 进入选择孩子界面
+      if (!result.isNewUser && result.children && result.children.length > 0) {
+        setExistingChildren(result.children);
+        setStep('select-child');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 新账户 或 旧账户但还没有孩子 → 直接创建孩子
       setStep('creating');
       const childData: CreateChildData = {
         nickname: nickname.trim(),
@@ -211,6 +268,61 @@ export default function SignupPage() {
               onVerify={handleVerify}
               isSubmitting={isSubmitting}
             />
+          )}
+
+          {step === 'select-child' && (
+            <div className="space-y-5">
+              <div className="text-center mb-2">
+                <div className="text-5xl mb-3">👨‍👩‍👧‍👦</div>
+                <h2 className="text-2xl font-bold text-gray-800">选择孩子</h2>
+                <p className="text-gray-500 text-sm mt-1">
+                  {guestResult ? '选择要保存本次测试结果的孩子' : '选择要进入的孩子'}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {existingChildren.map((child) => (
+                  <button
+                    key={child.id}
+                    onClick={() => handleSelectChild(child.id)}
+                    disabled={isSubmitting}
+                    className="w-full p-4 bg-white border-2 border-gray-200 rounded-2xl text-left hover:border-orange-400 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-2xl">
+                        {child.nickname?.[0] || '👧'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-800">{child.nickname}</div>
+                        <div className="text-xs text-gray-500">
+                          {child.age}岁 · {child.grade}
+                        </div>
+                      </div>
+                      <div className="text-orange-500 text-xl">→</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => handleAddNewChild()}
+                disabled={isSubmitting}
+                className="w-full p-3 border-2 border-dashed border-gray-300 rounded-2xl text-gray-500 hover:border-orange-400 hover:text-orange-600 transition-all text-sm"
+              >
+                ＋ 添加新孩子
+              </button>
+
+              {error && (
+                <p className="text-red-500 text-sm text-center">{error}</p>
+              )}
+
+              <button
+                onClick={() => { setStep('form'); setError(''); }}
+                className="w-full text-center text-gray-400 text-sm hover:text-gray-600"
+              >
+                返回
+              </button>
+            </div>
           )}
 
           {step === 'creating' && (

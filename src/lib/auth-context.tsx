@@ -30,8 +30,8 @@ interface AuthContextValue {
   loading: boolean;
   error: string | null;
   // 操作
-  sendOtp: (email: string) => Promise<{ success: boolean; maskedEmail?: string; error?: string }>;
-  verifyOtp: (email: string, token: string) => Promise<{ success: boolean; isNewUser?: boolean; error?: string }>;
+  sendOtp: (email: string) => Promise<{ success: boolean; maskedEmail?: string; isExistingAccount?: boolean; error?: string }>;
+  verifyOtp: (email: string, token: string) => Promise<{ success: boolean; isNewUser?: boolean; children?: ChildInfo[]; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   createChild: (data: CreateChildData) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error || '发送失败' };
-      return { success: true, maskedEmail: data.maskedEmail };
+      return { success: true, maskedEmail: data.maskedEmail, isExistingAccount: data.isExistingAccount };
     } catch {
       return { success: false, error: '网络错误，请稍后重试' };
     }
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // 登录成功，刷新用户信息
       await refreshUser();
-      return { success: true, isNewUser: data.isNewUser };
+      return { success: true, isNewUser: data.isNewUser, children: data.children };
     } catch {
       return { success: false, error: '网络错误，请稍后重试' };
     }
