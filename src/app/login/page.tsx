@@ -43,10 +43,11 @@ export default function LoginPage() {
       }
 
       const kids = result.children || [];
-      if (kids.length <= 1) {
-        router.push('/hub');
+      // 登录后统一进入中文成长起点页（有结果显示起点，无结果显示欢迎引导）
+      if (kids.length === 1) {
+        router.push('/start');
       } else {
-        // 多个孩子暂时也直接进hub（取第一个active）
+        // 多个孩子或无孩子 → 进入中文世界首页选择孩子
         router.push('/hub');
       }
     } finally {

@@ -202,7 +202,7 @@ export default function HomePage() {
         {/* Auth buttons */}
         <div className="flex gap-3 mb-6">
           {user ? (
-            <Link href="/hub" className="flex-1">
+            <Link href="/start" className="flex-1">
               <button className="w-full px-4 py-3 rounded-2xl bg-[var(--color-src-primary)] text-white font-medium shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-95">
                 进入中文世界
               </button>
