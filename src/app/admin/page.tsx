@@ -540,8 +540,8 @@ function AdminContent() {
                       </thead>
                       <tbody>
                         {results.map((r) => {
-                          const child = children.find((c) => c.id === r.child_id);
-                          const childName = child?.nickname || r.child_id?.slice(0, 8) || '未命名';
+                          const child = children.find((c) => String(c.id) === String(r.child_id));
+                          const childName = child?.nickname || '游客测试';
                           const hasLib = r.known_characters && r.known_characters.length > 0;
                           const minutes = Math.floor((r.completion_time_seconds || 0) / 60);
                           const seconds = (r.completion_time_seconds || 0) % 60;
@@ -617,11 +617,12 @@ function AdminContent() {
                     >
                       <option value="">请选择</option>
                       {Object.entries(charLibData).map(([childId, chars]) => {
-                        const child = children.find((c) => c.id === childId);
+                        const child = children.find((c) => String(c.id) === String(childId));
                         const charCount = chars.length;
+                        const displayName = child?.nickname || `游客(${childId.slice(0, 6)})`;
                         return (
                           <option key={childId} value={childId}>
-                            {child?.nickname} ({charCount}字)
+                            {displayName} ({charCount}字)
                           </option>
                         );
                       })}
@@ -1036,13 +1037,13 @@ function AdminContent() {
                       <select
                         className="w-full px-3 py-2 border rounded-lg text-sm"
                         onChange={(e) => {
-                          const child = children.find((c) => c.id === e.target.value);
+                          const child = children.find((c) => String(c.id) === e.target.value);
                           if (child) setSelectedChildId(child.id);
                         }}
                       >
                         <option value="">请选择</option>
                         {children.map((c) => (
-                          <option key={c.id} value={c.id}>{c.nickname} ({c.age}岁)</option>
+                          <option key={String(c.id)} value={String(c.id)}>{c.nickname} ({c.age}岁)</option>
                         ))}
                       </select>
                     </div>
