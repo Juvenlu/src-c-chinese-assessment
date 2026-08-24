@@ -30,6 +30,8 @@ interface AuthContextValue {
   loading: boolean;
   error: string | null;
   // 操作
+  signup: (data: SignupData) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; children?: ChildInfo[]; error?: string }>;
   sendOtp: (email: string) => Promise<{
     success: boolean;
     maskedEmail?: string;
@@ -43,6 +45,18 @@ interface AuthContextValue {
   createChild: (data: CreateChildData) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
   updateChild: (childId: string, data: Partial<CreateChildData>) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
   setActiveChild: (childId: string) => void;
+}
+
+export interface SignupData {
+  email: string;
+  password: string;
+  nickname: string;
+  age: number;
+  grade: string;
+  country: string;
+  home_language?: string;
+  home_language_other?: string;
+  guest_session_id?: string;
 }
 
 interface QuickResult {
@@ -144,6 +158,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 初始化时加载
   useEffect(() => {
     refreshUser();
+  }, [refreshUser]);
+
+  // 注册
+  const signup = useCallback(async (data: SignupData) => {
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (!res.ok) return { success: false, error: result.error || '注册失败' };
+
+      // 保存 session token
+      if (result.session) {
+        localStorage.setItem('src_session', result.session);
+      }
+
+      // 登录成功，刷新用户信息
+      await refreshUser();
+      return { success: true, child: result.child };
+    } catch {
+      return { success: false, error: '网络错误，请稍后重试' };
+    }
+  }, [refreshUser]);
+
+  // 登录
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || '登录失败' };
+
+      // 保存 session token
+      if (data.session) {
+        localStorage.setItem('src_session', data.session);
+      }
+
+      // 登录成功，刷新用户信息
+      await refreshUser();
+      return { success: true, children: data.children };
+    } catch {
+      return { success: false, error: '网络错误，请稍后重试' };
+    }
   }, [refreshUser]);
 
   // 发送验证码
@@ -249,6 +311,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       latestResult,
       loading,
       error,
+      signup,
+      login,
       sendOtp,
       verifyOtp,
       logout,

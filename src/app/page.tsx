@@ -201,16 +201,26 @@ export default function HomePage() {
 
         {/* Auth buttons */}
         <div className="flex gap-3 mb-6">
-          <Link href="/signup" className="flex-1">
-            <button className="w-full px-4 py-3 rounded-2xl bg-[var(--color-src-primary)] text-white font-medium shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-95">
-              注册
-            </button>
-          </Link>
-          <Link href="/login" className="flex-1">
-            <button className="w-full px-4 py-3 rounded-2xl bg-white text-[var(--color-src-text)] font-medium shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-95">
-              登录
-            </button>
-          </Link>
+          {user ? (
+            <Link href="/hub" className="flex-1">
+              <button className="w-full px-4 py-3 rounded-2xl bg-[var(--color-src-primary)] text-white font-medium shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-95">
+                进入中文世界
+              </button>
+            </Link>
+          ) : (
+            <>
+              <Link href="/signup" className="flex-1">
+                <button className="w-full px-4 py-3 rounded-2xl bg-[var(--color-src-primary)] text-white font-medium shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-95">
+                  注册
+                </button>
+              </Link>
+              <Link href="/login" className="flex-1">
+                <button className="w-full px-4 py-3 rounded-2xl bg-white text-[var(--color-src-text)] font-medium shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-95">
+                  登录
+                </button>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Share button */}

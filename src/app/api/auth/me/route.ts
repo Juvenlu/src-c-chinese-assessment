@@ -30,22 +30,35 @@ export async function GET(req: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
 
-    // 孩子列表
+    // 孩子列表（白名单字段，避免泄露敏感信息）
     const { data: children } = await supabase
       .from('children')
-      .select('*')
+      .select('id, nickname, age, grade, country, home_language, home_language_other, created_at, updated_at, status')
       .eq('parent_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: true });
 
+    const userOut = profile
+      ? {
+          id: profile.id,
+          email: profile.email,
+          emailVerified: !!profile.email_verified,
+          created_at: profile.created_at,
+          last_login_at: profile.last_login_at,
+          subscription_status: profile.subscription_status,
+          plan_type: profile.plan_type,
+          status: profile.status,
+        }
+      : { id: user.id, email: user.email, emailVerified: false };
+
+    const childrenOut = (children || []).map((c: any) => {
+      const { parent_id, ...rest } = c;
+      return rest;
+    });
+
     return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        emailVerified: !!((user as any).email_confirmed_at || profile?.email_verified),
-        ...profile,
-      },
-      children: children || [],
+      user: userOut,
+      children: childrenOut,
     });
   } catch (err) {
     console.error('[me] error:', err);
