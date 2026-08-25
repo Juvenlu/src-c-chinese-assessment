@@ -61,20 +61,14 @@ export default function HubPage() {
 
   // 推荐绘本（模拟数据，未来接真实接口）
   const recommendedBook = {
-    title: "三只小猪",
+    title: "西游记-趣味中文故事",
     level: `SRC${readingBase}`,
-    pages: 12,
-    readTime: "8分钟",
+    pages: "约10页",
     coverColor: "#FFE66D",
   };
 
-  // 今日闯关推荐
-  const todayGame = {
-    title: "字形小侦探",
-    level: `SRC${charLevel}`,
-    questions: 10,
-    xpReward: 50,
-  };
+  // 今日闯关（暂时不开放）
+  const gameDisabled = true;
 
   return (
     <div className="min-h-screen bg-background">
@@ -116,18 +110,14 @@ export default function HubPage() {
             <h3 className="mb-2 text-lg font-bold text-foreground">
               {recommendedBook.title}
             </h3>
-            <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
               <span
                 className="rounded-full px-2 py-0.5 font-medium"
                 style={{ backgroundColor: "var(--color-primary, #FF6B35)22", color: "var(--color-primary, #FF6B35)" }}
               >
                 {recommendedBook.level}
               </span>
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {recommendedBook.readTime}
-              </span>
-              <span>{recommendedBook.pages}页</span>
+              <span>{recommendedBook.pages}</span>
             </div>
             <div className="flex items-center gap-1 text-sm font-medium"
               style={{ color: "var(--color-primary, #FF6B35)" }}
@@ -137,45 +127,38 @@ export default function HubPage() {
             </div>
           </Link>
 
-          {/* 🎮 今日闯关 */}
-          <Link
-            href="/game"
-            className="group relative overflow-hidden rounded-3xl border border-border bg-card p-6 transition-all hover:scale-[1.02] hover:shadow-lg"
+          {/* 🎮 今日闯关（暂时不开放） */}
+          <div
+            className={`relative overflow-hidden rounded-3xl border border-border bg-card p-6 ${
+              gameDisabled
+                ? "cursor-not-allowed opacity-50 grayscale"
+                : "group transition-all hover:scale-[1.02] hover:shadow-lg"
+            }`}
           >
-            <div className="mb-4 flex h-32 w-full items-center justify-center rounded-2xl"
-              style={{ backgroundColor: "var(--color-secondary, #4ECDC4)22" }}
-            >
-              <Gamepad2
-                className="h-12 w-12"
-                style={{ color: "var(--color-secondary, #4ECDC4)" }}
-              />
+            <div className="mb-4 flex h-32 w-full items-center justify-center rounded-2xl bg-muted">
+              <Gamepad2 className="h-12 w-12 text-muted-foreground" />
             </div>
             <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               🎮 今日闯关
             </p>
             <h3 className="mb-2 text-lg font-bold text-foreground">
-              {todayGame.title}
+              字形小侦探
             </h3>
             <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground">
-              <span
-                className="rounded-full px-2 py-0.5 font-medium"
-                style={{ backgroundColor: "var(--color-secondary, #4ECDC4)22", color: "var(--color-secondary, #4ECDC4)" }}
-              >
-                {todayGame.level}
+              <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
+                {`SRC${charLevel}`}
               </span>
-              <span>{todayGame.questions} 道题</span>
+              <span>10 道题</span>
               <span className="flex items-center gap-1">
-                <Sparkles className="h-3 w-3" style={{ color: "var(--color-accent, #FFE66D)" }} />
-                +{todayGame.xpReward} XP
+                <Sparkles className="h-3 w-3 text-muted-foreground" />
+                +50 XP
               </span>
             </div>
-            <div className="flex items-center gap-1 text-sm font-medium"
-              style={{ color: "var(--color-secondary, #4ECDC4)" }}
-            >
-              开始挑战
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">
+              即将开放
+              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">敬请期待</span>
             </div>
-          </Link>
+          </div>
 
           {/* 🗺️ 我的成长 */}
           <Link
