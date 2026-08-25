@@ -7,6 +7,8 @@ export interface UserInfo {
   id: string;
   email: string;
   emailVerified: boolean;
+  subscription_status?: string;
+  plan_type?: string;
 }
 
 export interface ChildInfo {
@@ -25,10 +27,12 @@ export interface ChildInfo {
 interface AuthContextValue {
   user: UserInfo | null;
   children: ChildInfo[];
+  kids: ChildInfo[];  // 同 children，语义化别名
   activeChild: ChildInfo | null;
   latestResult: QuickResult | null;
   loading: boolean;
   error: string | null;
+  authFetch: (url: string, options?: RequestInit) => Promise<Response>;
   // 操作
   signup: (data: SignupData) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
   login: (email: string, password: string) => Promise<{ success: boolean; children?: ChildInfo[]; error?: string }>;
@@ -44,6 +48,7 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>;
   createChild: (data: CreateChildData) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
   updateChild: (childId: string, data: Partial<CreateChildData>) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   setActiveChild: (childId: string) => void;
 }
 
@@ -268,6 +273,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setActiveChildId(null);
   }, []);
 
+  // 修改密码
+  const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
+    try {
+      const res = await authFetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { success: false, error: err.error || '修改失败' };
+      }
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || '网络错误' };
+    }
+  }, [authFetch]);
+
   // 创建孩子
   const createChild = useCallback(async (childData: CreateChildData) => {
     try {
@@ -309,6 +332,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       children: kids,
+      kids,  // 同 children，语义化别名
       activeChild: kids.find(c => c.id === activeChildId) || null,
       latestResult,
       loading,
@@ -321,9 +345,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUser,
       createChild,
       updateChild,
+      changePassword,
       setActiveChild: (id: string) => setActiveChildId(id),
+      authFetch,
     }),
-    [user, kids, activeChildId, latestResult, loading, error, sendOtp, verifyOtp, logout, refreshUser, createChild, updateChild]
+    [user, kids, activeChildId, latestResult, loading, error, sendOtp, verifyOtp, logout, refreshUser, createChild, updateChild, changePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
