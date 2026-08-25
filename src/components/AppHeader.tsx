@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -14,6 +15,7 @@ import {
   Users,
   Plus,
   Home,
+  Loader2,
 } from "lucide-react";
 
 /**
@@ -25,12 +27,17 @@ export function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, children: kids, activeChild, setActiveChild, logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const isActive = (path: string) => pathname?.startsWith(path);
 
   const handleLogout = () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    // 立即清除本地 session 并跳转，不等待后端响应
     logout();
-    router.push("/");
+    // 使用 window.location.href 强制刷新，确保所有状态重置
+    window.location.href = "/";
   };
 
   const handleSwitchChild = (childId: string) => {
@@ -167,10 +174,15 @@ export function AppHeader() {
               <div className="border-t border-border p-2">
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-red-500 hover:bg-red-50"
+                  disabled={isLoggingOut}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-red-500 hover:bg-red-50 disabled:opacity-50"
                 >
-                  <LogOut className="h-4 w-4" />
-                  退出登录
+                  {isLoggingOut ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LogOut className="h-4 w-4" />
+                  )}
+                  {isLoggingOut ? "正在退出..." : "退出登录"}
                 </button>
               </div>
             </div>
