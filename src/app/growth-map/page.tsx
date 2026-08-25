@@ -6,20 +6,33 @@ import { Level, LEVEL_CONFIG, RJBLevel } from '@/lib/types';
 import type { GrowthMapData } from '@/lib/types';
 import { calculateDualSystemResult, getNextLevel } from '@/lib/dual-system';
 import { getCharList, getWordList, getRJBCharList, getCorrespondingRJBLevel } from '@/lib/questions';
+import { useAuth } from '@/lib/auth-context';
 
 export default function GrowthMapPage() {
   const [data, setData] = useState<GrowthMapData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const { user, activeChild, latestResult, authFetch, loading: authLoading } = useAuth();
+
   useEffect(() => {
+    if (authLoading) return;
     const params = new URLSearchParams(window.location.search);
-    const childId = params.get('child_id') || 'demo_child';
-    const level = (params.get('level') || 'SRC300') as Level;
+    const childId = params.get('child_id') || activeChild?.id || 'demo_child';
+    const urlLevel = params.get('level') as Level | null;
     const testedChars = parseInt(params.get('testedChars') || '0');
     const correctChars = parseInt(params.get('correctChars') || '0');
     const testedVocab = parseInt(params.get('testedVocab') || '0');
     const correctVocab = parseInt(params.get('correctVocab') || '0');
 
+    // 确定当前级别：URL 参数 > 最新快速测评结果 > 默认 SRC100
+    let level: Level = urlLevel || 'SRC100';
+    if (!urlLevel && latestResult?.reading_base) {
+      const rb = latestResult.reading_base;
+      if (rb >= 800) level = 'SRC800';
+      else if (rb >= 500) level = 'SRC500';
+      else if (rb >= 300) level = 'SRC300';
+      else level = 'SRC100';
+    }
     // 如果URL带了测试数据，直接计算显示（从结果页跳转过来）
     if (testedChars > 0 && correctChars > 0) {
       const config = LEVEL_CONFIG[level];
@@ -103,16 +116,20 @@ export default function GrowthMapPage() {
       return;
     }
 
-    // 否则调用API获取历史数据
-    fetch(`/api/growth-map?child_id=${childId}&level=${level}`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success) {
+    // 否则调用API获取历史数据（带鉴权）
+    if (user && activeChild) {
+      authFetch(`/api/growth-map?child_id=${activeChild.id}&level=${level}`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success) {
           setData(json.data);
         }
-      })
-      .finally(() => setLoading(false));
-  }, []);
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [user, activeChild, latestResult, authLoading, authFetch]);
 
   if (loading) {
     return (
