@@ -43,9 +43,7 @@ const LEVEL_DESC: Record<string, { title: string; short: string; example: string
 
 export default function StartPage() {
   const router = useRouter();
-  const { user, activeChild, loading } = useAuth();
-  const [latestResult, setLatestResult] = useState<any>(null);
-  const [resultLoading, setResultLoading] = useState(true);
+  const { user, activeChild, loading, latestResult } = useAuth();
 
   // 未登录重定向
   useEffect(() => {
@@ -54,20 +52,7 @@ export default function StartPage() {
     }
   }, [user, loading, router]);
 
-  // 获取最新测试结果
-  useEffect(() => {
-    if (!activeChild) return;
-    fetch(`/api/quick-results?childId=${activeChild.id}`)
-      .then(r => r.json())
-      .then(data => {
-        const results = data.results || data.data || data;
-        if (Array.isArray(results) && results.length > 0) {
-          setLatestResult(results[0]);
-        }
-        setResultLoading(false);
-      })
-      .catch(() => setResultLoading(false));
-  }, [activeChild]);
+  // latestResult 由 AuthContext 统一加载
 
   if (loading || !user || !activeChild) {
     return (
@@ -81,13 +66,13 @@ export default function StartPage() {
   }
 
   const hasResult = !!latestResult;
-  const readingBase = latestResult?.reading_base_level || latestResult?.readingBaseLevel || 'SRC100';
-  const charLevel = latestResult?.character_level || latestResult?.characterLevel || 'SRC100';
-  const wordLevel = latestResult?.word_level || latestResult?.wordLevel || 'SRC100';
-  const recLevel = latestResult?.recommended_reading_level || latestResult?.recommendedReadingLevel || 'SRC300';
+  const readingBase = latestResult?.reading_base ? `SRC${latestResult.reading_base}` : 'SRC100';
+  const charLevel = latestResult?.character_level_u ? `SRC${latestResult.character_level_u}` : 'SRC100';
+  const wordLevel = latestResult?.word_level_u ? `SRC${latestResult.word_level_u}` : 'SRC100';
+  const recLevel = readingBase;
   const confidence = latestResult?.confidence || 'medium';
-  const recDesc = latestResult?.recommended_reading_desc || latestResult?.recommendedReadingDesc || 'SRC300左右';
-  const baseDesc = latestResult?.reading_base_desc || latestResult?.readingBaseDesc || LEVEL_DESC[readingBase]?.title;
+  const recDesc = `${readingBase}左右`;
+  const baseDesc = LEVEL_DESC[readingBase]?.title;
   const levelInfo = LEVEL_DESC[readingBase] || LEVEL_DESC.SRC100;
   const baseCharCount = LEVEL_CHAR_COUNT[readingBase] || 100;
   const progressPercent = Math.min(100, Math.round((baseCharCount / 813) * 100));

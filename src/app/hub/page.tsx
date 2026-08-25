@@ -23,9 +23,7 @@ import {
  */
 export default function HubPage() {
   const router = useRouter();
-  const { user, activeChild, loading } = useAuth();
-  const [latestResult, setLatestResult] = useState<any>(null);
-  const [resultLoading, setResultLoading] = useState(true);
+  const { user, activeChild, loading, latestResult } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -33,18 +31,7 @@ export default function HubPage() {
     }
   }, [loading, user, router]);
 
-  // 拉取最新测评结果
-  useEffect(() => {
-    if (!activeChild) return;
-    fetch(`/api/quick-results?child_id=${activeChild.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.results && data.results.length > 0) {
-          setLatestResult(data.results[0]);
-        }
-      })
-      .finally(() => setResultLoading(false));
-  }, [activeChild]);
+  // latestResult 由 AuthContext 统一加载，不再单独请求
 
   if (loading || !user || !activeChild) {
     return (

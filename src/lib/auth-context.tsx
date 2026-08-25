@@ -65,11 +65,15 @@ export interface SignupData {
 }
 
 interface QuickResult {
-  reading_base_level: number;
-  character_level_upper: number;
-  word_level_upper: number;
-  recommended_reading: string;
+  id?: string;
+  child_id?: string;
+  reading_base: number;
+  character_level_l: number;
+  character_level_u: number;
+  word_level_l: number;
+  word_level_u: number;
   confidence: string;
+  created_at?: string;
 }
 
 export interface CreateChildData {
@@ -137,11 +141,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (rdata.results && rdata.results.length > 0) {
               const r = rdata.results[0];
               setLatestResult({
-                reading_base_level: r.reading_base_level,
-                character_level_upper: r.character_level_upper,
-                word_level_upper: r.word_level_upper,
-                recommended_reading: r.recommended_reading,
+                id: r.id,
+                child_id: r.child_id,
+                reading_base: r.reading_base,
+                character_level_l: r.character_level_l,
+                character_level_u: r.character_level_u,
+                word_level_l: r.word_level_l,
+                word_level_u: r.word_level_u,
                 confidence: r.confidence,
+                created_at: r.created_at,
               });
             }
           }
