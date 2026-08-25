@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 
 // ==================== 页面 ====================
 export default function LoginPage() {
@@ -42,14 +43,8 @@ export default function LoginPage() {
         return;
       }
 
-      const kids = result.children || [];
-      // 登录后统一进入中文成长起点页（有结果显示起点，无结果显示欢迎引导）
-      if (kids.length === 1) {
-        router.push('/start');
-      } else {
-        // 多个孩子或无孩子 → 进入中文世界首页选择孩子
-        router.push('/hub');
-      }
+      // 登录成功 → 进入孩子的中文世界
+      router.push('/hub');
     } finally {
       setIsSubmitting(false);
     }
@@ -79,8 +74,11 @@ export default function LoginPage() {
         {/* 表单卡片 */}
         <div className="bg-white rounded-2xl shadow-lg p-6 space-y-5">
           {error && (
-            <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm">
-              {error}
+            <div className="bg-red-50 border-2 border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-start gap-3 animate-[fadeIn_0.3s_ease-out]">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div className="text-sm font-medium leading-relaxed">
+                {error}
+              </div>
             </div>
           )}
 
@@ -92,9 +90,11 @@ export default function LoginPage() {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); if (error) setError(''); }}
               placeholder="example@email.com"
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-400 focus:outline-none transition-colors"
+              className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none transition-colors ${
+                error ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-orange-400'
+              }`}
             />
           </div>
 
@@ -107,17 +107,19 @@ export default function LoginPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); if (error) setError(''); }}
                 placeholder="请输入密码"
-                className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:border-orange-400 focus:outline-none transition-colors"
-                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:outline-none transition-colors ${
+                  error ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-orange-400'
+                }`}
+                onKeyDown={(e) => e.key === 'Enter' && !isSubmitting && handleLogin()}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
-                {showPassword ? '隐藏' : '显示'}
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
           </div>
@@ -136,9 +138,16 @@ export default function LoginPage() {
           <button
             onClick={handleLogin}
             disabled={isSubmitting}
-            className="w-full py-3.5 bg-[var(--color-src-primary)] text-white font-bold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3.5 bg-[var(--color-src-primary)] text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98]"
           >
-            {isSubmitting ? '登录中...' : '登录'}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                登录中...
+              </>
+            ) : (
+              '登 录'
+            )}
           </button>
         </div>
 

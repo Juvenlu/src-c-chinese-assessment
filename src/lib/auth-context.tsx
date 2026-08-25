@@ -182,13 +182,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSessionToken(result.session);
       }
 
-      // 登录成功，刷新用户信息
-      await refreshUser();
-      return { success: true, child: result.child, children: result.children || (result.child ? [result.child] : []) };
+      // 直接设置用户和孩子状态（不等 refreshUser 异步）
+      if (result.user) {
+        setUser(result.user);
+      }
+      const childList: ChildInfo[] = result.children || (result.child ? [result.child] : []);
+      setKids(childList);
+      if (childList.length > 0) {
+        setActiveChildId(childList[0].id);
+      }
+      setLoading(false);
+
+      return { success: true, child: result.child, children: childList };
     } catch {
       return { success: false, error: '网络错误，请稍后重试' };
     }
-  }, [refreshUser]);
+  }, []);
 
   // 登录
   const login = useCallback(async (email: string, password: string) => {
@@ -207,13 +216,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSessionToken(data.session);
       }
 
-      // 登录成功，刷新用户信息
-      await refreshUser();
-      return { success: true, children: data.children };
+      // 直接设置用户和孩子状态，确保跳转时状态已就绪
+      if (data.user) {
+        setUser(data.user);
+      }
+      if (data.children && Array.isArray(data.children)) {
+        setKids(data.children);
+        if (data.children.length > 0) {
+          setActiveChildId(data.children[0].id);
+        }
+      }
+      setLoading(false);
+
+      return { success: true, children: data.children || [] };
     } catch {
       return { success: false, error: '网络错误，请稍后重试' };
     }
-  }, [refreshUser]);
+  }, []);
 
   // 发送验证码
   const sendOtp = useCallback(async (email: string) => {

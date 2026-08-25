@@ -81,7 +81,7 @@ export default function SignupPage() {
   // 如果已登录且有孩子，直接跳 hub
   useEffect(() => {
     if (!loading && user && children.length > 0) {
-      router.push('/start');
+      router.push('/hub');
     }
   }, [user, children, loading, router]);
 
@@ -141,7 +141,7 @@ export default function SignupPage() {
       }
 
       // 成功 → 跳转到 hub
-      router.push('/start');
+      router.push('/hub');
     } finally {
       setIsSubmitting(false);
     }
@@ -179,13 +179,13 @@ export default function SignupPage() {
           setIsSubmitting(false);
           return;
         }
-        router.push('/start');
+        router.push('/hub');
         return;
       }
 
       if (kids.length === 1 && !fromQuicktest) {
         // 只有一个孩子且非游客测试→直接进
-        router.push('/start');
+        router.push('/hub');
         return;
       }
 
@@ -200,7 +200,7 @@ export default function SignupPage() {
   // ==================== 选择已有孩子 ====================
   const handleSelectChild = async (childId: string) => {
     if (!fromQuicktest || !guestSessionId) {
-      router.push('/start');
+      router.push('/hub');
       return;
     }
     try {
@@ -215,7 +215,7 @@ export default function SignupPage() {
         }),
       });
       if (!res.ok) throw new Error('绑定失败');
-      router.push('/start');
+      router.push('/hub');
     } catch (err: any) {
       setError(err.message || '绑定失败');
     } finally {
@@ -240,7 +240,7 @@ export default function SignupPage() {
         setError(childResult.error || '创建孩子档案失败');
         return;
       }
-      router.push('/start');
+      router.push('/hub');
     } finally {
       setIsSubmitting(false);
     }
