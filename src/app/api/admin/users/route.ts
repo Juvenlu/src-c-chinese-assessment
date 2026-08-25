@@ -59,21 +59,39 @@ export async function GET(req: NextRequest) {
 
     if (childrenError) throw childrenError;
 
-    // 获取每个孩子的测试次数
-    const { data: results, error: resultsError } = await supabase
+    // 获取每个孩子的正式测试次数
+    const { data: formalResults, error: formalResultsError } = await supabase
       .from('test_results')
       .select('child_id, id')
       .not('child_id', 'is', null);
 
-    if (resultsError) throw resultsError;
+    if (formalResultsError) throw formalResultsError;
 
-    // 统计每个孩子的测试次数
+    // 获取每个孩子的快速测评次数
+    const { data: quickResults, error: quickResultsError } = await supabase
+      .from('quick_assessment_results')
+      .select('child_id, id')
+      .not('child_id', 'is', null);
+
+    if (quickResultsError) {
+      // 如果表还不存在，暂时忽略快速测评统计
+      console.warn('[admin users] quick_assessment_results query failed, count only formal tests');
+    }
+
+    // 汇总每个孩子的测试次数（正式测试 + 快速测评）
     const testCountMap: Record<string, number> = {};
-    results.forEach((r: { child_id: string }) => {
+    formalResults.forEach((r: { child_id: string }) => {
       if (r.child_id) {
         testCountMap[r.child_id] = (testCountMap[r.child_id] || 0) + 1;
       }
     });
+    if (quickResults) {
+      quickResults.forEach((r: { child_id: string }) => {
+        if (r.child_id) {
+          testCountMap[r.child_id] = (testCountMap[r.child_id] || 0) + 1;
+        }
+      });
+    }
 
     // 组装返回数据
     const users = (parents || []).map((p: any) => ({

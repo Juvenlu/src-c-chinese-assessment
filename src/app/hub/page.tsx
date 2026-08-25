@@ -36,7 +36,7 @@ export default function HubPage() {
   // 拉取最新测评结果
   useEffect(() => {
     if (!activeChild) return;
-    fetch("/api/quick-results")
+    fetch(`/api/quick-results?child_id=${activeChild.id}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.results && data.results.length > 0) {

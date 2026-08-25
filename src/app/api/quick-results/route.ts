@@ -21,24 +21,35 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // 先验证归属
-    const { data: child } = await supabase
+    const { data: child, error: childError } = await supabase
       .from('children')
       .select('id')
       .eq('id', childId)
       .eq('parent_id', user.id)
       .maybeSingle();
 
+    if (childError) {
+      console.error('[quick-results] child verify error:', childError);
+    }
+
     if (!child) {
+      console.log('[quick-results] no child found for', childId, 'parent', user.id);
       return NextResponse.json({ error: '无权限访问' }, { status: 403 });
     }
 
-    const { data: results } = await supabase
+    const { data: results, error: resultsError } = await supabase
       .from('quick_assessment_results')
       .select('*')
       .eq('child_id', childId)
       .order('created_at', { ascending: false })
       .limit(20);
+
+    if (resultsError) {
+      console.error('[quick-results] results query error:', resultsError);
+      return NextResponse.json({ error: '查询失败' }, { status: 500 });
+    }
+
+    console.log(`[quick-results] child=${childId} count=${results?.length || 0}`);
 
     return NextResponse.json({ results: results || [] });
   } catch (err) {

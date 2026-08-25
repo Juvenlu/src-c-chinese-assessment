@@ -178,8 +178,15 @@ export async function POST(req: NextRequest) {
     // ===== 如果有游客测试，自动绑定 =====
     if (guestSessionId) {
       try {
+        // 读取 guest session 的结果数据
+        const { data: guestSession } = await supabase
+          .from('guest_test_sessions')
+          .select('id, result_data')
+          .eq('id', guestSessionId)
+          .maybeSingle();
+
         // 标记 guest session 为已认领
-        const { error: claimError } = await supabase
+        await supabase
           .from('guest_test_sessions')
           .update({
             claimed: true,
@@ -187,13 +194,39 @@ export async function POST(req: NextRequest) {
           })
           .eq('id', guestSessionId);
 
-        if (claimError) {
-          console.warn('[Signup] guest session claim warning:', claimError.message);
-        }
+        // 如果有结果数据，写入 quick_assessment_results
+        if (guestSession?.result_data) {
+          const r = guestSession.result_data as Record<string, any>;
+          // 从 Level 字符串（如 "SRC500"）中提取数字
+          const extractLevelNum = (val: any): number | null => {
+            if (!val) return null;
+            if (typeof val === 'number') return val;
+            const m = String(val).match(/(\d+)/);
+            return m ? parseInt(m[1], 10) : null;
+          };
 
-        // 保存到 quick_assessment_results（如果有结果数据）
-        // 结果数据由前端在注册成功后通过 /api/quick-results 提交
-        // 这里只做绑定标记
+          const charL = extractLevelNum(r.characterLevelLower);
+          const charU = extractLevelNum(r.characterLevelUpper || r.characterLevel);
+          const wordL = extractLevelNum(r.wordLevelLower);
+          const wordU = extractLevelNum(r.wordLevelUpper || r.wordLevel);
+          const readingBase = extractLevelNum(r.readingBaseLevel);
+
+          await supabase
+            .from('quick_assessment_results')
+            .insert({
+              child_id: childData.id,
+              guest_session_id: guestSessionId,
+              character_level_l: charL,
+              character_level_u: charU,
+              word_level_l: wordL,
+              word_level_u: wordU,
+              reading_base: readingBase,
+              confidence: r.confidence || 'medium',
+              raw_result: guestSession.result_data,
+            });
+
+          console.log(`[Signup] guest result bound to child ${childData.id}, reading_base=SRC${readingBase}`);
+        }
       } catch (bindErr) {
         console.warn('[Signup] bind guest test warning:', bindErr);
       }

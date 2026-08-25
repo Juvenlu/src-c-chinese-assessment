@@ -10,11 +10,9 @@ import { getSupabaseClient } from '@/lib/auth-utils';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { device_id, result_data } = body;
-
-    if (!result_data) {
-      return NextResponse.json({ error: '缺少测试结果数据' }, { status: 400 });
-    }
+    const { device_id } = body;
+    // 兼容前端传 result 或 result_data
+    const result_data = body.result_data || body.result;
 
     const supabase = getSupabaseClient();
 
