@@ -3,7 +3,8 @@
  * SRC字库 ↔ 人教版识字表
  * 通过字符级（character → character）映射
  */
-import { LEVEL_CONFIG, Level } from './types';
+import { LEVEL_CONFIG, type Level } from './types';
+import { getNextLevel, SRC_TO_RJB } from './level-service';
 
 /**
  * 字符映射结果
@@ -166,15 +167,6 @@ export function getPepLevelName(srcLevel: Level): string {
     SRC800: '人教版800',
   };
   return map[srcLevel] || '人教版';
-}
-
-/**
- * 获取下一个SRC等级
- */
-export function getNextLevel(current: Level): Level | null {
-  const order: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
-  const idx = order.indexOf(current);
-  return idx >= 0 && idx < order.length - 1 ? order[idx + 1] : null;
 }
 
 /**

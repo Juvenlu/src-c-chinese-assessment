@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Level, LEVEL_CONFIG, RJBLevel } from '@/lib/types';
 import type { GrowthMapData } from '@/lib/types';
-import { getNextLevel } from '@/lib/level-service';
+import { getNextLevel, numToLevel, isValidLevel } from '@/lib/level-service';
 import { calculateDualSystemResult } from '@/lib/dual-system';
 import { getCharList, getWordList, getRJBCharList, getCorrespondingRJBLevel } from '@/lib/questions';
 import { useAuth } from '@/lib/auth-context';
@@ -25,14 +25,10 @@ export default function GrowthMapPage() {
     const testedVocab = parseInt(params.get('testedVocab') || '0');
     const correctVocab = parseInt(params.get('correctVocab') || '0');
 
-    // 确定当前级别：URL 参数 > 最新快速测评结果 > 默认 SRC100
+    // 确定当前级别：URL 参数 > 最新快速测评结果（通过 level-service 统一转换）> 默认 SRC100
     let level: Level = urlLevel || 'SRC100';
     if (!urlLevel && latestResult?.reading_base) {
-      const rb = latestResult.reading_base;
-      if (rb >= 800) level = 'SRC800';
-      else if (rb >= 500) level = 'SRC500';
-      else if (rb >= 300) level = 'SRC300';
-      else level = 'SRC100';
+      level = numToLevel(latestResult.reading_base);
     }
     // 如果URL带了测试数据，直接计算显示（从结果页跳转过来）
     if (testedChars > 0 && correctChars > 0) {
@@ -180,7 +176,11 @@ export default function GrowthMapPage() {
             🌱 我的中文成长地图
           </h1>
           <p className="text-[var(--color-src-text-light)]">
-            当前等级：{data.currentLevel}
+            {data.assessment_status === 'confirmed'
+              ? `当前等级：${data.current_level}`
+              : data.assessment_status === 'estimated'
+                ? `建议正式测试级别：${data.recommended_test_level}`
+                : '尚未开始正式测试'}
           </p>
         </div>
 
