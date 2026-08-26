@@ -105,8 +105,8 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     hasQuickResult: !!latestQuick,
   });
 
-  // current_level 必须来自 confirmed_level；没有正式测试时为 null
-  const currentLevel = confirmedLevel;
+  // current_level：正式测试优先用 confirmed_level；只有快速测评时用 estimated_level
+  const currentLevel = confirmedLevel ?? estimatedLevel;
   // 展示用级别：优先 confirmed，其次 estimated，最低 SRC100
   const displayLevel = getDisplayLevel({ confirmedLevel, estimatedLevel });
   // assessment_type（兼容旧字段 assessmentType）
@@ -141,25 +141,16 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     learningCount = Math.floor(testedCount * 0.1);
     untestedCount = 0;
   } else if (latestQuick) {
-    // === 快速测评：估算值（中位估算
-    const charLower = latestQuick.character_level_l || 0;
-    const charUpper = latestQuick.character_level_u || currentLevelNum;
-    const wordLower = latestQuick.word_level_l || 0;
-    const wordUpper = latestQuick.word_level_u || currentLevelNum;
-
-    const charMasteryNum = Math.round((charLower + charUpper) / 2);
-    const wordMasteryNum = Math.round((wordLower + wordUpper) / 2);
-
-    charMasteryRate = Math.min(1, Math.max(0, charMasteryNum / allSrcChars.length));
-    vocabMasteryRate = Math.min(1, Math.max(0, wordMasteryNum / allWords.length));
-
-    masteredCount = Math.min(allSrcChars.length, Math.max(0, charMasteryNum));
-    vocabMastered = Math.min(allWords.length, Math.max(0, wordMasteryNum));
-
-    testedCount = Math.floor(allSrcChars.length * 0.3); // 快速测评覆盖率约30%
-    vocabTested = Math.floor(allWords.length * 0.3);
-    learningCount = Math.floor(testedCount * 0.15);
-    untestedCount = allSrcChars.length - testedCount;
+    // === 快速测评：不输出精确掌握数，避免"100%正式掌握"错觉
+    // estimated 状态只给出等级估算，mastery 相关用 0/null 区分 confirmed
+    charMasteryRate = 0;
+    vocabMasteryRate = 0;
+    masteredCount = 0;
+    vocabMastered = 0;
+    testedCount = 0;
+    vocabTested = 0;
+    learningCount = 0;
+    untestedCount = 0;
   } else {
     // === 无测试数据
     charMasteryRate = 0;
@@ -215,9 +206,9 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     estimated_level: estimatedLevel,
     // recommended_test_level：推荐的正式测试级别
     recommended_test_level: recommendedTestLevel,
-    // current_level：当前级别 = confirmed_level（正式测试为唯一参照）
-    current_level: confirmedLevel,
-    // next_level：下一级别（基于 confirmed_level 由 Level Service 统一计算）
+    // current_level：当前级别 = confirmed_level 优先，无正式测试时用 estimated_level
+    current_level: confirmedLevel ?? estimatedLevel ?? null,
+    // next_level：下一级别（基于 current_level 由 Level Service 统一计算）
     next_level: nextLevel ?? null,
     // assessment_status：not_started / estimated / confirmed
     assessment_status: assessmentStatus,
