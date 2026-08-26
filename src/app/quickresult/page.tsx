@@ -8,6 +8,7 @@ import {
   ASSESSMENT_CONFIG,
 } from '@/lib/quick-assessment';
 import { Level, LEVEL_CONFIG } from '@/lib/types';
+import { getLevelIndex, getLevelProgress } from '@/lib/level-service';
 import {
   Star,
   BookOpen,
@@ -66,8 +67,8 @@ export default function QuickResultPage() {
   const confColor = { high: 'text-green-600 bg-green-50 border-green-200', medium: 'text-yellow-600 bg-yellow-50 border-yellow-200', low: 'text-orange-600 bg-orange-50 border-orange-200' }[result.confidence];
 
   const tips = generateLearningRecommendation(result);
-  const charGap = Math.abs(levelIndex(result.characterLevel) - levelIndex(result.wordLevel));
-  const hasWordGap = levelIndex(result.wordLevel) < levelIndex(result.characterLevel);
+  const charGap = Math.abs(getLevelIndex(result.characterLevel) - getLevelIndex(result.wordLevel));
+  const hasWordGap = getLevelIndex(result.wordLevel) < getLevelIndex(result.characterLevel);
 
   const handleRegister = () => {
     localStorage.setItem('guest_assessment_result', JSON.stringify(result));
@@ -315,7 +316,7 @@ export default function QuickResultPage() {
 // ========== 组件 ==========
 
 function LevelProgressBar({ level, color = 'orange' }: { level: Level; color?: 'orange' | 'teal' }) {
-  const pct = levelProgress(level);
+  const pct = getLevelProgress(level === 'SRC100' ? 100 : level === 'SRC300' ? 300 : level === 'SRC500' ? 500 : 800);
   const bgClass = color === 'teal' ? 'bg-teal-100' : 'bg-orange-100';
   const fillClass = color === 'teal' ? 'bg-teal-400' : 'bg-orange-400';
   return (
@@ -328,15 +329,4 @@ function LevelProgressBar({ level, color = 'orange' }: { level: Level; color?: '
 function formatLevelRange(lower: Level, upper: Level): string {
   if (lower === upper) return lower.replace('SRC', 'SRC');
   return `${lower.replace('SRC', '')}–${upper.replace('SRC', '')}`;
-}
-
-function levelIndex(level: Level): number {
-  const order: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
-  return order.indexOf(level);
-}
-
-function levelProgress(level: Level): number {
-  const idx = levelIndex(level);
-  if (idx < 0) return 25;
-  return ((idx + 1) / 4) * 100;
 }

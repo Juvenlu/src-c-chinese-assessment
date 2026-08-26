@@ -29,7 +29,9 @@ interface AuthContextValue {
   children: ChildInfo[];
   kids: ChildInfo[];  // 同 children，语义化别名
   activeChild: ChildInfo | null;
-  latestResult: QuickResult | null;
+  latestResult: QuickResult | null;  // 兼容旧字段（快速测评原始数据）
+  /** 当前激活孩子的统一测评状态（后端派生，前端只读） */
+  assessmentStatus: ChildAssessmentStatus | null;
   loading: boolean;
   error: string | null;
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
@@ -76,6 +78,32 @@ interface QuickResult {
   created_at?: string;
 }
 
+/**
+ * 孩子测评状态（统一字段，后端派生）
+ *
+ * - confirmed_level:    正式测试确认的级别（null = 未完成正式测试）
+ * - estimated_level:    快速测评预估级别（null = 未完成快速测评）
+ * - recommended_test_level: 推荐的正式测试级别
+ * - assessment_status:  not_started / estimated / confirmed
+ *
+ * ⚠️  前端只读，不计算。所有 Level 业务规则由后端统一。
+ */
+export interface ChildAssessmentStatus {
+  confirmed_level: string | null;
+  estimated_level: string | null;
+  recommended_test_level: string;
+  assessment_status: 'not_started' | 'estimated' | 'confirmed';
+  // 原始数据（供展示用）
+  quickResult: QuickResult | null;
+  formalResult: {
+    level: string;
+    character_mastery_rate: number;
+    vocab_mastery_rate: number;
+    stable_char_count: number;
+    created_at: string;
+  } | null;
+}
+
 export interface CreateChildData {
   nickname: string;
   age: number;
@@ -94,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [kids, setKids] = useState<ChildInfo[]>([]);
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
   const [latestResult, setLatestResult] = useState<QuickResult | null>(null);
+  const [assessmentStatus, setAssessmentStatus] = useState<ChildAssessmentStatus | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setKids([]);
         setActiveChildId(null);
         setLatestResult(null);
+        setAssessmentStatus(null);
         return;
       }
       if (!res.ok) throw new Error('获取用户信息失败');
@@ -131,30 +161,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (childList.length === 0) {
         setActiveChildId(null);
       }
-      // 加载最新结果
+      // 加载当前孩子的测评状态（统一来源：成长地图 API）
+      // ⚠️ 前端不做 Level 计算，只读取后端返回的架构字段
       if (childList.length > 0) {
         const firstChildId = activeChildId || childList[0].id;
         try {
-          const rres = await authFetch(`/api/quick-results?child_id=${firstChildId}&limit=1`);
-          if (rres.ok) {
-            const rdata = await rres.json();
-            if (rdata.results && rdata.results.length > 0) {
-              const r = rdata.results[0];
-              setLatestResult({
-                id: r.id,
-                child_id: r.child_id,
-                reading_base: r.reading_base,
-                character_level_l: r.character_level_l,
-                character_level_u: r.character_level_u,
-                word_level_l: r.word_level_l,
-                word_level_u: r.word_level_u,
-                confidence: r.confidence,
-                created_at: r.created_at,
+          const gres = await authFetch(`/api/growth-map?child_id=${firstChildId}`);
+          if (gres.ok) {
+            const gdata = await gres.json();
+            if (gdata.success && gdata.data) {
+              const d = gdata.data;
+              // 从后端返回的统一字段中提取测评状态
+              setAssessmentStatus({
+                confirmed_level: d.confirmed_level,
+                estimated_level: d.estimated_level,
+                recommended_test_level: d.recommended_test_level,
+                assessment_status: d.assessment_status,
+                quickResult: d.assessmentType !== 'formal' && d.quickConfidence
+                  ? {
+                      reading_base: d.currentLevel === 'SRC100' ? 100 : d.currentLevel === 'SRC300' ? 300 : d.currentLevel === 'SRC500' ? 500 : 800,
+                      character_level_l: 0,
+                      character_level_u: 0,
+                      word_level_l: 0,
+                      word_level_u: 0,
+                      confidence: d.quickConfidence,
+                    }
+                  : null,
+                formalResult: d.assessmentType === 'formal'
+                  ? {
+                      level: d.currentLevel,
+                      character_mastery_rate: d.srcMastery.masteryRate,
+                      vocab_mastery_rate: d.vocabMastery.masteryRate,
+                      stable_char_count: d.srcMastery.mastered,
+                      created_at: '',
+                    }
+                  : null,
               });
+              // 兼容旧字段 latestResult
+              if (d.assessmentType === 'quick') {
+                setLatestResult({
+                  reading_base: d.currentLevel === 'SRC100' ? 100 : d.currentLevel === 'SRC300' ? 300 : d.currentLevel === 'SRC500' ? 500 : 800,
+                  character_level_l: 0,
+                  character_level_u: 0,
+                  word_level_l: 0,
+                  word_level_u: 0,
+                  confidence: d.quickConfidence || 'medium',
+                });
+              }
             }
           }
         } catch (e) {
-          console.warn('[Auth] load latest result failed:', e);
+          console.warn('[Auth] load assessment status failed:', e);
         }
       }
     } catch (err) {
@@ -163,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setKids([]);
       setActiveChildId(null);
       setLatestResult(null);
+      setAssessmentStatus(null);
     } finally {
       setLoading(false);
     }
@@ -298,6 +356,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setKids([]);
     setActiveChildId(null);
+    setLatestResult(null);
+    setAssessmentStatus(null);
   }, []);
 
   // 修改密码
@@ -362,6 +422,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       kids,  // 同 children，语义化别名
       activeChild: kids.find(c => c.id === activeChildId) || null,
       latestResult,
+      assessmentStatus,
       loading,
       error,
       signup,
@@ -376,7 +437,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActiveChild: (id: string) => setActiveChildId(id),
       authFetch,
     }),
-    [user, kids, activeChildId, latestResult, loading, error, sendOtp, verifyOtp, logout, refreshUser, createChild, updateChild, changePassword]
+    [user, kids, activeChildId, latestResult, assessmentStatus, loading, error, sendOtp, verifyOtp, logout, refreshUser, createChild, updateChild, changePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

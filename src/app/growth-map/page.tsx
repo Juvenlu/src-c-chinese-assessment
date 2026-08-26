@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Level, LEVEL_CONFIG, RJBLevel } from '@/lib/types';
 import type { GrowthMapData } from '@/lib/types';
-import { calculateDualSystemResult, getNextLevel } from '@/lib/dual-system';
+import { getNextLevel } from '@/lib/level-service';
+import { calculateDualSystemResult } from '@/lib/dual-system';
 import { getCharList, getWordList, getRJBCharList, getCorrespondingRJBLevel } from '@/lib/questions';
 import { useAuth } from '@/lib/auth-context';
 
@@ -63,6 +64,14 @@ export default function GrowthMapPage() {
 
       setData({
         childId,
+        // 核心架构字段：URL模式是正式测试结果跳转 → confirmed
+        confirmed_level: level,
+        estimated_level: null,
+        recommended_test_level: level,
+        current_level: level,
+        next_level: nextLevelVal ?? null,
+        assessment_status: 'confirmed',
+        // 兼容旧字段
         currentLevel: level,
         assessmentType: 'formal',
         srcMastery: {

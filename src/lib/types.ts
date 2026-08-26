@@ -324,9 +324,30 @@ export interface SampledItem {
 
 /**
  * 成长地图数据
+ *
+ * 核心架构字段（语义明确，后端统一计算）：
+ * - confirmed_level: 正式测试确认的级别，null = 未完成正式测试
+ * - estimated_level: 快速测评预估级别，null = 未完成快速测评
+ * - recommended_test_level: 推荐的正式测试级别
+ * - current_level: 当前级别 = confirmed_level（正式测试为唯一参照）
+ * - next_level: 下一级别（基于 confirmed_level 计算）
+ * - assessment_status: not_started / estimated / confirmed
+ *
+ * 兼容旧字段（前端展示用，后续逐步迁移）：
+ * - currentLevel / nextLevel / assessmentType / suggestedLevel
  */
 export interface GrowthMapData {
   childId: string;
+
+  // ===== 核心架构字段 =====
+  confirmed_level: Level | null;
+  estimated_level: Level | null;
+  recommended_test_level: Level;
+  current_level: Level | null;
+  next_level: Level | null;
+  assessment_status: 'not_started' | 'estimated' | 'confirmed';
+
+  // ===== 兼容旧字段 =====
   currentLevel: Level;
   assessmentType: 'formal' | 'quick' | 'none';
   suggestedLevel?: Level;

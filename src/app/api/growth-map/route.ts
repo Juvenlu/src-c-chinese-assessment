@@ -17,27 +17,18 @@ import { getCharList, getWordList, getRJBCharList, getCorrespondingRJBLevel } fr
 import { LEVEL_CONFIG } from '@/lib/types';
 import type { Level, GrowthMapData } from '@/lib/types';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import {
+  numToLevel,
+  getNextLevel,
+  getRecommendedTestLevel,
+  getConfirmedLevel,
+  getEstimatedLevel,
+  getDisplayLevel,
+  deriveAssessmentStatus,
+  isValidLevel,
+} from '@/lib/level-service';
 
 const supabase = getSupabaseClient();
-
-const LEVEL_NAMES: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
-const LEVEL_NUMBERS: Record<string, number> = {
-  SRC100: 100,
-  SRC300: 300,
-  SRC500: 500,
-  SRC800: 800,
-};
-
-function numToLevel(num: number): Level {
-  if (num >= 800) return 'SRC800';
-  if (num >= 500) return 'SRC500';
-  if (num >= 300) return 'SRC300';
-  return 'SRC100';
-}
-
-function levelToNum(level: Level): number {
-  return LEVEL_NUMBERS[level] || 100;
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -91,32 +82,35 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
   const latestQuick = quickResults?.[0];
   const allQuickResults = quickResults || [];
 
-  // ===== 3. 确定当前级别
-  let currentLevel: Level;
-  let suggestedLevel: Level | null = null; // 快速测评建议级别
-  let assessmentType: 'formal' | 'quick' | 'none' = 'none';
+  // ===== 3. 确定级别与状态（统一使用 Level Service）
+  const confirmedLevel = getConfirmedLevel(latestFormal);
+  const estimatedLevel = getEstimatedLevel({
+    reading_base: latestQuick?.reading_base,
+    character_level_u: latestQuick?.character_level_u,
+  });
+  const recommendedTestLevel = getRecommendedTestLevel({
+    reading_base: latestQuick?.reading_base,
+    character_level_u: latestQuick?.character_level_u,
+    word_level_u: latestQuick?.word_level_u,
+  });
+  const assessmentStatus = deriveAssessmentStatus({
+    hasFormalTest: !!latestFormal,
+    hasQuickResult: !!latestQuick,
+  });
 
-  if (latestFormal) {
-    // 有正式测试 → 用正式测试级别
-    currentLevel = latestFormal.level as Level;
-    assessmentType = 'formal';
-  } else if (latestQuick) {
-    // 只有快速测评 → 用建议级别
-    currentLevel = numToLevel(latestQuick.reading_base || latestQuick.character_level_u || 100);
-    suggestedLevel = currentLevel;
-    assessmentType = 'quick';
-  } else {
-    // 都没有 → 最低级
-    currentLevel = 'SRC100';
-    assessmentType = 'none';
-  }
+  // current_level 必须来自 confirmed_level；没有正式测试时为 null
+  const currentLevel = confirmedLevel;
+  // 展示用级别：优先 confirmed，其次 estimated，最低 SRC100
+  const displayLevel = getDisplayLevel({ confirmedLevel, estimatedLevel });
+  // assessment_type（兼容旧字段 assessmentType）
+  const assessmentType = latestFormal ? 'formal' : latestQuick ? 'quick' : 'none';
 
-  const currentLevelNum = levelToNum(currentLevel);
+  const currentLevelNum = displayLevel === 'SRC100' ? 100 : displayLevel === 'SRC300' ? 300 : displayLevel === 'SRC500' ? 500 : 800;
 
-  // ===== 4. 获取字库数据
-  const allSrcChars = getCharList(currentLevel);
-  const allWords = getWordList(currentLevel);
-  const rjbLevel = getCorrespondingRJBLevel(currentLevel);
+  // ===== 4. 获取字库数据（以展示级别为基准展示字库规模）
+  const allSrcChars = getCharList(displayLevel);
+  const allWords = getWordList(displayLevel);
+  const rjbLevel = getCorrespondingRJBLevel(displayLevel);
   const allRJBChars = getRJBCharList(rjbLevel);
 
   // ===== 5. 计算掌握度
@@ -187,9 +181,8 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     allWords.length,
   );
 
-  // ===== 8. 下一等级
-  const currentIdx = LEVEL_NAMES.indexOf(currentLevel);
-  const nextLevel = currentIdx < LEVEL_NAMES.length - 1 ? LEVEL_NAMES[currentIdx + 1] : undefined;
+  // ===== 8. 下一等级（由 Level Service 统一计算，基于 confirmed_level）
+  const nextLevel = currentLevel ? getNextLevel(currentLevel) ?? undefined : undefined;
 
   // ===== 9. 优势/弱项/建议
   const strengths = hasFormalTest
@@ -199,7 +192,7 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     ? generateAreasToImprove(charMasteryRate, vocabMasteryRate)
     : [];
   const recommendations = generateRecommendations(
-    currentLevel,
+    recommendedTestLevel,
     hasFormalTest,
     charMasteryRate,
     vocabMasteryRate,
@@ -208,10 +201,26 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
 
   return {
     childId,
-    currentLevel,
+    // ===== 核心架构字段（统一字段命名） =====
+    // confirmed_level：正式测试确认的级别，null 表示尚未完成正式测试
+    confirmed_level: confirmedLevel,
+    // estimated_level：快速测评预估的级别，null 表示尚未完成快速测评
+    estimated_level: estimatedLevel,
+    // recommended_test_level：推荐的正式测试级别
+    recommended_test_level: recommendedTestLevel,
+    // current_level：当前级别 = confirmed_level（正式测试为唯一参照）
+    current_level: confirmedLevel,
+    // next_level：下一级别（基于 confirmed_level 由 Level Service 统一计算）
+    next_level: nextLevel ?? null,
+    // assessment_status：not_started / estimated / confirmed
+    assessment_status: assessmentStatus,
+    // ===== 兼容旧字段（前端暂用，后续逐步迁移） =====
+    currentLevel: displayLevel,
     assessmentType,
+    suggestedLevel: estimatedLevel ?? undefined,
+    // ===== 掌握度数据 =====
     srcMastery: {
-      level: currentLevel,
+      level: displayLevel,
       mastered: masteredCount,
       learning: learningCount,
       untested: untestedCount,
@@ -235,7 +244,6 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
       isFullTest: hasFormalTest,
     },
     nextLevel,
-    suggestedLevel: suggestedLevel || undefined,
     quickConfidence: latestQuick?.confidence || undefined,
     trend,
     strengths,

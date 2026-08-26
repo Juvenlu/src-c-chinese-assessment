@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { LEVEL_CONFIG, Level } from '@/lib/types';
+import { getNextLevel } from '@/lib/level-service';
 
 // 综合评价等级与文案
 const getEvaluation = (score: number, isFirst: boolean) => {
@@ -143,13 +144,18 @@ export default function ResultPage() {
   const evaluation = getEvaluation(overallScore, isFirstTest);
 
   const pepLevelName = level.replace('SRC', '人教版');
-  const nextLevelMap: Record<Level, { label: string; desc: string }> = {
-    SRC100: { label: 'SRC300', desc: '进入更丰富的中文阅读常用字阶段' },
-    SRC300: { label: 'SRC500', desc: '继续扩大阅读常用字，通过词组、闯关和定制绘本阅读，进一步提升中文理解能力' },
-    SRC500: { label: 'SRC800', desc: '向更高阶的阅读常用字进阶，建立更完整的中文阅读基础' },
-    SRC800: { label: '中文阅读与理解', desc: '进入更丰富的中文阅读与理解阶段' },
-  };
-  const nextInfo = nextLevelMap[level];
+  // next_level 映射由 level-service 统一提供，desc 是前端展示文案
+  const nextLv = getNextLevel(level);
+  const nextInfo = nextLv
+    ? {
+        label: nextLv,
+        desc: nextLv === 'SRC300'
+          ? '进入更丰富的中文阅读常用字阶段'
+          : nextLv === 'SRC500'
+            ? '继续扩大阅读常用字，通过词组、闯关和定制绘本阅读，进一步提升中文理解能力'
+            : '向更高阶的阅读常用字进阶，建立更完整的中文阅读基础',
+      }
+    : { label: '中文阅读与理解', desc: '进入更丰富的中文阅读与理解阶段' };
 
   return (
     <div className="min-h-screen bg-[var(--color-src-bg)] flex items-center justify-center p-4 py-8">

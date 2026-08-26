@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
 
     const latestResult = results[0];
     const knownCharacters = latestResult.known_characters || [];
+    // 绘本难度来源：confirmed（正式测试结果）
+    // 规则：绘本难度优先依据 confirmed_level
     const level = latestResult.level;
+    const levelSource = 'confirmed' as const;
 
     // Get pages for this episode
     const { data: pages_data, error: pagesError } = await client
@@ -61,6 +64,7 @@ export async function POST(request: NextRequest) {
           preview: true,
           pages: previewPages,
           level_tier: level,
+          level_source: levelSource,
           known_char_count: knownCharacters.length,
         } 
       });
@@ -93,6 +97,7 @@ export async function POST(request: NextRequest) {
             child_id,
             episode_id,
             level_tier: level,
+            level_source: levelSource,
           } 
         });
       } catch (e: any) {
