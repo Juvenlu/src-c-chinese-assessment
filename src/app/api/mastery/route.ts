@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import { updateMasteryData } from '@/lib/item-selection';
 import { DEFAULT_SAMPLING_CONFIG } from '@/lib/types';
 import type { MasteryStatus } from '@/lib/types';
+import { requireChildOwnership, requireSessionOwnership } from '@/lib/auth/child-access';
 
 // ============================================================
 // GET: 获取孩子的掌握度记录
@@ -29,6 +30,12 @@ export async function GET(request: Request) {
 
   if (!childId) {
     return NextResponse.json({ error: '缺少child_id参数' }, { status: 400 });
+  }
+
+  // 鉴权：验证当前用户对该 child 的访问权限
+  const auth = await requireChildOwnership(childId);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
@@ -79,6 +86,25 @@ export async function POST(request: Request) {
 
     if (!child_id) {
       return NextResponse.json({ error: '缺少child_id' }, { status: 400 });
+    }
+
+    // 鉴权：必须有有效的 session（session → child ownership）
+    // 禁止客户端绕过正式测试直接修改掌握度数据
+    if (session_id) {
+      const sessionAuth = await requireSessionOwnership(session_id);
+      if (!sessionAuth.ok) {
+        return NextResponse.json({ error: sessionAuth.error }, { status: sessionAuth.status });
+      }
+      // session 对应的 child 必须与传入的 child_id 一致
+      if (sessionAuth.childId !== child_id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    } else {
+      // 没有 session_id 时也必须校验 child ownership
+      const childAuth = await requireChildOwnership(child_id);
+      if (!childAuth.ok) {
+        return NextResponse.json({ error: childAuth.error }, { status: childAuth.status });
+      }
     }
 
     // 1. 批量更新单字掌握度

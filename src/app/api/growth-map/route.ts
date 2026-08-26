@@ -17,6 +17,7 @@ import { getCharList, getWordList, getRJBCharList, getCorrespondingRJBLevel } fr
 import { LEVEL_CONFIG } from '@/lib/types';
 import type { Level, GrowthMapData } from '@/lib/types';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { requireChildOwnership } from '@/lib/auth/child-access';
 import {
   numToLevel,
   getNextLevel,
@@ -36,6 +37,12 @@ export async function GET(request: Request) {
 
   if (!childId) {
     return NextResponse.json({ error: '缺少child_id参数' }, { status: 400 });
+  }
+
+  // 鉴权：验证当前用户对该 child 的访问权限
+  const auth = await requireChildOwnership(childId);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
