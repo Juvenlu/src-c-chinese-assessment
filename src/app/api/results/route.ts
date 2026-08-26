@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const level = session.level;          // level 来自 session，不是 body
     const childId = auth.childId;         // child_id 从 session→child 推导，不是 body
-    const testMode = session.mode || 'sampling';
+    const testMode = session.test_mode || 'sampling';
 
     // 第三步：获取答题数据（同样经过 session → child 校验）
     const { data: answers, error: answersError } = await client

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser, getSupabaseClient } from '@/lib/auth-utils';
 import { requireChildOwnership, requireSessionOwnership } from '@/lib/auth/child-access';
+import { LEVEL_CONFIG, Level } from '@/lib/types';
 
 /**
  * GET /api/sessions
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { child_id, level, mode } = body;
+    const { child_id, level, test_mode } = body;
 
     if (!child_id || !level) {
       return NextResponse.json({ error: 'child_id and level required' }, { status: 400 });
@@ -71,13 +72,16 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
+    const timeLimit = LEVEL_CONFIG[level as Level]?.timeLimitSeconds || 300;
+
     const { data, error } = await supabase
       .from('test_sessions')
       .insert({
         child_id: child_id,
         level,
-        mode: mode || 'sampling',
+        test_mode: test_mode || 'sampling',
         status: 'in_progress',
+        time_limit_seconds: timeLimit,
       })
       .select()
       .single();
