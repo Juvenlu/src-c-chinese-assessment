@@ -23,7 +23,7 @@ import {
  */
 export default function HubPage() {
   const router = useRouter();
-  const { user, activeChild, loading, latestResult } = useAuth();
+  const { user, activeChild, loading, latestResult, assessmentStatus } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -31,7 +31,28 @@ export default function HubPage() {
     }
   }, [loading, user, router]);
 
-  // latestResult 由 AuthContext 统一加载，不再单独请求
+  // 当前等级（confirmed 或 estimated），用于"我的SRC旅程"和"识字水平"
+  const currentLevel = assessmentStatus?.current_level || 'SRC100';
+  const currentLevelNum = parseInt(currentLevel.replace('SRC', ''), 10) || 100;
+
+  // 推荐测试/阅读等级（reading_base 对应），用于今日故事推荐难度
+  const recommendedLevel = assessmentStatus?.recommended_test_level || 'SRC100';
+  const recommendedLevelNum = parseInt(recommendedLevel.replace('SRC', ''), 10) || 100;
+
+  const wordLevel = latestResult?.word_level_l || latestResult?.word_level_u || 100;
+  const readingBase = latestResult?.reading_base || 100;
+  const confidence = latestResult?.confidence || "high";
+
+  // 推荐绘本（模拟数据，未来接真实接口）
+  const recommendedBook = {
+    title: "西游记-趣味中文故事",
+    level: recommendedLevel,
+    pages: "约10页",
+    coverColor: "#FFE66D",
+  };
+
+  // 今日闯关（暂时不开放）
+  const gameDisabled = true;
 
   if (loading || !user || !activeChild) {
     return (
@@ -40,22 +61,6 @@ export default function HubPage() {
       </div>
     );
   }
-
-  const charLevel = latestResult?.character_level_l || latestResult?.character_level_u || 100;
-  const wordLevel = latestResult?.word_level_l || latestResult?.word_level_u || 100;
-  const readingBase = latestResult?.reading_base || 100;
-  const confidence = latestResult?.confidence || "high";
-
-  // 推荐绘本（模拟数据，未来接真实接口）
-  const recommendedBook = {
-    title: "西游记-趣味中文故事",
-    level: `SRC${readingBase}`,
-    pages: "约10页",
-    coverColor: "#FFE66D",
-  };
-
-  // 今日闯关（暂时不开放）
-  const gameDisabled = true;
 
   return (
     <div className="min-h-screen bg-background">
@@ -102,7 +107,7 @@ export default function HubPage() {
                 className="rounded-full px-2 py-0.5 font-medium"
                 style={{ backgroundColor: "var(--color-primary, #FF6B35)22", color: "var(--color-primary, #FF6B35)" }}
               >
-                {recommendedBook.level}
+                推荐 {recommendedBook.level}
               </span>
               <span>{recommendedBook.pages}</span>
             </div>
@@ -133,7 +138,7 @@ export default function HubPage() {
             </h3>
             <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground">
               <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
-                {`SRC${charLevel}`}
+                {currentLevel}
               </span>
               <span>10 道题</span>
               <span className="flex items-center gap-1">
@@ -156,14 +161,14 @@ export default function HubPage() {
               style={{ backgroundColor: "var(--color-primary, #FF6B35)15" }}
             >
               <div className="text-center">
-                <p
-                  className="text-3xl font-bold"
-                  style={{ fontFamily: "var(--font-heading)", color: "var(--color-primary, #FF6B35)" }}
-                >
-                  SRC{readingBase}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">中文阅读基础</p>
-              </div>
+                  <p
+                    className="text-3xl font-bold"
+                    style={{ fontFamily: "var(--font-heading)", color: "var(--color-primary, #FF6B35)" }}
+                  >
+                    {currentLevel}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">当前中文等级</p>
+                </div>
             </div>
             <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               🗺️ 我的成长
@@ -173,7 +178,7 @@ export default function HubPage() {
             </h3>
             <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
               <TrendingUp className="h-3 w-3" style={{ color: "var(--color-secondary, #4ECDC4)" }} />
-              <span>识字量 {charLevel} ~ {charLevel + 200}</span>
+              <span>识字量约 {currentLevelNum} 字</span>
             </div>
             <div className="flex items-center gap-1 text-sm font-medium"
               style={{ color: "var(--color-primary, #FF6B35)" }}
@@ -197,8 +202,8 @@ export default function HubPage() {
             </h3>
             <div className="space-y-4">
               {[100, 300, 500, 800].map((level, i) => {
-                const isCompleted = readingBase >= level;
-                const isCurrent = readingBase >= level && readingBase < (level === 800 ? 1200 : [300, 500, 800, 1200][i]);
+                const isCompleted = currentLevelNum >= level;
+                const isCurrent = currentLevelNum >= level && currentLevelNum < (level === 800 ? 1200 : [300, 500, 800, 1200][i]);
                 return (
                   <div key={level} className="flex items-center gap-4">
                     <div
@@ -235,7 +240,7 @@ export default function HubPage() {
                         <div
                           className="h-full rounded-full transition-all"
                           style={{
-                            width: isCompleted ? "100%" : isCurrent ? `${Math.min(100, ((readingBase - level) / 200) * 100)}%` : "0%",
+                            width: isCompleted ? "100%" : isCurrent ? `${Math.min(100, ((currentLevelNum - level) / 200) * 100)}%` : "0%",
                             backgroundColor: "var(--color-secondary, #4ECDC4)",
                           }}
                         />
@@ -264,11 +269,11 @@ export default function HubPage() {
                     className="text-2xl font-bold"
                     style={{ fontFamily: "var(--font-heading)", color: "var(--color-primary, #FF6B35)" }}
                   >
-                    SRC{charLevel}
+                    {currentLevel}
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
-                  <p>约 {charLevel} 字</p>
+                  <p>约 {currentLevelNum} 字</p>
                   <p>单字识别</p>
                 </div>
               </div>
@@ -289,16 +294,16 @@ export default function HubPage() {
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-muted/50 p-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">阅读基础</p>
+                  <p className="text-sm text-muted-foreground">推荐阅读基础</p>
                   <p
                     className="text-2xl font-bold"
                     style={{ fontFamily: "var(--font-heading)", color: "#6366f1" }}
                   >
-                    SRC{readingBase}
+                    {recommendedLevel}
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
-                  <p>独立阅读</p>
+                  <p>独立阅读起点</p>
                   <p>置信度：{confidence === "high" ? "高" : confidence === "medium" ? "中" : "低"}</p>
                 </div>
               </div>

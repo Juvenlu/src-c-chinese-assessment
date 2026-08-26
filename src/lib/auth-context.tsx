@@ -92,6 +92,8 @@ export interface ChildAssessmentStatus {
   confirmed_level: string | null;
   estimated_level: string | null;
   recommended_test_level: string;
+  current_level: string | null;
+  next_level: string | null;
   assessment_status: 'not_started' | 'estimated' | 'confirmed';
   // 原始数据（供展示用）
   quickResult: QuickResult | null;
@@ -172,14 +174,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (gdata.success && gdata.data) {
               const d = gdata.data;
               // 从后端返回的统一字段中提取测评状态
+              // ⚠️ 前端不做 Level 计算，所有等级直接读取后端语义化字段
+              // ⚠️ estimated_level = Quick Assessment 估算等级（character_level_u 推导）
+              // ⚠️ current_level = confirmed优先，estimated兜底
+              // ⚠️ recommended_test_level = 推荐正式测试起点（reading_base 推导）
               setAssessmentStatus({
                 confirmed_level: d.confirmed_level,
                 estimated_level: d.estimated_level,
                 recommended_test_level: d.recommended_test_level,
                 assessment_status: d.assessment_status,
+                current_level: d.current_level,
+                next_level: d.next_level,
+                // quickResult 仅保留后端原始字段，前端不再自行推算
                 quickResult: d.assessmentType !== 'formal' && d.quickConfidence
                   ? {
-                      reading_base: d.currentLevel === 'SRC100' ? 100 : d.currentLevel === 'SRC300' ? 300 : d.currentLevel === 'SRC500' ? 500 : 800,
+                      reading_base: d.recommended_test_level === 'SRC100' ? 100 : d.recommended_test_level === 'SRC300' ? 300 : d.recommended_test_level === 'SRC500' ? 500 : 800,
+                      // character_level/word_level 等原始 l/u 不硬编码，
+                      // Hub 统一使用 estimated_level / current_level 作为等级来源
                       character_level_l: 0,
                       character_level_u: 0,
                       word_level_l: 0,
@@ -198,9 +209,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   : null,
               });
               // 兼容旧字段 latestResult
-              if (d.assessmentType === 'quick') {
+              // ⚠️ 兼容层保留，但 Hub 应优先使用 assessmentStatus.current_level
+              if (d.assessment_status === 'estimated' && d.estimated_level) {
+                const el = d.estimated_level;
                 setLatestResult({
-                  reading_base: d.currentLevel === 'SRC100' ? 100 : d.currentLevel === 'SRC300' ? 300 : d.currentLevel === 'SRC500' ? 500 : 800,
+                  reading_base: el === 'SRC100' ? 100 : el === 'SRC300' ? 300 : el === 'SRC500' ? 500 : 800,
                   character_level_l: 0,
                   character_level_u: 0,
                   word_level_l: 0,

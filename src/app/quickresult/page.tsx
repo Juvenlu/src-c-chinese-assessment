@@ -92,21 +92,21 @@ export default function QuickResultPage() {
           <p className="text-muted-foreground">你的中文阅读字词基础</p>
         </div>
 
-        {/* === 主卡片：阅读基础等级 === */}
+        {/* === 主卡片：识字等级 === */}
         <div className="bg-white rounded-3xl p-6 shadow-lg border border-orange-100 mb-4 text-center relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-orange-200/30 to-yellow-200/30 rounded-full -translate-y-8 translate-x-8" />
           <div className="absolute bottom-0 left-0 w-20 h-20 bg-gradient-to-tr from-teal-200/30 to-green-200/30 rounded-full translate-y-6 -translate-x-6" />
 
           <div className="relative">
-            <div className="text-sm text-muted-foreground mb-1">阅读基础约</div>
+            <div className="text-sm text-muted-foreground mb-1">识字水平约</div>
             <div
               className="text-6xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent mb-2"
               style={{ fontFamily: "'ZCOOL KuaiLe', 'Noto Sans SC', cursive, sans-serif" }}
             >
-              {result.readingBaseLevel.replace('SRC', 'SRC')}
+              {result.characterLevel}
             </div>
             <div className="text-base text-muted-foreground mb-3">
-              {result.readingBaseDesc}
+              基于字词识别能力的综合估算
             </div>
             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border ${confColor}`}>
               <BarChart3 size={14} />
