@@ -32,77 +32,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// 题库管理权限将在后续 Admin/Teacher 权限体系建立时正式实现
+// 当前版本暂时禁止公开写操作，仅管理员可通过后台/数据库直接操作
+const WRITE_DISABLED_RESPONSE = NextResponse.json(
+  { error: "题库管理功能暂未开放" },
+  { status: 403 }
+);
+
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { level, character, word, sentence, meaning_question, options, answer, story_text, story_question, story_options, story_answer } = body;
-
-    if (!level || !character || !word || !sentence || !meaning_question || !options || !answer) {
-      return NextResponse.json({ error: '缺少必要字段' }, { status: 400 });
-    }
-
-    const client = getSupabaseClient();
-    const { data, error } = await client
-      .from('question_bank')
-      .insert({ level, character, word, sentence, meaning_question, options, answer, story_text, story_question, story_options, story_answer })
-      .select()
-      .single();
-
-    if (error) throw new Error(`创建题目失败: ${error.message}`);
-
-    return NextResponse.json({ data });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : '未知错误';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return WRITE_DISABLED_RESPONSE;
 }
 
 export async function PUT(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { id, ...updates } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: '缺少题目ID' }, { status: 400 });
-    }
-
-    const client = getSupabaseClient();
-    const { data, error } = await client
-      .from('question_bank')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw new Error(`更新题目失败: ${error.message}`);
-
-    return NextResponse.json({ data });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : '未知错误';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return WRITE_DISABLED_RESPONSE;
 }
 
 export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json({ error: '缺少题目ID' }, { status: 400 });
-    }
-
-    const client = getSupabaseClient();
-    const { error } = await client
-      .from('question_bank')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw new Error(`删除题目失败: ${error.message}`);
-
-    return NextResponse.json({ success: true });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : '未知错误';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return WRITE_DISABLED_RESPONSE;
 }
