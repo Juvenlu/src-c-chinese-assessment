@@ -14,12 +14,12 @@ export async function GET(
     }
 
     const { id } = await params;
-    const client = getSupabaseClient();
+    const supabase = getSupabaseClient();
 
     // 先取绘本详情，拿到 child_id 做归属校验
-    const { data: book, error: bookError } = await client
+    const { data: book, error: bookError } = await supabase
       .from('custom_books')
-      .select('child_id')
+      .select('*')
       .eq('id', parseInt(id))
       .single();
 
@@ -28,9 +28,9 @@ export async function GET(
     }
 
     // 校验 child 归属当前家长
-    const { data: child, error: childError } = await client
+    const { data: child, error: childError } = await supabase
       .from('children')
-      .select('id')
+      .select('id, nickname')
       .eq('id', book.child_id)
       .eq('parent_id', user.id)
       .eq('status', 'active')
@@ -40,15 +40,38 @@ export async function GET(
       return NextResponse.json({ error: '无权访问该绘本' }, { status: 403 });
     }
 
-    // 使用 RPC 函数绕过 schema cache 问题
-    const { data, error } = await client.rpc("get_custom_book_by_id", { p_book_id: parseInt(id) });
-
-    if (error) throw error;
-    if (!data) {
-      return NextResponse.json({ error: "绘本不存在" }, { status: 404 });
+    // 两步查询替代 RPC（原 RPC 函数 c.name 字段名错误，children 表实际为 nickname）
+    // 获取 episode 信息
+    let epData: any = {};
+    if (book.episode_id) {
+      const { data: ep, error: epError } = await supabase
+        .from('book_episodes')
+        .select('id, series_name, episode_number, episode_title')
+        .eq('id', book.episode_id)
+        .single();
+      if (!epError && ep) {
+        epData = ep;
+      }
     }
-    
-    return NextResponse.json({ data });
+
+    // 组装返回数据（保持与原 RPC 返回结构兼容）
+    const result = {
+      ...book,
+      series_name: epData.series_name,
+      episode_number: epData.episode_number,
+      episode_title: epData.episode_title,
+      child_name: child.nickname,
+      episodes: {
+        series_name: epData.series_name,
+        episode_number: epData.episode_number,
+        episode_title: epData.episode_title,
+      },
+      children: {
+        name: child.nickname,
+      },
+    };
+
+    return NextResponse.json({ data: result });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
