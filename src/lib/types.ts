@@ -328,7 +328,9 @@ export interface SampledItem {
 export interface GrowthMapData {
   childId: string;
   currentLevel: Level;
-  
+  assessmentType: 'formal' | 'quick' | 'none';
+  suggestedLevel?: Level;
+
   // 三维度掌握度
   srcMastery: {
     level: Level;
@@ -359,6 +361,8 @@ export interface GrowthMapData {
   
   // 下一目标
   nextLevel?: Level;
+
+  quickConfidence?: 'high' | 'medium' | 'low';
   
   // 成长趋势
   trend: {

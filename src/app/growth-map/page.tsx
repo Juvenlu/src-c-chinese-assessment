@@ -64,6 +64,7 @@ export default function GrowthMapPage() {
       setData({
         childId,
         currentLevel: level,
+        assessmentType: 'formal',
         srcMastery: {
           level,
           mastered: estimatedMastered,
