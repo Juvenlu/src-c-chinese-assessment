@@ -532,15 +532,6 @@ export default function GrowthMapPage() {
           </div>
         </div>
 
-        {/* 返回按钮 */}
-        <div className="text-center">
-          <Link
-            href="/"
-            className="text-[var(--color-src-primary)] hover:underline"
-          >
-            ← 返回首页
-          </Link>
-        </div>
       </div>
     </div>
   );
