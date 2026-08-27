@@ -89,11 +89,23 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
   const latestQuick = quickResults?.[0];
   const allQuickResults = quickResults || [];
 
+  // 从 raw_result 中提取 Quick Assessment 主估算等级（characterLevel）
+  // 主估算等级是 estimated_level 的权威来源，character_level_u 仅为区间上限
+  const raw = latestQuick?.raw_result as Record<string, any> | null | undefined;
+  const extractLevelNum = (val: any): number | undefined => {
+    if (!val) return undefined;
+    if (typeof val === 'number') return val;
+    const m = String(val).match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : undefined;
+  };
+  const quickCharacterLevel = extractLevelNum(raw?.characterLevel);
+
   // ===== 3. 确定级别与状态（统一使用 Level Service）
   const confirmedLevel = getConfirmedLevel(latestFormal);
   const estimatedLevel = getEstimatedLevel({
     reading_base: latestQuick?.reading_base,
     character_level_u: latestQuick?.character_level_u,
+    character_level: quickCharacterLevel,
   });
   const recommendedTestLevel = getRecommendedTestLevel({
     reading_base: latestQuick?.reading_base,

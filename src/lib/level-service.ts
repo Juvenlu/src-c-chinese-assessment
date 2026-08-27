@@ -169,14 +169,21 @@ export function getConfirmedLevel(latestFormal: { level: string } | null | undef
 
 /**
  * 获取预估级别（estimated_level）
- * 优先依据 character_level_u（单字上限）作为估算等级
+ * 优先依据 character_level（Quick Assessment 主估算等级）
+ * 次选 character_level_u（区间上限，向后兼容没有 character_level 的旧数据）
+ * 最后 fallback 到 reading_base
  * 与 getRecommendedTestLevel 不同：推荐测试级别更保守（用 reading_base），
- * 而 estimated_level 反映 Quick Assessment 估算的最高可能水平
+ * 而 estimated_level 反映 Quick Assessment 的综合估算主水位
  */
 export function getEstimatedLevel(opts: {
   reading_base?: number;
   character_level_u?: number;
+  character_level?: number;
 }): Level | null {
+  if (opts.character_level) {
+    const lvl = numToLevel(opts.character_level);
+    if (lvl) return lvl;
+  }
   if (opts.character_level_u) {
     const lvl = numToLevel(opts.character_level_u);
     if (lvl) return lvl;
