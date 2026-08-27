@@ -209,6 +209,8 @@ export interface QuickAssessmentResult {
   totalTimeMs: number;
   /** 测试质量标记 */
   qualityFlags: string[];
+  /** guest session ID（保存到后端后返回） */
+  guestSessionId?: string;
 }
 
 /** 测试会话状态（供前端步进使用） */

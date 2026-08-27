@@ -22,8 +22,21 @@ export default function QuickTestPage() {
   const [questionStart, setQuestionStart] = useState(0);
   const [sessionStart, setSessionStart] = useState(0);
   const [result, setResult] = useState<QuickAssessmentResult | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [answerAnim, setAnswerAnim] = useState<'' | 'correct' | 'wrong'>('');
   const [showLevelUp, setShowLevelUp] = useState(false);
+
+  // 生成/获取稳定的匿名 device_id
+  const getDeviceId = (): string => {
+    let devId = typeof window !== 'undefined' ? localStorage.getItem('src_device_id') : null;
+    if (!devId) {
+      devId = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('src_device_id', devId);
+      }
+    }
+    return devId;
+  };
 
   // 初始化测试
   const startTest = () => {
@@ -86,14 +99,16 @@ export default function QuickTestPage() {
         const totalTime = Date.now() - sessionStart;
         const res = calculateQuickResult(newAnswers, totalTime);
         setResult(res);
-        // 保存到 localStorage
+        // 保存到 localStorage（当前结果）
         localStorage.setItem('src_quick_test_results_v2', JSON.stringify(res));
-        // 提交到后端保存 guest session（不阻塞跳转）
+        const deviceId = getDeviceId();
+        // 提交到后端保存 guest session
         fetch('/api/guest/test-result', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            result: res,
+            device_id: deviceId,
+            result_data: res,
             answers: newAnswers.map(a => ({
               question_id: a.questionId,
               question_type: a.questionType,
@@ -111,14 +126,20 @@ export default function QuickTestPage() {
           if (resp.ok) {
             const data = await resp.json();
             if (data.guest_session_id) {
+              setCurrentSessionId(data.guest_session_id);
               localStorage.setItem('src_guest_session_id', data.guest_session_id);
+              // 将 session_id 写入 result 并重新保存，供 quickresult 页面读取
+              const resWithSession = { ...res, guestSessionId: data.guest_session_id };
+              localStorage.setItem('src_quick_test_results_v2', JSON.stringify(resWithSession));
+              setResult(resWithSession);
             }
           }
+          // 保存完成后再跳转，确保 result 带 session_id
+          window.location.href = '/quickresult';
         }).catch(() => {
-          // 失败不影响用户体验
+          // 失败不影响用户体验，仍然跳转
+          window.location.href = '/quickresult';
         });
-        // 立即跳转结果页
-        window.location.href = '/quickresult';
       } else {
         setCurrentIndex(currentIndex + 1);
         setQuestionStart(Date.now());

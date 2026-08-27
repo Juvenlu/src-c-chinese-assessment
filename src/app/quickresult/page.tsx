@@ -72,7 +72,10 @@ export default function QuickResultPage() {
 
   const handleRegister = () => {
     localStorage.setItem('guest_assessment_result', JSON.stringify(result));
-    window.location.href = '/signup?from=quicktest';
+    const sid = result.guestSessionId || localStorage.getItem('src_guest_session_id');
+    const params = new URLSearchParams({ from: 'quicktest' });
+    if (sid) params.set('guest_session_id', sid);
+    window.location.href = '/signup?' + params.toString();
   };
 
   return (

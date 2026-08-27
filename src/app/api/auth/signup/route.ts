@@ -178,12 +178,31 @@ export async function POST(req: NextRequest) {
     // ===== 如果有游客测试，自动绑定 =====
     if (guestSessionId) {
       try {
-        // 读取 guest session 的结果数据
+        // 读取 guest session 的结果数据（含 claimed 状态）
         const { data: guestSession } = await supabase
           .from('guest_test_sessions')
-          .select('id, result_data')
+          .select('id, claimed, result_data')
           .eq('id', guestSessionId)
           .maybeSingle();
+
+        // 安全校验 1：guest_session 必须存在
+        if (!guestSession) {
+          console.warn(`[Signup] guest session not found: ${guestSessionId}`);
+          throw new Error('GUEST_SESSION_NOT_FOUND');
+        }
+
+        // 安全校验 2：guest_session 必须尚未 claimed
+        if (guestSession.claimed) {
+          console.warn(`[Signup] guest session already claimed: ${guestSessionId}`);
+          throw new Error('GUEST_SESSION_ALREADY_CLAIMED');
+        }
+
+        // 安全校验 3：result_data 必须有效
+        const resultData = guestSession.result_data as Record<string, any> | null;
+        if (!resultData || typeof resultData !== 'object') {
+          console.warn(`[Signup] guest session has invalid result_data: ${guestSessionId}`);
+          throw new Error('GUEST_SESSION_INVALID_DATA');
+        }
 
         // 标记 guest session 为已认领
         await supabase
@@ -194,40 +213,47 @@ export async function POST(req: NextRequest) {
           })
           .eq('id', guestSessionId);
 
-        // 如果有结果数据，写入 quick_assessment_results
-        if (guestSession?.result_data) {
-          const r = guestSession.result_data as Record<string, any>;
-          // 从 Level 字符串（如 "SRC500"）中提取数字
-          const extractLevelNum = (val: any): number | null => {
-            if (!val) return null;
-            if (typeof val === 'number') return val;
-            const m = String(val).match(/(\d+)/);
-            return m ? parseInt(m[1], 10) : null;
-          };
+        // 写入 quick_assessment_results
+        // 从 Level 字符串（如 "SRC500"）中提取数字
+        const extractLevelNum = (val: any): number | null => {
+          if (!val) return null;
+          if (typeof val === 'number') return val;
+          const m = String(val).match(/(\d+)/);
+          return m ? parseInt(m[1], 10) : null;
+        };
 
-          const charL = extractLevelNum(r.characterLevelLower);
-          const charU = extractLevelNum(r.characterLevelUpper || r.characterLevel);
-          const wordL = extractLevelNum(r.wordLevelLower);
-          const wordU = extractLevelNum(r.wordLevelUpper || r.wordLevel);
-          const readingBase = extractLevelNum(r.readingBaseLevel);
+        const charL = extractLevelNum(resultData.characterLevelLower);
+        const charU = extractLevelNum(resultData.characterLevelUpper || resultData.characterLevel);
+        const wordL = extractLevelNum(resultData.wordLevelLower);
+        const wordU = extractLevelNum(resultData.wordLevelUpper || resultData.wordLevel);
+        const readingBase = extractLevelNum(resultData.readingBaseLevel);
 
-          await supabase
-            .from('quick_assessment_results')
-            .insert({
-              child_id: childData.id,
-              guest_session_id: guestSessionId,
-              character_level_l: charL,
-              character_level_u: charU,
-              word_level_l: wordL,
-              word_level_u: wordU,
-              reading_base: readingBase,
-              confidence: r.confidence || 'medium',
-              raw_result: guestSession.result_data,
-            });
+        await supabase
+          .from('quick_assessment_results')
+          .insert({
+            child_id: childData.id,
+            guest_session_id: guestSessionId,
+            character_level_l: charL,
+            character_level_u: charU,
+            word_level_l: wordL,
+            word_level_u: wordU,
+            reading_base: readingBase,
+            confidence: resultData.confidence || 'medium',
+            raw_result: resultData,
+          });
 
-          console.log(`[Signup] guest result bound to child ${childData.id}, reading_base=SRC${readingBase}`);
-        }
+        console.log(`[Signup] guest result bound to child ${childData.id}, reading_base=SRC${readingBase}`);
       } catch (bindErr) {
+        // 只有明确的校验错误才向外抛出，未知错误保留为 warning 但不阻断注册
+        const code = bindErr instanceof Error ? bindErr.message : '';
+        if (code.startsWith('GUEST_SESSION_')) {
+          // 明确校验失败：返回错误，不继续注册流程
+          console.error(`[Signup] guest session claim rejected: ${code}`);
+          return NextResponse.json(
+            { error: '测试结果无效或已被绑定，请重新测试' },
+            { status: 400 }
+          );
+        }
         console.warn('[Signup] bind guest test warning:', bindErr);
       }
     }
