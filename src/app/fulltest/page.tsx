@@ -6,6 +6,7 @@ import { getCharList, getWordList } from '@/lib/questions';
 import { generateCharacterTest } from '@/lib/item-selection';
 import { selectVocabularyTest, type SampledVocabulary } from '@/lib/vocabulary-sampling';
 import { LEVEL_CONFIG, type Level, type CharTestResult, type SampledItem } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
 
 // Fisher-Yates shuffle
 function shuffleArray<T>(array: T[], seed: number): T[] {
@@ -25,9 +26,26 @@ const randomSeed = Math.floor(Math.random() * 1000000);
 function FullTestContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const childId = searchParams.get('childId') || '';
-  const childName = searchParams.get('childName') || '';
+  const { user, activeChild, authFetch, loading: authLoading } = useAuth();
+  const isLoggedIn = !!user;
+
+  const [childId, setChildId] = useState('');
+  const [childName, setChildName] = useState('');
   const level = (searchParams.get('level') || 'SRC300') as Level;
+
+  // 已登录时从 activeChild 获取 childId
+  useEffect(() => {
+    if (isLoggedIn && activeChild) {
+      setChildId(activeChild.id);
+      setChildName(activeChild.nickname || '');
+    } else {
+      // 未登录时从 URL 获取
+      const urlChildId = searchParams.get('childId') || '';
+      const urlChildName = searchParams.get('childName') || '';
+      setChildId(urlChildId);
+      setChildName(urlChildName);
+    }
+  }, [isLoggedIn, activeChild, searchParams]);
 
   // State
   const [phase, setPhase] = useState<'intro' | 'chars' | 'words' | 'done'>('intro');
@@ -162,10 +180,15 @@ function FullTestContent() {
     // Save to test_results via API in the background (don't wait for it)
     if (childId) {
       try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (isLoggedIn) {
+          const token = localStorage.getItem('src_session_token');
+          if (token) headers['x-session'] = token;
+        }
         const sessionRes = await fetch('/api/sessions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ child_id: childId, level, test_mode: 'full' }),
+          headers,
+          body: JSON.stringify({ child_id: childId, level, test_mode: 'formal' }),
         });
         const { data: sessionData } = await sessionRes.json();
         if (sessionData?.id) {
@@ -191,21 +214,21 @@ function FullTestContent() {
           // Save answers in background
           fetch('/api/answers', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ answers: allAnswers }),
           }).catch(() => {});
 
           // Complete session
           fetch(`/api/sessions?id=${sessionData.id}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ status: 'completed' }),
           }).catch(() => {});
 
           // Save result with pre-calculated values
           fetch('/api/results', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({
               session_id: sessionData.id,
               child_id: childId,

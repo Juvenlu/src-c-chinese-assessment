@@ -393,10 +393,10 @@ function TestContent() {
         body: JSON.stringify({ session_id: sessionId }),
       });
 
-      router.push(`/result?sessionId=${sessionId}`);
+      router.push(`/result?sessionId=${sessionId}&level=${level}`);
     } catch (err) {
       console.error(err);
-      router.push(`/result?sessionId=${sessionId}`);
+      router.push(`/result?sessionId=${sessionId}&level=${level}`);
     }
   };
 

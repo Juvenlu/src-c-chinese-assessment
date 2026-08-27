@@ -186,7 +186,7 @@ export default function GrowthMapPage() {
           </p>
           {isEstimated && (
             <p className="text-xs text-[var(--color-src-text-light)] mt-1">
-              📊 基于 Quick Assessment 快速估算，正式等级以闯关测试结果为准
+              📊 基于 Quick Assessment 快速估算，正式等级以正式 SRC 测试结果为准
             </p>
           )}
         </div>
@@ -380,11 +380,11 @@ export default function GrowthMapPage() {
             <>
               <p className="text-lg mb-4">估算等级：{data.current_level}</p>
               <p className="text-sm opacity-90 mb-4">
-                建议完成正式 {data.recommended_test_level} 闯关测试，
+                建议完成正式 {data.recommended_test_level} 字词测试，
                 以获得更准确的中文能力评估。
               </p>
               <Link
-                href={`/profile?mode=sampling&level=${data.recommended_test_level}`}
+                href={`/fulltest?level=${data.recommended_test_level}`}
                 className="inline-block bg-white text-[var(--color-src-primary)] px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform"
               >
                 开始正式测试 →
@@ -397,7 +397,7 @@ export default function GrowthMapPage() {
                 建议完成正式 SRC800 测试确认
               </p>
               <Link
-                href={`/profile?mode=sampling&level=SRC800`}
+                href={`/fulltest?level=SRC800`}
                 className="inline-block bg-white text-[var(--color-src-primary)] px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform"
               >
                 开始正式测试 →
