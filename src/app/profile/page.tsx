@@ -1,29 +1,93 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LanguageEnv, LANGUAGE_ENV_LABELS, Level, LEVEL_CONFIG, TestMode } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
 
 function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode = (searchParams.get('mode') || 'sampling') as TestMode;
+  const urlLevel = searchParams.get('level') as Level | null;
+
+  const { user, activeChild, loading, authFetch } = useAuth();
 
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [grade, setGrade] = useState('');
   const [country, setCountry] = useState('');
   const [languageEnv, setLanguageEnv] = useState<LanguageEnv>('bilingual');
-  const [level, setLevel] = useState<Level>('SRC300');
-  const [loading, setLoading] = useState(false);
+  const [level, setLevel] = useState<Level>(urlLevel || 'SRC300');
+  const [starting, setStarting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState(1);
+
+  // 已登录 + 有当前孩子 → 直接进入测试，跳过 Profile
+  useEffect(() => {
+    if (loading) return;
+    if (!user || !activeChild) return;
+    const child = activeChild;
+
+    const targetLevel: Level = urlLevel || 'SRC300';
+
+    async function startTest() {
+      setStarting(true);
+      try {
+        if (mode === 'full') {
+          // 逐字测试 - 直接跳转
+          router.push(`/fulltest?childId=${child.id}&childName=${encodeURIComponent(child.nickname)}&level=${targetLevel}`);
+        } else {
+          // 抽测闯关 - 用当前登录孩子创建 session
+          const sessionRes = await authFetch('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              child_id: child.id,
+              level: targetLevel,
+              test_mode: mode,
+            }),
+          });
+          const { data: sessionData, error: sessionError } = await sessionRes.json();
+          if (sessionError) throw new Error(sessionError);
+          if (!sessionData?.id) throw new Error('创建测试会话失败');
+
+          // Seed questions if needed
+          await fetch('/api/seed', { method: 'POST' });
+
+          router.push(`/test?sessionId=${sessionData.id}&level=${targetLevel}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('进入测试失败，请重试');
+      } finally {
+        setStarting(false);
+      }
+    }
+
+    startTest();
+  }, [loading, user, activeChild, mode, urlLevel, router, authFetch]);
+
+  // 登录态加载中 或 已登录正在跳转 → 显示加载态
+  if (loading || (user && activeChild)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)]">
+        <div className="text-center">
+          <div className="text-4xl animate-bounce mb-4">🐵</div>
+          <p className="text-[var(--color-src-text-light)]">{starting ? '正在进入测试...' : '加载中...'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 未登录 → 保留原有 Profile 收集流程
 
   const modeLabel = mode === 'full' ? '逐字测试' : '抽测闯关';
   const modeIcon = mode === 'full' ? '📝' : '🎮';
 
   const handleCreateChild = async () => {
     if (!name || !age || !grade || !country) return;
-    setLoading(true);
+    setSubmitting(true);
     try {
       const res = await fetch('/api/children', {
         method: 'POST',
@@ -70,7 +134,7 @@ function ProfileContent() {
       console.error(err);
       alert('创建失败，请重试');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -196,13 +260,11 @@ function ProfileContent() {
             <div className="pt-2">
               <button
                 onClick={handleNext}
-                disabled={!name || !age || !grade || !country || loading}
+                disabled={!name || !age || !grade || !country}
                 className="w-full rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{ backgroundColor: 'var(--color-src-primary)' }}
               >
-                {loading
-                  ? '准备中...'
-                  : mode === 'full'
+                {mode === 'full'
                     ? '开始逐字测试 📝'
                     : '下一步 →'}
               </button>
@@ -253,11 +315,11 @@ function ProfileContent() {
               </button>
               <button
                 onClick={handleCreateChild}
-                disabled={loading}
+                disabled={submitting}
                 className="flex-[2] rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: 'var(--color-src-primary)' }}
               >
-                {loading ? '准备中...' : '开始测试 🚀'}
+                {submitting ? '准备中...' : '开始测试 🚀'}
               </button>
             </div>
           </div>
