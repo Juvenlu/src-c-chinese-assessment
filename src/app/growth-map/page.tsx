@@ -166,6 +166,8 @@ export default function GrowthMapPage() {
   }
 
   const nextLevel = data.nextLevel;
+  const isEstimated = data.assessment_status === 'estimated';
+  const isConfirmed = data.assessment_status === 'confirmed';
 
   return (
     <div className="min-h-screen bg-[var(--color-src-bg)] py-8 px-4">
@@ -176,12 +178,17 @@ export default function GrowthMapPage() {
             🌱 我的中文成长地图
           </h1>
           <p className="text-[var(--color-src-text-light)]">
-            {data.assessment_status === 'confirmed'
+            {isConfirmed
               ? `当前等级：${data.current_level}`
-              : data.assessment_status === 'estimated'
-                ? `建议正式测试级别：${data.recommended_test_level}`
+              : isEstimated
+                ? `估算等级：${data.estimated_level}（建议完成正式测试确认）`
                 : '尚未开始正式测试'}
           </p>
+          {isEstimated && (
+            <p className="text-xs text-[var(--color-src-text-light)] mt-1">
+              📊 基于 Quick Assessment 快速估算，正式等级以闯关测试结果为准
+            </p>
+          )}
         </div>
 
         {/* 第一阶段：教材基础识字 */}
@@ -192,28 +199,44 @@ export default function GrowthMapPage() {
               <h2 className="text-xl font-display text-[var(--color-src-text)] mb-2">
                 第一阶段：教材基础识字
               </h2>
-              <div className="text-3xl font-display text-[var(--color-src-primary)] mb-2">
-                {data.pepMastery.mastered}
-                <span className="text-lg text-[var(--color-src-text-light)]">
-                  {' '}
-                  / {data.pepMastery.total}
-                </span>
-              </div>
-              <p className="text-sm text-[var(--color-src-text-light)] mb-3">
-                已掌握{data.pepMastery.level}中的{data.pepMastery.mastered}字
-              </p>
-              <div className="w-full bg-gray-100 rounded-full h-3">
-                <div
-                  className="bg-blue-400 h-3 rounded-full transition-all duration-1000"
-                  style={{
-                    width: `${Math.min(100, (data.pepMastery.mastered / data.pepMastery.total) * 100)}%`,
-                  }}
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                本次测试覆盖 {data.pepMastery.covered} 个教材汉字（覆盖率{' '}
-                {Math.round(data.pepMastery.coverageRate * 100)}%）
-              </p>
+              {isEstimated ? (
+                <div className="py-4">
+                  <div className="text-2xl font-display text-[var(--color-src-primary)] mb-2">
+                    {data.current_level}
+                    <span className="text-sm bg-[var(--color-src-accent)]/30 text-[var(--color-src-text)] px-2 py-0.5 rounded-full ml-2 font-sans">
+                      估算
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--color-src-text-light)]">
+                    估算可覆盖 {data.pepMastery.level} 教材常用字
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-3xl font-display text-[var(--color-src-primary)] mb-2">
+                    {data.pepMastery.mastered}
+                    <span className="text-lg text-[var(--color-src-text-light)]">
+                      {' '}
+                      / {data.pepMastery.total}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--color-src-text-light)] mb-3">
+                    已掌握{data.pepMastery.level}中的{data.pepMastery.mastered}字
+                  </p>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className="bg-blue-400 h-3 rounded-full transition-all duration-1000"
+                      style={{
+                        width: `${Math.min(100, (data.pepMastery.mastered / data.pepMastery.total) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    本次测试覆盖 {data.pepMastery.covered} 个教材汉字（覆盖率{' '}
+                    {Math.round(data.pepMastery.coverageRate * 100)}%）
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -231,30 +254,49 @@ export default function GrowthMapPage() {
               <h2 className="text-xl font-display text-[var(--color-src-text)] mb-2">
                 第二阶段：阅读常用字
               </h2>
-              <div className="text-3xl font-display text-[var(--color-src-primary)] mb-2">
-                {data.srcMastery.isFullTest ? '' : '约'}
-                {data.srcMastery.mastered}
-                <span className="text-lg text-[var(--color-src-text-light)]">
-                  {' '}
-                  / {data.srcMastery.total}
-                </span>
-              </div>
-              <p className="text-sm text-[var(--color-src-text-light)] mb-3">
-                已掌握{data.srcMastery.level}中的{data.srcMastery.mastered}字
-              </p>
-              <div className="w-full bg-gray-100 rounded-full h-3">
-                <div
-                  className="bg-[var(--color-src-primary)] h-3 rounded-full transition-all duration-1000"
-                  style={{
-                    width: `${Math.min(100, data.srcMastery.masteryRate * 100)}%`,
-                  }}
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                {data.srcMastery.isFullTest
-                  ? '全量测试'
-                  : `抽测估算，掌握度 ${Math.round(data.srcMastery.masteryRate * 100)}%`}
-              </p>
+              {isEstimated ? (
+                <div className="py-4">
+                  <div className="text-3xl font-display text-[var(--color-src-primary)] mb-2">
+                    约 {data.current_level}
+                    <span className="text-sm bg-[var(--color-src-accent)]/30 text-[var(--color-src-text)] px-2 py-0.5 rounded-full ml-2 font-sans">
+                      估算
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--color-src-text-light)]">
+                    估算阅读常用字达到 {data.srcMastery.level} 水平
+                  </p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    完成正式闯关测试可获得精确掌握数据
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-3xl font-display text-[var(--color-src-primary)] mb-2">
+                    {data.srcMastery.isFullTest ? '' : '约'}
+                    {data.srcMastery.mastered}
+                    <span className="text-lg text-[var(--color-src-text-light)]">
+                      {' '}
+                      / {data.srcMastery.total}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--color-src-text-light)] mb-3">
+                    已掌握{data.srcMastery.level}中的{data.srcMastery.mastered}字
+                  </p>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className="bg-[var(--color-src-primary)] h-3 rounded-full transition-all duration-1000"
+                      style={{
+                        width: `${Math.min(100, data.srcMastery.masteryRate * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {data.srcMastery.isFullTest
+                      ? '全量测试'
+                      : `抽测估算，掌握度 ${Math.round(data.srcMastery.masteryRate * 100)}%`}
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -272,25 +314,41 @@ export default function GrowthMapPage() {
               <h2 className="text-xl font-display text-[var(--color-src-text)] mb-2">
                 第三阶段：词语应用
               </h2>
-              <div className="text-3xl font-display text-[var(--color-src-secondary)] mb-2">
-                {Math.round(data.vocabMastery.masteryRate * 100)}%
-              </div>
-              <p className="text-sm text-[var(--color-src-text-light)] mb-3">
-                常用词组掌握情况
-              </p>
-              <div className="w-full bg-gray-100 rounded-full h-3">
-                <div
-                  className="bg-[var(--color-src-secondary)] h-3 rounded-full transition-all duration-1000"
-                  style={{
-                    width: `${Math.min(100, data.vocabMastery.masteryRate * 100)}%`,
-                  }}
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                本次测试 {data.vocabMastery.tested} 个词组，答对{' '}
-                {data.vocabMastery.correct} 个
-                {data.vocabMastery.isFullTest ? '' : `（掌握率 ${Math.round(data.vocabMastery.masteryRate * 100)}%）`}
-              </p>
+              {isEstimated ? (
+                <div className="py-4">
+                  <div className="text-2xl font-display text-[var(--color-src-secondary)] mb-2">
+                    估算词汇量：约 {Math.round(data.srcMastery.total * 2.86)} 个
+                    <span className="text-sm bg-[var(--color-src-accent)]/30 text-[var(--color-src-text)] px-2 py-0.5 rounded-full ml-2 font-sans">
+                      估算
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--color-src-text-light)]">
+                    完成正式闯关测试可获得精确词语掌握数据
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-3xl font-display text-[var(--color-src-secondary)] mb-2">
+                    {Math.round(data.vocabMastery.masteryRate * 100)}%
+                  </div>
+                  <p className="text-sm text-[var(--color-src-text-light)] mb-3">
+                    常用词组掌握情况
+                  </p>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className="bg-[var(--color-src-secondary)] h-3 rounded-full transition-all duration-1000"
+                      style={{
+                        width: `${Math.min(100, data.vocabMastery.masteryRate * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    本次测试 {data.vocabMastery.tested} 个词组，答对{' '}
+                    {data.vocabMastery.correct} 个
+                    {data.vocabMastery.isFullTest ? '' : `（掌握率 ${Math.round(data.vocabMastery.masteryRate * 100)}%）`}
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -298,9 +356,9 @@ export default function GrowthMapPage() {
         {/* 下一步 */}
         <div className="bg-gradient-to-r from-[var(--color-src-primary)] to-[var(--color-src-accent)] rounded-3xl p-6 shadow-lg text-white text-center mb-6">
           <h2 className="text-2xl font-display mb-2">🚀 下一步</h2>
-          {nextLevel ? (
+          {nextLevel && isConfirmed ? (
             <>
-              <p className="text-lg mb-4">{nextLevel}</p>
+              <p className="text-lg mb-4">下一阶段：{nextLevel}</p>
               <p className="text-sm opacity-90 mb-4">
                 继续扩大阅读常用字，并通过词组和闯关进一步提升中文理解能力。
               </p>
@@ -311,12 +369,39 @@ export default function GrowthMapPage() {
                 进入下一阶段 →
               </Link>
             </>
-          ) : (
+          ) : !nextLevel && isConfirmed ? (
             <>
-              <p className="text-lg mb-4">恭喜你完成最高等级！</p>
+              <p className="text-lg mb-4">🎉 恭喜你完成最高等级！</p>
               <p className="text-sm opacity-90">
                 继续通过阅读和闯关保持你的中文能力。
               </p>
+            </>
+          ) : nextLevel && isEstimated ? (
+            <>
+              <p className="text-lg mb-4">估算等级：{data.current_level}</p>
+              <p className="text-sm opacity-90 mb-4">
+                建议完成正式 {data.recommended_test_level} 闯关测试，
+                以获得更准确的中文能力评估。
+              </p>
+              <Link
+                href={`/profile?mode=sampling&level=${data.recommended_test_level}`}
+                className="inline-block bg-white text-[var(--color-src-primary)] px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform"
+              >
+                开始正式测试 →
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-lg mb-4">估算已达最高等级</p>
+              <p className="text-sm opacity-90 mb-4">
+                建议完成正式 SRC800 测试确认
+              </p>
+              <Link
+                href={`/profile?mode=sampling&level=SRC800`}
+                className="inline-block bg-white text-[var(--color-src-primary)] px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform"
+              >
+                开始正式测试 →
+              </Link>
             </>
           )}
         </div>
@@ -326,36 +411,42 @@ export default function GrowthMapPage() {
           <h2 className="text-xl font-display text-[var(--color-src-text)] mb-4">
             📈 成长趋势
           </h2>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-[var(--color-src-text-light)]">
-                  阅读识字
-                </span>
-                <span className="text-[var(--color-src-primary)] font-bold">
-                  {Math.round(data.trend.charMastery[data.trend.charMastery.length - 1]?.rate * 100 || 0)}%
-                </span>
-              </div>
-              <div className="flex gap-1 h-8">
-                {data.trend.charMastery.map((point, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 bg-[var(--color-src-primary)]/20 rounded-t relative"
-                  >
+          {isEstimated ? (
+            <p className="text-sm text-[var(--color-src-text-light)]">
+              完成正式测试后可查看精确的成长趋势数据。
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-[var(--color-src-text-light)]">
+                    阅读识字
+                  </span>
+                  <span className="text-[var(--color-src-primary)] font-bold">
+                    {Math.round(data.trend.charMastery[data.trend.charMastery.length - 1]?.rate * 100 || 0)}%
+                  </span>
+                </div>
+                <div className="flex gap-1 h-8">
+                  {data.trend.charMastery.map((point, i) => (
                     <div
-                      className="absolute bottom-0 left-0 right-0 bg-[var(--color-src-primary)] rounded-t"
-                      style={{ height: `${point.rate * 100}%` }}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-                {data.trend.charMastery.map((p, i) => (
-                  <span key={i}>{p.date}</span>
-                ))}
+                      key={i}
+                      className="flex-1 bg-[var(--color-src-primary)]/20 rounded-t relative"
+                    >
+                      <div
+                        className="absolute bottom-0 left-0 right-0 bg-[var(--color-src-primary)] rounded-t"
+                        style={{ height: `${point.rate * 100}%` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  {data.trend.charMastery.map((p, i) => (
+                    <span key={i}>{p.date}</span>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* 优势与弱项 */}
