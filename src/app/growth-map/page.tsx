@@ -208,7 +208,7 @@ export default function GrowthMapPage() {
                     </span>
                   </div>
                   <p className="text-sm text-[var(--color-src-text-light)]">
-                    估算可覆盖 {data.pepMastery.level} 教材常用字
+                    快速估算达到 {data.current_level} 水平
                   </p>
                 </div>
               ) : (
