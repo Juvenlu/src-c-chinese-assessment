@@ -1,0 +1,757 @@
+# SRC100 / SRC300 / SRC500 / SRC800 全等级一致性最终审计与修复指令
+
+## 一、任务目标
+
+现在不要继续针对某一个页面做局部修复。
+
+请对 SRC100、SRC300、SRC500、SRC800 四个等级进行一次完整的“注册 → Quick Assessment → 创建个人档案 → Hub → Growth Map → 正式 SRC 测试 → Results → Growth Map confirmed → 退出登录 → 重新登录 → Hub 数据恢复”的全链路一致性审计。
+
+目标是确认：
+
+> **SRC300 已经通过的完整数据链路，必须真正做到 SRC100 / SRC300 / SRC500 / SRC800 四个等级均由同一套动态逻辑驱动，而不是 SRC300 可以工作、其他等级靠 fallback 或硬编码勉强工作。**
+
+本次任务遵循以下最高原则：
+
+### 原则 1：不要改变已经确认正确的核心算法
+
+严禁未经确认修改：
+
+* Quick Assessment 算法
+* LevelService 等级计算逻辑
+* SRC 各等级的核心判定规则
+* 单字/词组抽样算法及比例
+* 正式测试的认识/不认识题型
+* confirmed level 计算规则
+* 趣味闯关算法
+* XP 逻辑
+* SRC 字库内容本身
+
+除非审计明确证明某一处本身就是 Bug。
+
+### 原则 2：禁止通过增加 fallback 掩盖问题
+
+如果某个等级无法正常运行，必须找到真正原因。
+
+不要采用：
+
+* 强制 fallback 到 SRC300
+* 强制 fallback 到 SRC100
+* 用另一个等级的数据代替当前等级
+* 用默认数字伪造测试结果
+* 用 UI 文案掩盖数据库或数据链路问题
+
+### 原则 3：所有等级必须动态读取当前 level
+
+凡是与等级有关的：
+
+* 字库
+* 词库
+* 抽样
+* 题量
+* session
+* answers
+* results
+* Growth Map
+* confirmed level
+* recommended level
+* 下一阶段
+* Hub
+
+都必须确认是否真正使用当前 `level`，不能存在 SRC300 或 SRC100 专属硬编码。
+
+---
+
+# 二、第一阶段：只读审计，不修改代码
+
+首先进行完整代码审计。
+
+请重点检查以下文件及相关调用链：
+
+* `src/lib/types.ts`
+* `src/lib/item-selection.ts`
+* `src/lib/questions.ts`
+* `src/app/fulltest/page.tsx`
+* `src/app/result/page.tsx`
+* `src/app/profile/page.tsx`
+* `src/app/api/sessions/route.ts`
+* `src/app/api/answers/route.ts`
+* `src/app/api/results/route.ts`
+* `src/app/api/growth-map/route.ts`
+* `src/lib/auth-context.tsx`
+* `src/app/hub/page.tsx`
+* `LevelService` 相关文件
+* SRC 字库数据文件
+* Quick Assessment 相关文件
+
+同时搜索整个项目中的：
+
+* `SRC100`
+* `SRC300`
+* `SRC500`
+* `SRC800`
+* `level: 'SRC100'`
+* `level = 'SRC100'`
+* `|| 'SRC100'`
+* `|| 'SRC300'`
+* `useState<Level>('SRC300')`
+* `test_mode`
+* `mode === 'full'`
+* `mode === 'formal'`
+
+目的不是简单统计，而是判断：
+
+> 这个硬编码是合理的初始默认值，还是错误地把某一个等级写死了。
+
+---
+
+# 三、重点审计 1：item-selection.ts
+
+目前发现：
+
+`src/lib/item-selection.ts`
+
+`buildInitialPool` 中多个位置存在：
+
+`level: 'SRC100'`
+
+这是必须修复的。
+
+要求：
+
+1. 找出 `buildInitialPool` 当前实际接收的参数。
+2. 如果已经有 `level` 参数，直接使用当前 level。
+3. 如果没有，则合理增加 level 参数。
+4. 所有生成的 item 必须携带真实当前等级。
+5. SRC100 → item.level = SRC100
+6. SRC300 → item.level = SRC300
+7. SRC500 → item.level = SRC500
+8. SRC800 → item.level = SRC800
+
+禁止通过 fallback 把所有 item 写成 SRC100。
+
+修复后必须检查：
+
+* Fulltest 实际题目内容仍来自当前等级正确字库。
+* answers 保存不受影响。
+* results 统计不受影响。
+* sampling 流程不受影响。
+
+---
+
+# 四、重点审计 2：SRC100 / SRC300 / SRC500 / SRC800 字库真实数量
+
+目前 Agent 报告显示：
+
+| Level  |  单字 |  词组 |
+| ------ | --: | --: |
+| SRC100 | 114 | 123 |
+| SRC300 | 317 | 245 |
+| SRC500 |  54 |  32 |
+| SRC800 |  35 |  22 |
+
+这个问题必须首先确认。
+
+请不要直接假设 SRC500 / SRC800 数据缺失。
+
+请检查：
+
+1. 当前代码中的 SRC500 / SRC800 字库是否确实只有上述数量。
+2. 是否存在其他文件、JSON、TS、数据库或 seed 数据中已经存在完整 SRC500 / SRC800 字库，但当前代码没有加载。
+3. 是否因为当前查询条件、level 范围、去重逻辑、import/export 或 filtering 导致实际数量被错误缩减。
+4. 是否存在“累计字库”和“本等级新增字库”概念混淆。
+5. `getCharList(level)` 返回的是：
+
+   * 当前等级累计字库
+   * 还是当前等级新增字库
+6. `getWordList(level)` 同样检查。
+7. 检查 SRC500 / SRC800 的 LEVEL_CONFIG 是否与真实字库设计一致。
+
+尤其要确认：
+
+> SRC500 是否本来应该是约 500+ 累计汉字、800+ 累计汉字，而当前代码只是加载了少量 seed 数据？
+
+如果确实只是 seed 数据，请明确报告：
+
+> “代码支持四级，但 SRC500/SRC800 数据库目前不是生产完整字库。”
+
+如果是加载逻辑错误，则必须修复加载逻辑。
+
+如果确实是产品尚未完成的字库数据，则**不要擅自生成或修改字库内容**，只报告数据缺口。
+
+---
+
+# 五、重点审计 3：正式测试题量是否合理
+
+对四个等级分别计算：
+
+* 当前字库总量
+* 当前词库总量
+* 单字抽样比例
+* 词组抽样比例
+* 实际预计单字题量
+* 实际预计词组题量
+
+形成明确矩阵：
+
+| Level  | 字库单字 | 字抽样比例 | 实际单字题量 | 词组总量 | 词组抽样比例 | 实际词组题量 |
+| ------ | ---: | ----: | -----: | ---: | -----: | -----: |
+| SRC100 |    ? |     ? |      ? |    ? |      ? |      ? |
+| SRC300 |    ? |     ? |      ? |    ? |      ? |      ? |
+| SRC500 |    ? |     ? |      ? |    ? |      ? |      ? |
+| SRC800 |    ? |     ? |      ? |    ? |      ? |      ? |
+
+然后判断：
+
+* 是否达到产品设计要求。
+* 是否存在因为字库不足导致抽样题量过低。
+* 是否存在 `Math.floor` / `Math.ceil` / minimum sample size 等逻辑造成异常。
+* 是否四个等级都使用同一套抽样算法，只由 LEVEL_CONFIG 控制比例。
+
+特别注意：
+
+如果 SRC500 / SRC800 字库本身数据不足，不要通过提高抽样比例临时解决。
+
+先报告数据问题。
+
+---
+
+# 六、重点审计 4：Fulltest level 是否真正动态
+
+检查：
+
+`src/app/fulltest/page.tsx`
+
+重点确认：
+
+* URL 中的 `level` 是否正确解析。
+* SRC100 是否进入 SRC100。
+* SRC300 是否进入 SRC300。
+* SRC500 是否进入 SRC500。
+* SRC800 是否进入 SRC800。
+* session 创建时传入的 level 是否正确。
+* test_mode 是否统一为 `formal`。
+* 题库是否使用当前 level。
+* results 是否使用当前 level。
+
+目前存在：
+
+`useState<Level>('SRC300')`
+
+请判断它是否只是 React 初始状态，还是会在 URL 参数异常时导致真正错误。
+
+如果它可能导致等级错误，必须修复。
+
+要求：
+
+> 正式测试如果缺少合法 level 参数，不应静默进入 SRC300。
+
+应采用安全方式：
+
+* 阻止测试并提示缺少等级参数，或
+* 返回合法入口。
+
+不要默认进入 SRC300。
+
+---
+
+# 七、重点审计 5：Result 页面 level fallback
+
+检查：
+
+`src/app/result/page.tsx`
+
+目前存在：
+
+`params.get('level') || 'SRC100'`
+
+请判断是否可能造成：
+
+> SRC500/SRC800 测试完成后，因为 URL 参数丢失，结果页面错误显示 SRC100。
+
+要求：
+
+正式测试结果页面必须能够可靠获得当前测试 level。
+
+如果 level 缺失：
+
+* 不要伪造 SRC100 结果。
+* 应显示明确错误或返回安全入口。
+
+同时确认所有跳转到 `/result` 的地方都正确携带：
+
+`level`
+
+---
+
+# 八、重点审计 6：test_mode 全项目一致性
+
+最终标准：
+
+```text
+TestMode = 'formal' | 'sampling'
+```
+
+要求：
+
+### 新正式测试
+
+统一使用：
+
+```text
+formal
+```
+
+### 趣味闯关 / 抽测
+
+使用：
+
+```text
+sampling
+```
+
+### 历史数据
+
+读取时允许兼容：
+
+```text
+formal
+full
+```
+
+但：
+
+```text
+sampling
+```
+
+绝不能被当成 formal。
+
+重点检查：
+
+* types.ts
+* sessions
+* fulltest
+* profile
+* answers
+* results
+* growth-map
+* auth-context
+* 其他调用点
+
+最终必须能回答：
+
+> 项目中是否还存在任何新代码会写入 `full` 作为正式测试？
+
+如果有，修复。
+
+---
+
+# 九、重点审计 7：Answers → Results 数据链路
+
+必须验证四个等级都使用同一套链路：
+
+```text
+Fulltest
+↓
+POST /api/answers
+↓
+test_answers
+↓
+POST /api/results
+↓
+test_results
+↓
+Growth Map
+↓
+Hub
+```
+
+分别确认：
+
+### Part 1
+
+单字：
+
+```text
+part = 1
+question_content = 汉字
+is_correct
+reaction_time_ms
+```
+
+### Part 2
+
+词组：
+
+```text
+part = 2
+question_content = 词组
+is_correct
+reaction_time_ms
+```
+
+正式测试允许：
+
+```text
+question_id = null
+```
+
+但必须有：
+
+```text
+question_content
+```
+
+并且不得因为 `question_id = null` 导致 results 无法统计。
+
+---
+
+# 十、重点审计 8：Results 不能生成假结果
+
+正式测试：
+
+* answers 数量不足 → 返回错误
+* answers 不存在 → 返回错误
+* 不得生成全 0 test_results
+* 不得用默认数据伪造测试成绩
+
+正式测试的：
+
+* character mastery
+* vocab mastery
+* stable character count
+* stable vocabulary count
+
+必须来自真实正式测试数据。
+
+同时确认：
+
+> SRC100 / SRC300 / SRC500 / SRC800 的计算方式完全一致，仅数据源和当前 level 不同。
+
+---
+
+# 十一、重点审计 9：Growth Map
+
+Growth Map 必须严格区分：
+
+### Quick Assessment
+
+提供：
+
+* estimated level
+* quick character level
+* quick word level
+
+### Formal Test
+
+只允许：
+
+```text
+test_mode IN ('formal', 'full')
+```
+
+不能让：
+
+```text
+sampling
+```
+
+进入 confirmed。
+
+要求：
+
+```text
+confirmedLevel
+    =
+latest valid formal result
+```
+
+而不是：
+
+```text
+latest test_results
+```
+
+同时确认：
+
+```text
+currentLevel = confirmedLevel ?? estimatedLevel
+```
+
+逻辑保持不变。
+
+---
+
+# 十二、重点审计 10：Hub 三项核心指标必须独立
+
+最终必须保持：
+
+## 1. 识字水平
+
+正式测试：
+
+```text
+formalResult.character_mastery_rate
+formalResult.stable_char_count
+```
+
+没有正式测试：
+
+```text
+Quick Assessment character level
+```
+
+## 2. 词语水平
+
+正式测试：
+
+```text
+formalResult.vocab_mastery_rate
+formalResult.stable_vocab_count
+```
+
+没有正式测试：
+
+```text
+Quick Assessment word level
+```
+
+没有数据：
+
+```text
+未测
+```
+
+绝对禁止：
+
+```text
+词语水平 = currentLevel
+```
+
+也禁止：
+
+```text
+没有数据 → SRC100
+```
+
+除非 SRC100 本身就是系统真正的初始等级。
+
+## 3. 推荐阅读基础
+
+继续使用：
+
+```text
+LevelService / recommended_test_level
+```
+
+不要因为本次修复而改变推荐算法。
+
+---
+
+# 十三、重点审计 11：四级 UI 文案
+
+检查：
+
+* Hub
+* Growth Map
+* Fulltest
+* Result
+
+是否存在 SRC300 专属硬编码。
+
+特别检查：
+
+### SRC100
+
+下一阶段：
+
+SRC300
+
+### SRC300
+
+下一阶段：
+
+SRC500
+
+### SRC500
+
+下一阶段：
+
+SRC800
+
+### SRC800
+
+必须显示：
+
+> 当前已达到最高 SRC 测试等级
+
+或项目已经定义的最高等级文案。
+
+不能继续显示一个不存在的下一等级。
+
+---
+
+# 十四、重点审计 12：重新登录数据恢复
+
+四个等级都必须满足：
+
+```text
+完成正式测试
+↓
+退出登录
+↓
+重新登录
+↓
+Hub
+↓
+仍然显示正确等级
+↓
+正确显示识字数据
+↓
+正确显示词语数据
+↓
+正确显示推荐阅读基础
+```
+
+不得依赖：
+
+* localStorage 临时状态
+* React state
+* URL 参数
+* 测试完成页面临时数据
+
+重新登录后的核心数据必须来自数据库。
+
+---
+
+# 十五、修复原则
+
+完成只读审计后：
+
+### 可以直接修复
+
+* 明确的硬编码 Bug
+* level 参数传递 Bug
+* test_mode 类型不一致
+* 错误 fallback
+* UI 等级判断错误
+* 数据读取错误
+* item.level 写死 SRC100
+
+### 不要擅自修改
+
+* SRC 字库内容
+* Quick Assessment 算法
+* 正式测试算法
+* 抽样比例
+* LevelService
+* confirmed level 规则
+
+如果发现 SRC500/SRC800 字库确实缺数据：
+
+> 先报告，不要自行补造数据。
+
+---
+
+# 十六、完成后必须输出最终审计表
+
+请最终给出：
+
+| 检查项目             | SRC100 | SRC300 | SRC500 | SRC800 | 结论 |
+| ---------------- | ------ | ------ | ------ | ------ | -- |
+| Quick Assessment |        |        |        |        |    |
+| 注册               |        |        |        |        |    |
+| Hub              |        |        |        |        |    |
+| Growth Map       |        |        |        |        |    |
+| 正式测试入口           |        |        |        |        |    |
+| 单字题库             |        |        |        |        |    |
+| 词组题库             |        |        |        |        |    |
+| 实际单字题量           |        |        |        |        |    |
+| 实际词组题量           |        |        |        |        |    |
+| answers 保存       |        |        |        |        |    |
+| results 计算       |        |        |        |        |    |
+| confirmed level  |        |        |        |        |    |
+| Hub 识字水平         |        |        |        |        |    |
+| Hub 词语水平         |        |        |        |        |    |
+| 推荐阅读             |        |        |        |        |    |
+| 退出重登恢复           |        |        |        |        |    |
+| test_mode        |        |        |        |        |    |
+
+另外输出：
+
+### A. 已发现 Bug
+
+按照：
+
+```text
+P0
+P1
+P2
+```
+
+分类。
+
+### B. 已修复 Bug
+
+逐项列出文件和修改内容。
+
+### C. 未修复问题
+
+尤其说明：
+
+* 是否属于数据缺失
+* 是否属于产品设计问题
+* 是否需要人工补充字库
+* 是否需要我做产品决策
+
+### D. 最终人工测试建议
+
+明确告诉我：
+
+1. 是否现在可以测试 SRC100
+2. 是否现在可以测试 SRC300
+3. 是否现在可以测试 SRC500
+4. 是否现在可以测试 SRC800
+5. 每个等级人工测试时应该重点观察什么
+
+---
+
+# 十七、最终验收标准
+
+只有满足以下条件，才认为“四级架构验收通过”：
+
+### SRC100
+
+可以完整运行。
+
+### SRC300
+
+保持当前已经通过的正确行为。
+
+### SRC500
+
+不能只是“代码没有报错”，必须证明：
+
+* 正确加载 SRC500 数据
+* 正确抽样
+* 正确保存 answers
+* 正确生成 results
+* 正确 confirmed
+* 正确显示 Hub
+* 正确退出重登
+
+### SRC800
+
+同样必须证明完整链路。
+
+最终目标不是：
+
+> “四个等级页面都能打开。”
+
+而是：
+
+> **四个等级使用同一套动态架构，只由 level 配置和对应字库数据决定行为，不存在 SRC100/SRC300 专属硬编码，不存在错误 fallback，不存在等级串线。**
+
+在完成以上审计并修复后，再进行人工 E2E 测试。
+
+不要在审计尚未完成前要求我重复测试 Mia。
