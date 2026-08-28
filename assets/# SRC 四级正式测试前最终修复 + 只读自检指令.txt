@@ -1,0 +1,997 @@
+# SRC 四级正式测试前最终修复 + 只读自检指令
+
+## 一、任务目标
+
+基于当前项目代码，以及刚刚完成的：
+
+**《SRC100/SRC300/SRC500/SRC800 全链路只读架构审计报告》**
+
+请你现在进行一次：
+
+> **“正式人工 E2E 测试前最终修复 + 全链路只读自检”**
+
+本次任务的核心目标只有两个：
+
+### 目标 1：修复已经确认存在的问题
+
+重点修复：
+
+1. Hub 词语水平错误使用 `currentLevel`
+2. auth-context 中 `character_level_u` 硬编码为 `0`
+
+### 目标 2：修复后进行一次完整的只读审计
+
+确认：
+
+> **SRC100 / SRC300 / SRC500 / SRC800 四个等级是否均可以进入正式测试，并且从测试开始到数据库持久化、Results、Growth Map、Hub、退出重登恢复形成完整闭环。**
+
+---
+
+# 二、重要约束
+
+本次任务**不要进行架构重构**。
+
+除已经确认的问题外，不要大范围修改代码。
+
+特别注意：
+
+* 不修改 SRC100/SRC300/SRC500/SRC800 四个 Word 原始字库
+* 不修改 Cloudflare 原始字库
+* 不重新设计 LEVEL_CONFIG
+* 不改变正式测试抽样比例
+* 不改变 `formal / sampling` 的业务定义
+* 不改变已经验证通过的 answers 批量保存逻辑
+* 不改变 results formal 模式的核心计算逻辑
+* 不改变 Growth Map 对 formal/full 与 sampling 的过滤逻辑
+* 不改变已经验证通过的注册流程
+* 不改变趣味闯关逻辑
+* 不做与本次任务无关的 UI 重构
+* 不为了“代码更漂亮”而大范围重构
+
+原则：
+
+> **最小修改、保持现有架构、修复确定问题、验证完整链路。**
+
+---
+
+# 三、第一项：再次精确核查四级字库
+
+在修改代码之前，先确认当前代码实际使用的四级字库数量。
+
+重点检查：
+
+`src/lib/questions.ts`
+
+确认：
+
+| Level  |  单字 |  词组 |
+| ------ | --: | --: |
+| SRC100 | 114 | 128 |
+| SRC300 | 317 | 346 |
+| SRC500 | 528 | 558 |
+| SRC800 | 813 | 820 |
+
+并确认：
+
+* 没有因为只读取文件前几十行而误判字库数量
+* 四级字库均为完整累积结构
+* SRC100 ⊂ SRC300 ⊂ SRC500 ⊂ SRC800
+* `getCharList(level)` 返回正确等级完整字库
+* `getWordList(level)` 返回正确等级完整词库
+
+如果实际代码中的精确数量与以上数字不同：
+
+> 不要自行修改字库。
+
+请明确报告实际数量以及差异原因。
+
+---
+
+# 四、第二项：修复 Hub 词语水平逻辑
+
+文件：
+
+`src/app/hub/page.tsx`
+
+当前已经确认的问题：
+
+正式测试以后：
+
+```ts
+wordLevel = currentLevel
+```
+
+这是错误的。
+
+## 原则
+
+必须明确区分：
+
+### 识字水平
+
+来源：
+
+```text
+formalResult.character_mastery_rate
+formalResult.stable_char_count
+```
+
+### 词语水平
+
+来源：
+
+```text
+formalResult.vocab_mastery_rate
+formalResult.stable_vocab_count
+```
+
+两者不能因为正式测试等级相同，就直接认为：
+
+```text
+词语等级 = 识字等级
+```
+
+---
+
+## 请修复
+
+请检查当前 Hub 的“词语水平”实现。
+
+正式测试存在时：
+
+* 不再直接把 `currentLevel` 当作词语水平
+* 使用 formal result 中真实的词语数据
+* 保留词语掌握率
+* 保留稳定词语数量
+* 如果当前系统没有可靠的独立“词语 SRC 等级”字段，**不要自行伪造一个 SRC500/SRC300 等级**
+
+如果系统目前无法从正式测试结果可靠推导独立词语等级：
+
+建议显示类似：
+
+```text
+词语水平
+词语识别
+约 XXX 词
+掌握率 XX%
+```
+
+或者使用系统已有的明确词语等级字段。
+
+### 非常重要
+
+不要为了让 UI 看起来完整而：
+
+```ts
+wordLevel = currentLevel
+```
+
+也不要：
+
+```ts
+wordLevel = formalLevel
+```
+
+除非该字段在产品逻辑上确实代表独立词语等级。
+
+核心原则：
+
+> **识字水平与词语水平必须是两个独立指标。**
+
+---
+
+# 五、第三项：修复 auth-context 的 character_level_u
+
+文件：
+
+`src/lib/auth-context.tsx`
+
+当前发现：
+
+```ts
+character_level_u: 0
+```
+
+这是硬编码，不应该保留。
+
+Growth Map API 当前返回：
+
+```text
+quick_char_level
+```
+
+例如：
+
+```text
+"SRC300"
+"SRC500"
+"SRC800"
+```
+
+而 auth-context 使用：
+
+```text
+character_level_u
+```
+
+数字形式：
+
+```text
+300
+500
+800
+```
+
+---
+
+## 请修复
+
+建立明确、可靠的转换：
+
+```text
+SRC100 → 100
+SRC300 → 300
+SRC500 → 500
+SRC800 → 800
+```
+
+不要继续：
+
+```ts
+character_level_u: 0
+```
+
+请检查 auth-context 中所有出现该字段的地方，确保：
+
+* Quick Assessment 数据正确转换
+* 重新登录后 Growth Map 数据正确转换
+* 不破坏 `estimatedLevel`
+* 不破坏 `recommendedLevel`
+* 不破坏 formal confirmed level
+* 不改变其他已有字段含义
+
+---
+
+# 六、第四项：检查 result 页面 level fallback
+
+检查：
+
+`src/app/result/page.tsx`
+
+确认：
+
+```ts
+level
+```
+
+是否始终由正式测试跳转时正确传入。
+
+重点检查：
+
+* fulltest → result
+* 其他测试 → result
+* 所有 router.push / router.replace
+* 是否都带 `level`
+
+当前存在：
+
+```ts
+useState<Level>('SRC300')
+```
+
+以及：
+
+```ts
+params.get('level') || 'SRC100'
+```
+
+这种 fallback。
+
+本次不要求大改，但必须确认：
+
+> 正常正式测试流程不会因为 fallback 导致等级错误。
+
+如果技术上可安全处理：
+
+当 `/result` 没有 `level` 参数时，优先：
+
+* 显示错误
+* 或返回测试入口
+* 或使用可靠的 session/result 数据恢复 level
+
+不要在无 level 情况下展示一份看起来像真实测试结果的 SRC100/SRC300 空结果。
+
+如果修改风险较大，可以保留 fallback，但必须在最终报告中明确说明。
+
+---
+
+# 七、第五项：检查 fulltest 的 level 传递
+
+文件：
+
+`src/app/fulltest/page.tsx`
+
+确认：
+
+正式进入：
+
+```text
+/fulltest?level=SRC100
+/fulltest?level=SRC300
+/fulltest?level=SRC500
+/fulltest?level=SRC800
+```
+
+时，均能正确得到：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+不能出现：
+
+```text
+SRC500 → SRC300
+SRC800 → SRC300
+```
+
+等 fallback 错误。
+
+---
+
+# 八、第六项：检查 item-selection.ts 的 level 硬编码
+
+文件：
+
+`src/lib/item-selection.ts`
+
+当前存在：
+
+```ts
+level: 'SRC100'
+```
+
+多处。
+
+已经确认：
+
+`generateCharacterTest()` 后续会覆盖 level，因此目前正式测试最终输出没有错误。
+
+本次：
+
+### 不需要为了这个问题进行大范围重构。
+
+但请确认：
+
+```text
+generateCharacterTest
+→ sampled
+→ sampled.map(...)
+→ 最终 item.level
+```
+
+最终输出是否正确。
+
+必须验证：
+
+```text
+SRC100 → item.level = SRC100
+SRC300 → item.level = SRC300
+SRC500 → item.level = SRC500
+SRC800 → item.level = SRC800
+```
+
+如果可以用极小修改清理硬编码，则可以修复。
+
+如果会引发较大改动，则保留，并在最终报告中列为：
+
+> P3 / 代码质量问题，不影响当前正式测试输出。
+
+---
+
+# 九、第七项：检查四级正式测试题量
+
+根据当前 LEVEL_CONFIG 和字库数量，精确计算四级正式测试题量。
+
+当前预期：
+
+| Level  | 单字比例 | 词组比例 | 预计单字 | 预计词组 |
+| ------ | ---: | ---: | ---: | ---: |
+| SRC100 | 100% |  60% | 约114 |  约77 |
+| SRC300 |  30% |  12% |  约95 |  约42 |
+| SRC500 |  25% |  10% | 约132 |  约56 |
+| SRC800 |  20% |   8% | 约163 |  约66 |
+
+请根据代码实际取整规则重新计算。
+
+不要只看配置数字。
+
+要实际检查：
+
+```text
+getCharList(level)
+↓
+抽样
+↓
+最终 character questions
+```
+
+以及：
+
+```text
+getWordList(level)
+↓
+抽样
+↓
+最终 word questions
+```
+
+确认四级均使用自己的字库。
+
+---
+
+# 十、第八项：检查正式测试 Answers 链路
+
+确认四级都使用：
+
+```text
+test_mode = formal
+```
+
+答案至少应包含：
+
+```text
+question_content
+part
+is_correct
+reaction_time_ms
+level
+```
+
+其中：
+
+```text
+part = 1 → 单字
+part = 2 → 词组
+```
+
+正式测试允许：
+
+```text
+question_id = null
+```
+
+但：
+
+```text
+question_content
+```
+
+必须真实保存。
+
+确认：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+不会因为 question_id=null 而无法保存。
+
+---
+
+# 十一、第九项：检查 Results formal 逻辑
+
+确认：
+
+```text
+formal
+```
+
+继续采用已经修复的正式测试逻辑：
+
+> 采信 fulltest 前端计算的统计数据，同时校验 answers 数量。
+
+不要恢复旧的：
+
+> 四部分加权计算
+
+正式测试当前只有：
+
+```text
+单字
+词组
+```
+
+因此不能重新使用 sampling 的四部分加权逻辑。
+
+确认：
+
+### SRC100
+
+```text
+character_mastery_rate
+vocab_mastery_rate
+stable_char_count
+stable_vocab_count
+```
+
+均正确。
+
+### SRC300
+
+同上。
+
+### SRC500
+
+同上。
+
+### SRC800
+
+同上。
+
+---
+
+# 十二、第十项：检查 Growth Map
+
+文件：
+
+`src/app/api/growth-map/route.ts`
+
+确认：
+
+```ts
+test_mode IN ('formal', 'full')
+```
+
+继续保持。
+
+sampling：
+
+```text
+不能成为 confirmed level
+```
+
+确认：
+
+```text
+confirmedLevel
+```
+
+只能来自正式测试。
+
+确认：
+
+```text
+currentLevel =
+confirmedLevel ?? estimatedLevel
+```
+
+逻辑不被本次修改破坏。
+
+---
+
+# 十三、第十一项：检查 Hub 三项核心指标
+
+Hub 当前三项核心指标必须保持完全独立：
+
+## 1. 识字水平
+
+来源：
+
+```text
+formalResult.character_mastery_rate
+formalResult.stable_char_count
+```
+
+或者没有正式测试时：
+
+```text
+Quick Assessment character data
+```
+
+## 2. 词语水平
+
+来源：
+
+```text
+formalResult.vocab_mastery_rate
+formalResult.stable_vocab_count
+```
+
+或者没有正式测试时：
+
+```text
+Quick Assessment word data
+```
+
+不能直接用：
+
+```text
+currentLevel
+```
+
+代替词语水平。
+
+## 3. 推荐阅读基础
+
+继续使用：
+
+```text
+recommended_test_level
+```
+
+或现有 LevelService 推荐逻辑。
+
+不能因为修复词语水平而破坏推荐阅读等级。
+
+---
+
+# 十四、第十二项：检查退出重新登录
+
+确认：
+
+```text
+正式测试
+↓
+test_results
+↓
+退出
+↓
+重新登录
+↓
+auth-context
+↓
+growth-map API
+↓
+Hub
+```
+
+重新登录后仍然能够恢复：
+
+* formal result
+* confirmed level
+* character mastery
+* vocabulary mastery
+* stable character count
+* stable vocabulary count
+* recommended reading level
+
+不得依赖：
+
+```text
+localStorage
+```
+
+保存正式测试核心结果。
+
+---
+
+# 十五、第十三项：检查 SRC800 最高等级边界
+
+确认：
+
+```text
+getNextLevel('SRC800')
+```
+
+返回：
+
+```text
+null
+```
+
+或者当前系统定义的最高级结果。
+
+SRC800 测试完成后：
+
+不能出现：
+
+```text
+SRC900
+SRC1000
+undefined
+```
+
+等错误等级。
+
+Growth Map 应能够正确表达：
+
+> 当前已经达到 SRC800 最高等级
+
+如果现有 UI 有“最高等级”逻辑，确保正确使用。
+
+---
+
+# 十六、第十四项：检查 SRC100 特殊路径
+
+SRC100 与其他等级不同：
+
+```text
+单字 = 100%
+```
+
+因此正式测试会覆盖整个 SRC100 单字库。
+
+请确认：
+
+```text
+SRC100
+↓
+114 单字
+↓
+约77词
+```
+
+均符合当前配置。
+
+重点确认：
+
+* 不会被 SRC300 默认值覆盖
+* 不会被 `level` fallback 覆盖
+* 不会出现空题
+* Results 正确
+* Growth Map 正确
+* 下一阶段正确进入 SRC300
+
+---
+
+# 十七、必须运行的静态检查
+
+完成修改后运行：
+
+```bash
+pnpm lint --quiet
+pnpm ts-check
+```
+
+如果项目还有其他已有检查命令，也可以运行。
+
+要求：
+
+```text
+lint PASS
+ts-check PASS
+```
+
+如果出现错误：
+
+* 判断是否由本次修改造成
+* 修复本次修改造成的错误
+* 不要通过关闭 lint/type check 来掩盖问题
+
+---
+
+# 十八、最终进行“四级只读架构审计”
+
+修改完成后，不要立即修改更多代码。
+
+请进行一次完整只读审计。
+
+最终必须明确回答下面的问题。
+
+---
+
+## A. 字库
+
+| 项目             | SRC100 | SRC300 | SRC500 | SRC800 |
+| -------------- | ------ | ------ | ------ | ------ |
+| 单字数量           | ?      | ?      | ?      | ?      |
+| 词组数量           | ?      | ?      | ?      | ?      |
+| getCharList 正确 | ?      | ?      | ?      | ?      |
+| getWordList 正确 | ?      | ?      | ?      | ?      |
+
+---
+
+## B. 正式测试
+
+| 项目               | SRC100 | SRC300 | SRC500 | SRC800 |
+| ---------------- | ------ | ------ | ------ | ------ |
+| 正式入口             | ?      | ?      | ?      | ?      |
+| 单字题量             | ?      | ?      | ?      | ?      |
+| 词组题量             | ?      | ?      | ?      | ?      |
+| test_mode=formal | ?      | ?      | ?      | ?      |
+| level 正确         | ?      | ?      | ?      | ?      |
+
+---
+
+## C. 数据链路
+
+逐级确认：
+
+```text
+注册
+↓
+Quick Assessment
+↓
+estimated level
+↓
+Hub
+↓
+Growth Map
+↓
+正式测试入口
+↓
+fulltest
+↓
+answers
+↓
+results
+↓
+test_results
+↓
+Growth Map confirmed
+↓
+auth-context
+↓
+Hub
+↓
+退出
+↓
+重新登录
+↓
+Hub 恢复
+```
+
+四个等级分别给出：
+
+```text
+SRC100：PASS / FAIL
+SRC300：PASS / FAIL
+SRC500：PASS / FAIL
+SRC800：PASS / FAIL
+```
+
+---
+
+# 十九、最终报告必须区分“代码确认”和“人工确认”
+
+非常重要：
+
+由于当前环境可能无法通过真实 Supabase Auth 完成完整 E2E，请不要把：
+
+> “代码 review 通过”
+
+写成：
+
+> “真实 E2E 已通过”。
+
+最终报告必须分成：
+
+### 1. 代码静态确认
+
+例如：
+
+```text
+四级字库：PASS
+四级 level 动态传递：PASS
+formal answers：PASS
+results：PASS
+Growth Map：PASS
+Hub：PASS
+重登代码链路：PASS
+```
+
+### 2. 尚未人工验证
+
+明确列出：
+
+```text
+真实注册
+真实登录
+真实测试
+真实 answers 入库
+真实 results 入库
+真实退出重登
+```
+
+哪些仍需要人工验证。
+
+---
+
+# 二十、最终报告不要再出现“只看前几十行”的字库判断
+
+这次已经确认：
+
+> 上一轮“SRC500/SRC800 字库不足”的结论是错误的。
+
+因此本次必须：
+
+* 精确统计完整数组
+* 不根据文件前几十行判断
+* 不根据代码片段长度判断
+* 不根据 Word 文件部分内容判断
+
+最终报告必须以**精确计数结果**为准。
+
+---
+
+# 二十一、本次任务最终验收标准
+
+只有满足以下条件，才可以告诉我：
+
+> **“可以开始人工四级 E2E 测试。”**
+
+### 必须 PASS：
+
+1. SRC100 字库正确
+2. SRC300 字库正确
+3. SRC500 字库正确
+4. SRC800 字库正确
+5. 四级正式测试入口正确
+6. 四级 level 动态传递正确
+7. 四级正式测试题库正确
+8. answers 批量保存逻辑正确
+9. `question_content` 正确
+10. `part=1/2` 正确
+11. `test_mode=formal` 正确
+12. results formal 逻辑正确
+13. Growth Map 只认 formal/full
+14. Hub 识字指标正确
+15. Hub 词语指标独立，不再直接使用 currentLevel
+16. 推荐阅读等级不受影响
+17. auth-context 不再硬编码 `character_level_u=0`
+18. SRC800 最高等级逻辑正确
+19. SRC100 全量测试逻辑正确
+20. lint PASS
+21. ts-check PASS
+
+---
+
+# 二十二、最终只允许给出以下结论之一
+
+### 情况 A：全部通过
+
+明确告诉我：
+
+> **“代码层面四级 SRC 已具备人工 E2E 测试条件，可以开始真人测试。”**
+
+并给出：
+
+```text
+SRC100：PASS
+SRC300：PASS
+SRC500：PASS
+SRC800：PASS
+```
+
+然后列出仍需人工验证的项目。
+
+### 情况 B：存在阻塞问题
+
+明确告诉我：
+
+> **“暂时不能开始人工测试。”**
+
+并只列出真正阻塞人工测试的问题，按照：
+
+```text
+P0
+P1
+P2
+```
+
+排序。
+
+不要为了代码洁癖把低风险代码质量问题包装成阻塞问题。
+
+---
+
+# 最终原则
+
+本次不是重新设计 SRC 系统。
+
+而是：
+
+> **在已经完成 SRC300 真人 E2E 验证的基础上，确认 SRC100 / SRC300 / SRC500 / SRC800 是否真正具备统一、可靠、可扩展的正式测试能力。**
+
+请坚持：
+
+**最小修改 → 精确检查 → 静态验证 → 四级一致性审计 → 明确区分“代码通过”和“真人尚未验证”。**
+
+完成后停止修改，等待人工 E2E 测试。

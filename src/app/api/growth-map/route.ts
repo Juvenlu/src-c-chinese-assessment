@@ -271,6 +271,7 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     quick_word_level_l: latestQuick?.word_level_l,
     quick_word_level_u: latestQuick?.word_level_u,
     quick_char_level: latestQuick?.character_level_l,
+    quick_char_level_u: latestQuick?.character_level_u,
     trend,
     strengths,
     areasToImprove,

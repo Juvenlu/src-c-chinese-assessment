@@ -39,16 +39,17 @@ export default function HubPage() {
   const recommendedLevel = assessmentStatus?.recommended_test_level || 'SRC100';
   const recommendedLevelNum = parseInt(recommendedLevel.replace('SRC', ''), 10) || 100;
 
-  // 词语水平：正式测试优先（取 formal 的词语掌握率），其次 Quick Assessment
+  // 词语水平：正式测试优先（取 formal 的词语掌握率+词汇量），其次 Quick Assessment
+  // ⚠️ 识字水平和词语水平是两个独立指标，禁止用 currentLevel 直接推导词语等级
   const hasFormal = !!assessmentStatus?.formalResult;
   const formalResult = assessmentStatus?.formalResult;
-  const quickWordLevel = latestResult?.word_level_l || latestResult?.word_level_u;
-  const wordLevel = hasFormal
-    ? currentLevel  // 正式测试时，词语等级与测试等级一致（显示掌握率）
-    : (quickWordLevel ? `SRC${quickWordLevel}` : '未测');
-  const wordLevelNum = parseInt(wordLevel.replace('SRC', ''), 10) || 100;
-  // 词语掌握率：仅正式测试时有
-  const wordMasteryRate = formalResult?.vocab_mastery_rate ?? null;
+  const quickWordLevelNum = latestResult?.word_level_l || latestResult?.word_level_u || 0;
+  const quickWordLevelLabel = quickWordLevelNum > 0 ? `SRC${quickWordLevelNum}` : '未测';
+  // 正式测试时，词语大标签用掌握率百分比展示（与识字等级标签区分，避免等级混淆）
+  const wordLabel = hasFormal
+    ? `${Math.round((formalResult?.vocab_mastery_rate ?? 0) * 100)}%`
+    : quickWordLevelLabel;
+  const wordLevelNum = hasFormal ? (formalResult?.stable_vocab_count ?? 0) : quickWordLevelNum;
 
   const readingBase = latestResult?.reading_base || 100;
   const confidence = latestResult?.confidence || "high";
@@ -304,7 +305,7 @@ export default function HubPage() {
                     className="text-2xl font-bold"
                     style={{ fontFamily: "var(--font-heading)", color: "var(--color-secondary, #4ECDC4)" }}
                   >
-                    {wordLevel}
+                    {wordLabel}
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
@@ -316,8 +317,14 @@ export default function HubPage() {
                     </>
                   ) : (
                     <>
-                      <p>约 {wordLevelNum} 词</p>
-                      <p>词语理解</p>
+                      {quickWordLevelNum > 0 ? (
+                        <>
+                          <p>约 {quickWordLevelNum} 词</p>
+                          <p>词语理解</p>
+                        </>
+                      ) : (
+                        <p>待测评</p>
+                      )}
                     </>
                   )}
                 </div>

@@ -388,7 +388,8 @@ export interface GrowthMapData {
   quickConfidence?: 'high' | 'medium' | 'low';
   quick_word_level_l?: number;
   quick_word_level_u?: number;
-  quick_char_level?: string;
+  quick_char_level?: number;
+  quick_char_level_u?: number;
   quick_word_level?: string;
   
   // 成长趋势
