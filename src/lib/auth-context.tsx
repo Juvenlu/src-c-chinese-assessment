@@ -102,6 +102,9 @@ export interface ChildAssessmentStatus {
     character_mastery_rate: number;
     vocab_mastery_rate: number;
     stable_char_count: number;
+    stable_vocab_count: number;
+    total_char_tested: number;
+    total_vocab_tested: number;
     created_at: string;
   } | null;
 }
@@ -204,6 +207,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                       character_mastery_rate: d.srcMastery.masteryRate,
                       vocab_mastery_rate: d.vocabMastery.masteryRate,
                       stable_char_count: d.srcMastery.mastered,
+                      stable_vocab_count: d.vocabMastery.mastered,
+                      total_char_tested: d.srcMastery.tested ?? 0,
+                      total_vocab_tested: d.vocabMastery.tested ?? 0,
                       created_at: '',
                     }
                   : null,
@@ -214,10 +220,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const el = d.estimated_level;
                 setLatestResult({
                   reading_base: el === 'SRC100' ? 100 : el === 'SRC300' ? 300 : el === 'SRC500' ? 500 : 800,
-                  character_level_l: 0,
+                  character_level_l: d.quick_char_level ?? 0,
                   character_level_u: 0,
-                  word_level_l: 0,
-                  word_level_u: 0,
+                  word_level_l: d.quick_word_level_l ?? 0,
+                  word_level_u: d.quick_word_level_u ?? 0,
                   confidence: d.quickConfidence || 'medium',
                 });
               }

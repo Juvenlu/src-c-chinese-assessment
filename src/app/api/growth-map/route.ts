@@ -60,10 +60,13 @@ export async function GET(request: Request) {
  */
 async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
   // ===== 1. 查询正式测试结果（test_results）
+  // 仅识别 test_mode = 'formal'（新标准）或 'full'（历史兼容）
+  // 绝对不能把 sampling 趣味闯关当作正式 confirmed test
   const { data: formalResults, error: formalError } = await supabase
     .from('test_results')
     .select('*')
     .eq('child_id', childId)
+    .in('test_mode', ['formal', 'full'])
     .order('created_at', { ascending: false })
     .limit(10);
 
@@ -265,6 +268,9 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     },
     nextLevel,
     quickConfidence: latestQuick?.confidence || undefined,
+    quick_word_level_l: latestQuick?.word_level_l,
+    quick_word_level_u: latestQuick?.word_level_u,
+    quick_char_level: latestQuick?.character_level_l,
     trend,
     strengths,
     areasToImprove,

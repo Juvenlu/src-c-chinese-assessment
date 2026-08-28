@@ -192,30 +192,28 @@ function FullTestContent() {
         });
         const { data: sessionData } = await sessionRes.json();
         if (sessionData?.id) {
-          // Save answers for each item
+          // Save answers for each item (batch mode)
           const allAnswers = [
-            ...results.map((r, i) => ({
-              session_id: sessionData.id,
-              question_id: null as string | null,
+            ...results.map((r) => ({
+              question_content: r.character,
               part: 1 as number,
               is_correct: r.recognized,
               reaction_time_ms: r.reaction_time_ms,
-              question_content: r.character,
+              answer: r.recognized ? 'known' : 'unknown',
             })),
-            ...wordResults.map((r, i) => ({
-              session_id: sessionData.id,
-              question_id: null as string | null,
+            ...wordResults.map((r) => ({
+              question_content: r.word,
               part: 2 as number,
               is_correct: r.recognized,
               reaction_time_ms: r.reaction_time_ms,
-              question_content: r.word,
+              answer: r.recognized ? 'known' : 'unknown',
             })),
           ];
-          // Save answers in background
+          // Save answers in background (batch)
           fetch('/api/answers', {
             method: 'POST',
             headers,
-            body: JSON.stringify({ answers: allAnswers }),
+            body: JSON.stringify({ session_id: sessionData.id, answers: allAnswers }),
           }).catch(() => {});
 
           // Complete session

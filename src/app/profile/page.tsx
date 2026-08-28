@@ -34,7 +34,7 @@ function ProfileContent() {
     async function startTest() {
       setStarting(true);
       try {
-        if (mode === 'full') {
+        if (mode === 'formal') {
           // 逐字测试 - 直接跳转
           router.push(`/fulltest?childId=${child.id}&childName=${encodeURIComponent(child.nickname)}&level=${targetLevel}`);
         } else {
@@ -82,8 +82,8 @@ function ProfileContent() {
 
   // 未登录 → 保留原有 Profile 收集流程
 
-  const modeLabel = mode === 'full' ? '逐字测试' : '抽测闯关';
-  const modeIcon = mode === 'full' ? '📝' : '🎮';
+  const modeLabel = mode === 'formal' ? '逐字测试' : '抽测闯关';
+  const modeIcon = mode === 'formal' ? '📝' : '🎮';
 
   const handleCreateChild = async () => {
     if (!name || !age || !grade || !country) return;
@@ -103,7 +103,7 @@ function ProfileContent() {
       const { data, error } = await res.json();
       if (error) throw new Error(error);
 
-      if (mode === 'full') {
+      if (mode === 'formal') {
         // 逐字测试 - 不需要创建 session，直接跳转逐字测试页面
         const params = new URLSearchParams({
           childId: data.id,
@@ -264,7 +264,7 @@ function ProfileContent() {
                 className="w-full rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{ backgroundColor: 'var(--color-src-primary)' }}
               >
-                {mode === 'full'
+                {mode === 'formal'
                     ? '开始逐字测试 📝'
                     : '下一步 →'}
               </button>

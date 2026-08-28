@@ -2,7 +2,8 @@
 
 export type Level = 'SRC100' | 'SRC300' | 'SRC500' | 'SRC800';
 export type RJBLevel = 'RJB100' | 'RJB300' | 'RJB500' | 'RJB800';
-export type TestMode = 'full' | 'sampling'; // full = 逐字测试, sampling = 抽测闯关
+export type TestMode = 'formal' | 'sampling'; // formal = 正式SRC测试, sampling = 趣味闯关抽测
+export type LegacyTestMode = 'full'; // 历史逐字测试模式，读取时兼容为 formal
 export type LanguageEnv = 'chinese_primary' | 'bilingual' | 'english_primary' | 'other';
 export type SessionStatus = 'in_progress' | 'completed' | 'abandoned';
 export type TestPart = 1 | 2 | 3 | 4;
@@ -101,14 +102,14 @@ export interface TestResult {
   reading_comprehension_rate: number;
   completion_time_seconds: number;
   known_characters?: string[]; // array of recognized characters (fulltest)
-  test_mode?: 'sampling' | 'full'; // test mode
+  test_mode?: TestMode; // test mode
   created_at: string;
 }
 
 export interface CreateSessionInput {
   child_id: string;
   level: Level;
-  test_mode?: 'sampling' | 'full';
+  test_mode?: TestMode;
 }
 
 export interface SubmitAnswerInput {
@@ -385,6 +386,10 @@ export interface GrowthMapData {
   nextLevel?: Level;
 
   quickConfidence?: 'high' | 'medium' | 'low';
+  quick_word_level_l?: number;
+  quick_word_level_u?: number;
+  quick_char_level?: string;
+  quick_word_level?: string;
   
   // 成长趋势
   trend: {

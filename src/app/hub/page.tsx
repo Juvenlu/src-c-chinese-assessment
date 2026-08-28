@@ -39,13 +39,16 @@ export default function HubPage() {
   const recommendedLevel = assessmentStatus?.recommended_test_level || 'SRC100';
   const recommendedLevelNum = parseInt(recommendedLevel.replace('SRC', ''), 10) || 100;
 
-  // 词语水平：正式测试优先（取 formal 的等级和掌握率），其次 Quick Assessment
+  // 词语水平：正式测试优先（取 formal 的词语掌握率），其次 Quick Assessment
   const hasFormal = !!assessmentStatus?.formalResult;
-  const quickWordLevel = latestResult?.word_level_l || latestResult?.word_level_u || 100;
+  const formalResult = assessmentStatus?.formalResult;
+  const quickWordLevel = latestResult?.word_level_l || latestResult?.word_level_u;
   const wordLevel = hasFormal
-    ? currentLevel  // 正式测试时，词语水平与当前等级一致（同等级下的掌握率见详情）
-    : `SRC${quickWordLevel}`;
+    ? currentLevel  // 正式测试时，词语等级与测试等级一致（显示掌握率）
+    : (quickWordLevel ? `SRC${quickWordLevel}` : '未测');
   const wordLevelNum = parseInt(wordLevel.replace('SRC', ''), 10) || 100;
+  // 词语掌握率：仅正式测试时有
+  const wordMasteryRate = formalResult?.vocab_mastery_rate ?? null;
 
   const readingBase = latestResult?.reading_base || 100;
   const confidence = latestResult?.confidence || "high";
@@ -280,8 +283,18 @@ export default function HubPage() {
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
-                  <p>约 {currentLevelNum} 字</p>
-                  <p>单字识别</p>
+                  {hasFormal && assessmentStatus?.formalResult ? (
+                    <>
+                      <p>约 {assessmentStatus.formalResult.stable_char_count} 字</p>
+                      <p>掌握率 {Math.round(assessmentStatus.formalResult.character_mastery_rate * 100)}%</p>
+                      <p>单字识别</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>约 {currentLevelNum} 字</p>
+                      <p>单字识别</p>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-muted/50 p-4">
@@ -297,6 +310,7 @@ export default function HubPage() {
                 <div className="text-right text-xs text-muted-foreground">
                   {hasFormal && assessmentStatus?.formalResult ? (
                     <>
+                      <p>约 {assessmentStatus.formalResult.stable_vocab_count} 词</p>
                       <p>掌握率 {Math.round(assessmentStatus.formalResult.vocab_mastery_rate * 100)}%</p>
                       <p>词语识别</p>
                     </>
