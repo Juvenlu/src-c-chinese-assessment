@@ -31,7 +31,10 @@ function FullTestContent() {
 
   const [childId, setChildId] = useState('');
   const [childName, setChildName] = useState('');
-  const level = (searchParams.get('level') || 'SRC300') as Level;
+  const rawLevel = searchParams.get('level') || 'SRC300';
+  const VALID_LEVELS: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
+  const levelValid = VALID_LEVELS.includes(rawLevel as Level);
+  const level = (levelValid ? rawLevel : 'SRC300') as Level;
 
   // 已登录时从 activeChild 获取 childId
   useEffect(() => {
@@ -269,8 +272,35 @@ function FullTestContent() {
     );
   };
 
+  // Invalid level screen
+  if (phase === 'intro' && !levelValid) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-[var(--color-src-bg)]">
+        <div className="max-w-md w-full text-center">
+          <div className="text-6xl mb-6">🤔</div>
+          <h1 className="font-display text-2xl text-[var(--color-src-text)] mb-3">
+            等级不正确
+          </h1>
+          <p className="text-[var(--color-src-text-light)] mb-8">
+            请从 Hub 选择正确的测试等级重新进入。
+          </p>
+          <button
+            onClick={() => router.push('/hub')}
+            className="w-full rounded-2xl px-8 py-4 font-display text-lg font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105"
+            style={{ backgroundColor: 'var(--color-src-primary)' }}
+          >
+            返回我的中文世界
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Intro screen
   if (phase === 'intro') {
+    const cfg = LEVEL_CONFIG[level];
+    const estChars = Math.round(cfg.charCount * cfg.charSampleRatio);
+    const estWords = Math.round(cfg.vocabCount * cfg.wordSampleRatio);
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-[var(--color-src-bg)]">
         <div className="max-w-md w-full text-center">

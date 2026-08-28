@@ -211,53 +211,74 @@ export default function HubPage() {
               />
               我的SRC旅程
             </h3>
-            <div className="space-y-4">
+            <p className="mb-4 text-sm text-muted-foreground">
+              推荐测试：<span className="font-semibold text-foreground">{recommendedLevel}</span>
+              <span className="mx-2">·</span>
+              点击任意等级开始测试
+            </p>
+            <div className="space-y-3">
               {[100, 300, 500, 800].map((level, i) => {
+                const levelKey = `SRC${level}` as const;
                 const isCompleted = currentLevelNum >= level;
                 const isCurrent = currentLevelNum >= level && currentLevelNum < (level === 800 ? 1200 : [300, 500, 800, 1200][i]);
+                const isRecommended = recommendedLevel === levelKey;
                 return (
-                  <div key={level} className="flex items-center gap-4">
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                        isCompleted
-                          ? "text-white"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                      style={isCompleted ? { backgroundColor: "var(--color-secondary, #4ECDC4)" } : {}}
-                    >
-                      {isCompleted ? "✓" : level}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`text-sm font-medium ${
-                            isCurrent ? "text-foreground" : isCompleted ? "text-foreground" : "text-muted-foreground"
-                          }`}
-                        >
-                          SRC{level}
-                          {isCurrent && (
-                            <span className="ml-2 text-xs"
-                              style={{ color: "var(--color-primary, #FF6B35)" }}
-                            >
-                              · 当前
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {level}字
-                        </span>
+                  <button
+                    key={level}
+                    onClick={() => router.push(`/fulltest?level=${levelKey}`)}
+                    className="w-full rounded-2xl border border-border bg-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:bg-primary/5 active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                          isCompleted
+                            ? "text-white"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                        style={isCompleted ? { backgroundColor: "var(--color-secondary, #4ECDC4)" } : {}}
+                      >
+                        {isCompleted ? "✓" : level}
                       </div>
-                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: isCompleted ? "100%" : isCurrent ? `${Math.min(100, ((currentLevelNum - level) / 200) * 100)}%` : "0%",
-                            backgroundColor: "var(--color-secondary, #4ECDC4)",
-                          }}
-                        />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-sm font-medium ${
+                              isCurrent ? "text-foreground" : isCompleted ? "text-foreground" : "text-muted-foreground"
+                            }`}
+                          >
+                            SRC{level}
+                            {isCurrent && (
+                              <span className="ml-2 text-xs"
+                                style={{ color: "var(--color-primary, #FF6B35)" }}
+                              >
+                                · 当前
+                              </span>
+                            )}
+                            {isRecommended && !isCurrent && (
+                              <span className="ml-2 text-xs"
+                                style={{ color: "var(--color-secondary, #4ECDC4)" }}
+                              >
+                                · 推荐
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {level}字
+                          </span>
+                        </div>
+                        <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: isCompleted ? "100%" : isCurrent ? `${Math.min(100, ((currentLevelNum - level) / 200) * 100)}%` : "0%",
+                              backgroundColor: "var(--color-secondary, #4ECDC4)",
+                            }}
+                          />
+                        </div>
                       </div>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

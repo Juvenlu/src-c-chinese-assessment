@@ -64,6 +64,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'child_id and level required' }, { status: 400 });
     }
 
+    // 校验 level 合法性（仅允许四级正式等级）
+    const validLevels: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
+    if (!validLevels.includes(level as Level)) {
+      return NextResponse.json(
+        { error: `Invalid level: ${level}. Must be one of: ${validLevels.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     // 校验 child 归属（再次确认 body 中的 child_id 属于当前用户）
     const childAuth = await requireChildOwnership(child_id);
     if (!childAuth.ok) {

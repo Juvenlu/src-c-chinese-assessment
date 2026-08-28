@@ -1,0 +1,1103 @@
+# SRC 四级正式测试：增加“自由选择测试等级”功能
+
+## Vibe Coding 完整开发指令
+
+### 一、开发目标
+
+在现有 SRC100 / SRC300 / SRC500 / SRC800 四级正式测试架构基础上，增加：
+
+> **“推荐测试 + 自由选择任意 SRC 等级测试”**
+
+功能。
+
+当前系统已经可以根据 Quick Assessment / 正式测试结果计算：
+
+* estimatedLevel
+* confirmedLevel
+* currentLevel
+* recommendedTestLevel
+
+目前“开始正式测试”主要进入系统推荐的等级。
+
+现在需要增加一个正式产品功能：
+
+> **登录后的用户，可以按照自己的意愿，在 SRC100 / SRC300 / SRC500 / SRC800 四个等级中自由选择任意一个等级进行正式测试。**
+
+这个功能不仅用于人工 E2E 测试，也是正式产品功能。
+
+---
+
+# 二、最重要的产品原则
+
+必须严格区分以下 5 个概念：
+
+### 1. currentLevel
+
+孩子当前中文等级。
+
+来源：
+
+```text
+confirmedLevel ?? estimatedLevel
+```
+
+不能因为用户选择了某个测试等级而改变。
+
+---
+
+### 2. recommendedTestLevel
+
+系统根据孩子当前数据推荐的下一步测试等级。
+
+例如：
+
+```text
+Mia 当前等级：SRC300
+推荐测试：SRC300
+```
+
+这是系统推荐，不是用户唯一可以测试的等级。
+
+---
+
+### 3. testLevel
+
+本次用户实际选择进行测试的等级。
+
+例如：
+
+```text
+currentLevel = SRC300
+recommendedTestLevel = SRC300
+testLevel = SRC100
+```
+
+完全合法。
+
+也可以：
+
+```text
+currentLevel = SRC300
+recommendedTestLevel = SRC300
+testLevel = SRC500
+```
+
+也完全合法。
+
+---
+
+### 4. confirmedLevel
+
+正式测试后，根据正式测试结果和既定 LevelService 规则计算出的确认等级。
+
+必须由正式测试结果决定。
+
+**不能直接等于 testLevel。**
+
+例如：
+
+```text
+testLevel = SRC500
+```
+
+不代表：
+
+```text
+confirmedLevel = SRC500
+```
+
+必须根据实际测试结果判断。
+
+---
+
+### 5. test_mode
+
+本功能选择的四级测试仍然属于：
+
+```text
+test_mode = 'formal'
+```
+
+不能因为用户自由选择等级而改成 sampling。
+
+---
+
+# 三、核心业务规则
+
+## 规则 1：四个等级都允许自由选择
+
+登录用户可以选择：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+任何一个等级。
+
+不应因为当前等级较低而禁止选择更高等级。
+
+例如：
+
+```text
+当前 SRC100
+可以测试 SRC100
+可以测试 SRC300
+可以测试 SRC500
+可以测试 SRC800
+```
+
+同样：
+
+```text
+当前 SRC800
+可以测试 SRC100
+可以测试 SRC300
+可以测试 SRC500
+可以测试 SRC800
+```
+
+---
+
+# 四、自由测试不能改变当前等级
+
+这是本次开发最重要的保护条件。
+
+例如：
+
+```text
+Mia 当前等级 = SRC300
+```
+
+Mia 主动选择：
+
+```text
+SRC100
+```
+
+完成测试后，即使 SRC100 测试结果很好，也不能简单地：
+
+```text
+currentLevel = SRC100
+```
+
+因为：
+
+> testLevel 是“本次测试等级”，currentLevel 是“孩子当前能力等级”。
+
+两者必须完全分离。
+
+---
+
+# 五、自由测试更高等级也不能直接升级
+
+例如：
+
+```text
+currentLevel = SRC300
+testLevel = SRC800
+```
+
+即使进入了 SRC800 测试，也不能直接：
+
+```text
+confirmedLevel = SRC800
+```
+
+必须继续使用现有正式测试结果计算逻辑：
+
+```text
+answers
+→ mastery rate
+→ stable_char_count
+→ stable_vocab_count
+→ LevelService
+→ confirmedLevel
+```
+
+不能为了实现自由测试而修改现有 confirmedLevel 算法。
+
+---
+
+# 六、推荐 UI 设计
+
+## 1. Hub 的“我的 SRC 旅程”
+
+当前页面已经有：
+
+```text
+我的 SRC 旅程
+
+SRC100
+SRC300 · 当前
+SRC500
+SRC800
+```
+
+请在不破坏现有 UI 的前提下，将其改造成**可点击的等级选择入口**。
+
+建议：
+
+```text
+我的 SRC 旅程
+
+SRC100    SRC300    SRC500    SRC800
+           ·当前
+
+推荐测试：SRC300
+
+选择任意等级进行测试 →
+```
+
+四个等级都应该可以点击。
+
+点击后进入对应等级的正式测试。
+
+---
+
+# 七、建议增加独立“选择测试等级”界面
+
+如果直接让四个等级成为按钮会造成 UI 拥挤，可以增加：
+
+> **选择测试等级**
+
+页面/弹窗。
+
+建议结构：
+
+```text
+选择测试等级
+
+根据你的中文成长情况，我们推荐：
+
+⭐ SRC300
+阅读常用字阶段
+
+但你也可以自由选择其他等级进行测试：
+
+SRC100
+基础识字
+
+SRC300 ⭐ 推荐
+阅读常用字
+
+SRC500
+进阶阅读
+
+SRC800
+高阶阅读
+```
+
+点击任何等级：
+
+```text
+开始 SRC100 测试
+```
+
+或：
+
+```text
+开始 SRC500 测试
+```
+
+---
+
+# 八、必须保留“推荐测试”入口
+
+不能删除现在的：
+
+> 开始正式测试
+
+这个按钮仍然进入：
+
+```text
+recommendedTestLevel
+```
+
+例如 Mia：
+
+```text
+currentLevel = SRC300
+recommendedTestLevel = SRC300
+```
+
+点击：
+
+> 开始正式测试
+
+仍然：
+
+```text
+/fulltest?level=SRC300
+```
+
+---
+
+# 九、增加“自由选择”入口
+
+自由选择入口可以放在：
+
+### Hub
+
+```text
+我的 SRC 旅程
+```
+
+或者：
+
+### Growth Map
+
+```text
+选择其他 SRC 等级测试 →
+```
+
+或者两处都可以。
+
+优先选择最自然、最容易让用户理解的位置。
+
+---
+
+# 十、URL 与 fulltest 架构
+
+现有：
+
+```text
+/fulltest?level=SRCxxx
+```
+
+如果当前架构已经支持动态读取：
+
+```text
+searchParams.get('level')
+```
+
+请继续沿用。
+
+不要重新建立另一套测试系统。
+
+例如：
+
+```text
+/fulltest?level=SRC100
+/fulltest?level=SRC300
+/fulltest?level=SRC500
+/fulltest?level=SRC800
+```
+
+均必须进入同一个 fulltest 页面。
+
+然后：
+
+```text
+level
+→ LEVEL_CONFIG[level]
+→ getCharList(level)
+→ getWordList(level)
+→ sampling ratio
+→ generate test
+```
+
+---
+
+# 十一、必须增加服务端等级校验
+
+不能只依赖前端 URL。
+
+例如用户手动输入：
+
+```text
+/fulltest?level=SRC500
+```
+
+后端必须验证：
+
+```text
+level ∈ ['SRC100','SRC300','SRC500','SRC800']
+```
+
+合法则继续。
+
+非法值：
+
+```text
+SRC999
+ABC
+undefined
+null
+```
+
+必须安全处理。
+
+不要让非法 level 导致：
+
+* 崩溃
+* 错误查询
+* 默认错误等级
+* 数据污染
+
+---
+
+# 十二、正式测试 session 必须保存 testLevel
+
+这是本次开发的关键数据结构要求。
+
+创建正式测试 session 时，必须明确保存：
+
+```text
+test_mode = 'formal'
+level = testLevel
+```
+
+例如 Mia 当前 SRC300，但主动选择 SRC100：
+
+```text
+test_mode = 'formal'
+level = 'SRC100'
+```
+
+不能保存成：
+
+```text
+level = currentLevel
+```
+
+也不能保存成：
+
+```text
+level = recommendedTestLevel
+```
+
+必须是：
+
+> **用户实际选择的 testLevel**
+
+---
+
+# 十三、Answers 必须属于本次 testLevel
+
+例如：
+
+```text
+session.level = SRC500
+```
+
+那么该 session 中：
+
+* 单字题来自 SRC500
+* 词组题来自 SRC500
+* answers 属于 SRC500 formal test
+
+不能混入：
+
+```text
+SRC300
+SRC800
+```
+
+题目。
+
+---
+
+# 十四、Results 必须使用 session.level
+
+Results 计算时：
+
+```text
+session.level
+```
+
+才是本次测试等级。
+
+不要使用：
+
+```text
+currentLevel
+recommendedTestLevel
+estimatedLevel
+```
+
+代替。
+
+例如：
+
+```text
+currentLevel = SRC300
+testLevel = SRC500
+```
+
+Results 必须按照：
+
+```text
+SRC500 LEVEL_CONFIG
+```
+
+计算：
+
+* stable_char_count
+* stable_vocab_count
+* mastery rate
+* 教材覆盖
+* 相关指标
+
+---
+
+# 十五、Growth Map 必须正确区分测试等级与当前等级
+
+Growth Map 中应该能够区分：
+
+```text
+currentLevel
+```
+
+和：
+
+```text
+最近一次正式测试等级
+```
+
+例如：
+
+```text
+当前等级：SRC300
+
+最近测试：
+SRC500
+掌握率：72%
+```
+
+不要因为 Mia 测了 SRC500 就直接显示：
+
+```text
+当前等级 SRC500
+```
+
+除非现有 LevelService 根据正式测试结果确实判定她已经达到 SRC500。
+
+---
+
+# 十六、建议增加“测试记录”概念
+
+如果现有数据库结构允许，建议不要覆盖以前测试记录。
+
+例如 Mia 可以拥有：
+
+```text
+SRC100 formal test
+SRC300 formal test
+SRC500 formal test
+```
+
+甚至可以多次测试：
+
+```text
+SRC300 - 第一次
+SRC300 - 第二次
+SRC500 - 第一次
+```
+
+历史记录应该保留。
+
+但是：
+
+> Growth Map / Hub 的 currentLevel
+
+仍然由系统既定规则决定，而不是简单取“最后测试的等级”。
+
+---
+
+# 十七、重复测试规则
+
+允许用户重复测试同一个 SRC 等级。
+
+例如：
+
+```text
+SRC300
+```
+
+可以测试多次。
+
+但是需要确认现有 Results / Growth Map 逻辑：
+
+* 是取最新一次？
+* 是取最高可信结果？
+* 还是按照既有规则合并？
+
+**本次不要擅自改变现有规则。**
+
+如果目前系统已经定义了“最新 formal result”作为确认依据，则继续使用现有规则。
+
+只需要确保：
+
+```text
+testLevel
+```
+
+被正确保存。
+
+---
+
+# 十八、SRC100 特殊规则必须保持
+
+SRC100：
+
+```text
+charSampleRatio = 100%
+wordSampleRatio = 60%
+```
+
+所以：
+
+```text
+114 个单字
+77 个词组
+```
+
+约：
+
+```text
+191题
+```
+
+自由选择 SRC100 时，仍然必须执行：
+
+```text
+SRC100 LEVEL_CONFIG
+```
+
+不能因为用户当前等级不是 SRC100 就改变题量。
+
+---
+
+# 十九、四级配置必须继续由 LEVEL_CONFIG 驱动
+
+禁止新增类似：
+
+```text
+if (level === 'SRC100') ...
+if (level === 'SRC300') ...
+if (level === 'SRC500') ...
+if (level === 'SRC800') ...
+```
+
+来复制业务逻辑。
+
+优先使用：
+
+```text
+LEVEL_CONFIG[level]
+```
+
+和现有：
+
+```text
+getCharList(level)
+getWordList(level)
+getNextLevel(level)
+numToLevel(...)
+```
+
+等统一函数。
+
+---
+
+# 二十、不能修改 Quick Assessment 推荐逻辑
+
+本次功能不是修改 QA。
+
+Quick Assessment 仍然负责：
+
+```text
+估算孩子当前中文水平
+→ 推荐下一步正式测试等级
+```
+
+自由测试只是增加：
+
+```text
+用户主动选择其他等级
+```
+
+不要改变：
+
+* QA 算法
+* estimatedLevel
+* recommendedTestLevel
+* QA 题目
+* QA 数据结构
+
+---
+
+# 二十一、不能修改现有 Growth Map 业务含义
+
+Growth Map 原有：
+
+```text
+estimatedLevel
+confirmedLevel
+currentLevel
+recommendedTestLevel
+```
+
+继续保持。
+
+新增的：
+
+```text
+testLevel
+```
+
+只代表：
+
+> 本次测试选择的等级。
+
+绝对不能把 testLevel 当成 currentLevel。
+
+---
+
+# 二十二、页面文案建议
+
+推荐测试入口：
+
+> **开始正式测试**
+
+自由选择：
+
+> **选择其他等级测试**
+
+或者：
+
+> **自由选择测试等级**
+
+建议避免：
+
+> 挑战等级
+
+因为这容易让家长理解成游戏挑战，而不是能力测评。
+
+---
+
+# 二十三、针对 Mia 的最终目标
+
+完成开发后，我应该能够：
+
+### 第一步
+
+登录：
+
+```text
+Mia
+```
+
+### 第二步
+
+进入 Hub：
+
+```text
+我的 SRC 旅程
+```
+
+### 第三步
+
+看到：
+
+```text
+SRC100
+SRC300 · 当前
+SRC500
+SRC800
+```
+
+同时看到：
+
+```text
+推荐测试：SRC300
+```
+
+### 第四步
+
+我主动点击：
+
+```text
+SRC100
+```
+
+### 第五步
+
+系统明确显示：
+
+```text
+SRC100 正式测试
+```
+
+### 第六步
+
+开始测试：
+
+```text
+114 单字
+约77词组
+```
+
+### 第七步
+
+完成测试。
+
+### 第八步
+
+Results 正确记录：
+
+```text
+testLevel = SRC100
+test_mode = formal
+```
+
+### 第九步
+
+Growth Map 正确处理结果。
+
+### 第十步
+
+返回 Hub。
+
+### 第十一步
+
+退出 Mia。
+
+### 第十二步
+
+重新登录 Mia。
+
+确认：
+
+* 测试记录没有丢失
+* currentLevel 没有因为“选择 SRC100”而被错误降低
+* formal result 仍然存在
+* Hub 数据正常
+* Growth Map 数据正常
+
+---
+
+# 二十四、人工 E2E 验收矩阵
+
+开发完成后，请至少验证：
+
+| 测试场景                  | 预期                          |
+| --------------------- | --------------------------- |
+| 当前 SRC300 → 推荐测试      | 进入 SRC300                   |
+| 当前 SRC300 → 自选 SRC100 | 进入 SRC100                   |
+| 当前 SRC300 → 自选 SRC300 | 进入 SRC300                   |
+| 当前 SRC300 → 自选 SRC500 | 进入 SRC500                   |
+| 当前 SRC300 → 自选 SRC800 | 进入 SRC800                   |
+| SRC100 题库             | 114字 + 77词左右                |
+| SRC300 题库             | 95字 + 42词左右                 |
+| SRC500 题库             | 132字 + 56词左右                |
+| SRC800 题库             | 163字 + 66词左右                |
+| test_mode             | formal                      |
+| session.level         | 等于用户选择的 testLevel           |
+| Results               | 使用 session.level            |
+| Growth Map            | 不把 testLevel 当 currentLevel |
+| Hub                   | 不把 testLevel 当 currentLevel |
+| Logout/Login          | 数据保持                        |
+| 非法 level              | 安全拒绝/返回错误                   |
+| 未登录访问                 | 保持现有权限控制                    |
+
+---
+
+# 二十五、重点检查现有代码
+
+请先只读检查以下文件和相关调用链：
+
+```text
+src/app/hub/page.tsx
+src/app/fulltest/page.tsx
+src/app/result/page.tsx
+src/app/api/sessions/route.ts
+src/app/api/answers/route.ts
+src/app/api/results/route.ts
+src/app/api/growth-map/route.ts
+src/lib/level-service.ts
+src/lib/types.ts
+src/lib/questions.ts
+src/lib/item-selection.ts
+src/lib/auth-context.tsx
+```
+
+同时搜索全项目：
+
+```text
+recommendedTestLevel
+recommended_test_level
+currentLevel
+confirmedLevel
+estimatedLevel
+test_mode
+session.level
+level=
+/fulltest
+```
+
+确认现有架构后再实施。
+
+---
+
+# 二十六、开发原则
+
+### 必须：
+
+1. 最大限度复用现有四级正式测试架构
+2. 使用 LEVEL_CONFIG
+3. testLevel 与 currentLevel 完全分离
+4. session 保存实际测试等级
+5. Results 使用 session.level
+6. 保持 test_mode=formal
+7. 保持现有 QA 推荐逻辑
+8. 保持现有 Growth Map confirmed 逻辑
+9. 保持退出重新登录恢复机制
+10. 支持 SRC100/300/500/800 全部自由测试
+
+### 禁止：
+
+1. 修改 Mia 数据库等级来实现测试
+2. 修改 QA 结果
+3. 修改 currentLevel 作为测试入口
+4. 用 recommendedLevel 代替 testLevel
+5. 用 testLevel 直接覆盖 confirmedLevel
+6. 为四个等级复制四套测试代码
+7. 新增等级硬编码业务逻辑
+8. 破坏现有 SRC300 已验证流程
+9. 把自由测试标记成 sampling
+10. 删除现有“推荐测试”入口
+
+---
+
+# 二十七、实施方式
+
+请按照以下顺序执行：
+
+### Phase 1：只读分析
+
+先检查现有代码，输出：
+
+1. 当前推荐测试入口
+2. 当前 `/fulltest?level=` 机制
+3. 当前 session.level 来源
+4. 当前 Results 使用哪个 level
+5. 当前 Growth Map 使用哪个 level
+6. 最小修改文件列表
+7. 预计修改方案
+
+**Phase 1 不修改代码。**
+
+---
+
+### Phase 2：实施最小修改
+
+得到上述分析后，在不破坏现有架构的情况下实现：
+
+> 推荐测试 + 自由选择测试等级
+
+优先最小改动。
+
+---
+
+### Phase 3：静态检查
+
+完成后运行：
+
+```text
+lint
+ts-check
+build
+```
+
+如果项目有现成测试，也运行现有测试。
+
+---
+
+### Phase 4：只读代码审计
+
+重新确认：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+全部动态走：
+
+```text
+LEVEL_CONFIG
+```
+
+并确认：
+
+```text
+testLevel
+currentLevel
+recommendedTestLevel
+confirmedLevel
+```
+
+没有混淆。
+
+---
+
+### Phase 5：输出人工 E2E 测试说明
+
+最后告诉我：
+
+1. 如何登录 Mia
+2. 从哪里进入“自由选择测试等级”
+3. 如何选择 SRC100
+4. 如何选择 SRC300
+5. 如何选择 SRC500
+6. 如何选择 SRC800
+7. 每级预期题量
+8. 完成测试后应该检查什么
+9. 如何确认 session.level 正确
+10. 如何确认退出重新登录后数据正确
+
+---
+
+# 最终验收标准
+
+只有同时满足以下条件，才算完成：
+
+> **用户既可以按照系统推荐等级进行正式测试，也可以自由选择 SRC100 / SRC300 / SRC500 / SRC800 中任意一个等级进行正式测试。**
+
+并且：
+
+> **选择哪个等级进行测试，不等于孩子当前就是哪个等级。**
+
+最终必须保持：
+
+```text
+recommendedTestLevel
+        ↓
+系统推荐
+
+testLevel
+        ↓
+用户本次选择
+
+formal result
+        ↓
+根据实际表现计算
+
+confirmedLevel
+        ↓
+正式确认等级
+
+currentLevel
+        ↓
+confirmedLevel ?? estimatedLevel
+```
+
+这五个概念必须始终保持独立。
+
+完成后，**不要自动修改 Mia 的等级或测试数据**，等待人工 E2E 验收。
