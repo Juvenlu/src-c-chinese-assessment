@@ -368,8 +368,9 @@ export interface GrowthMapData {
     mastered: number;
     total: number;
     masteryRate: number;
-    covered: number;     // 双体系重合字数
-    coverageRate: number; // 重合率
+    covered: number;     // 本次测试覆盖的教材字数（抽样估算）
+    full_overlap: number; // SRC与教材全集交集数（字库规模对照）
+    coverageRate: number; // 覆盖率（covered/total）
   };
   
   vocabMastery: {

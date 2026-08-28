@@ -39,7 +39,14 @@ export default function HubPage() {
   const recommendedLevel = assessmentStatus?.recommended_test_level || 'SRC100';
   const recommendedLevelNum = parseInt(recommendedLevel.replace('SRC', ''), 10) || 100;
 
-  const wordLevel = latestResult?.word_level_l || latestResult?.word_level_u || 100;
+  // 词语水平：正式测试优先（取 formal 的等级和掌握率），其次 Quick Assessment
+  const hasFormal = !!assessmentStatus?.formalResult;
+  const quickWordLevel = latestResult?.word_level_l || latestResult?.word_level_u || 100;
+  const wordLevel = hasFormal
+    ? currentLevel  // 正式测试时，词语水平与当前等级一致（同等级下的掌握率见详情）
+    : `SRC${quickWordLevel}`;
+  const wordLevelNum = parseInt(wordLevel.replace('SRC', ''), 10) || 100;
+
   const readingBase = latestResult?.reading_base || 100;
   const confidence = latestResult?.confidence || "high";
 
@@ -284,12 +291,21 @@ export default function HubPage() {
                     className="text-2xl font-bold"
                     style={{ fontFamily: "var(--font-heading)", color: "var(--color-secondary, #4ECDC4)" }}
                   >
-                    SRC{wordLevel}
+                    {wordLevel}
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
-                  <p>约 {wordLevel} 词</p>
-                  <p>词语理解</p>
+                  {hasFormal && assessmentStatus?.formalResult ? (
+                    <>
+                      <p>掌握率 {Math.round(assessmentStatus.formalResult.vocab_mastery_rate * 100)}%</p>
+                      <p>词语识别</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>约 {wordLevelNum} 词</p>
+                      <p>词语理解</p>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-muted/50 p-4">

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { LEVEL_CONFIG, Level } from '@/lib/types';
 import { getNextLevel } from '@/lib/level-service';
+import { getCharList, getRJBCharList, getCorrespondingRJBLevel } from '@/lib/questions';
+import { calculateDualSystemResult } from '@/lib/dual-system';
 
 // 综合评价等级与文案
 const getEvaluation = (score: number, isFirst: boolean) => {
@@ -106,17 +108,23 @@ export default function ResultPage() {
     setTestedVocab(testedV);
     setCorrectVocab(correctV);
 
-    // 人教版映射：根据SRC等级估算覆盖率与掌握情况
-    const pepMap: Record<Level, { total: number; coverageRatio: number }> = {
-      SRC100: { total: 100, coverageRatio: 0.85 },
-      SRC300: { total: 300, coverageRatio: 0.82 },
-      SRC500: { total: 499, coverageRatio: 0.78 },
-      SRC800: { total: 799, coverageRatio: 0.75 },
-    };
-    const pepInfo = pepMap[l];
-    const pepCoveredCount = Math.min(pepInfo.total, Math.round(testedC * pepInfo.coverageRatio));
+    // 人教版映射：使用真实字库交集计算（基于本次测试的认识/不认识字）
+    const srcCharList = getCharList(l);
+    const rjbLevel = getCorrespondingRJBLevel(l);
+    const rjbCharList = getRJBCharList(rjbLevel);
+    // 从测试单字列表中找出实际测了哪些字（用索引切片模拟抽样列表）
+    // 由于 result 页没有完整的测试汉字列表，用"从 src 字库中前 testedC 个"作为近似
+    // 更准确的做法：从 fulltest 传递 known/unknown 列表，但当前 URL 参数只有数量
+    // 这里使用掌握率反推估算（与 Growth Map 保持一致口径）
     const charMasteryRate = testedC > 0 ? correctC / testedC : 0;
-    setPepTotal(pepInfo.total);
+    const rjbSet = new Set(rjbCharList);
+    const srcSet = new Set(srcCharList);
+    // 真实 SRC 字库与教材字库的全集交集数（用于展示字库规模对照）
+    const overlapChars = srcCharList.filter(c => rjbSet.has(c));
+    const pepTotal = rjbCharList.length;
+    // 本次测试覆盖的教材字数量：按抽样比例 × 全集交集数估算（掌握估算用全库掌握率）
+    const pepCoveredCount = Math.min(pepTotal, Math.round(overlapChars.length * (testedC / srcCharList.length)));
+    setPepTotal(pepTotal);
     setPepCovered(pepCoveredCount);
     setPepCoveredCorrect(Math.round(pepCoveredCount * charMasteryRate));
 
@@ -127,12 +135,12 @@ export default function ResultPage() {
   const charMasteryRate = testedChars > 0 ? correctChars / testedChars : 0;
   // 词组掌握率
   const vocabMasteryRate = testedVocab > 0 ? correctVocab / testedVocab : 0;
-  // 人教版覆盖内掌握率
-  const pepMasteryRate = pepCovered > 0 ? pepCoveredCorrect / pepCovered : 0;
+  // 人教版整体估算掌握率（统一使用全库掌握率 = 单字正确率，避免中间舍入误差）
+  const pepMasteryRate = charMasteryRate;
 
-  // 估算掌握量
+  // 估算掌握量（统一规则：掌握率 × 总字数，只在最终 round 一次）
   const estimatedCharMastered = isFullTest ? correctChars : Math.round(totalChars * charMasteryRate);
-  const estimatedPepMastered = Math.round(pepTotal * pepMasteryRate);
+  const estimatedPepMastered = Math.round(pepTotal * charMasteryRate);
   const estimatedVocabMastered = Math.round(totalVocab * vocabMasteryRate);
 
   // 综合评价（单字60% + 词组30% + 历史稳定性10%，首测把10%分给单字和词组）

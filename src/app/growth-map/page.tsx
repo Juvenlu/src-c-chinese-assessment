@@ -43,13 +43,15 @@ export default function GrowthMapPage() {
       const rjbLevel = getCorrespondingRJBLevel(level);
       const rjbChars = getRJBCharList(rjbLevel);
       const srcCharSet = new Set(srcChars);
-      // 计算SRC字库中包含了多少人教版字（覆盖率基数）
+      // 计算SRC字库中包含了多少人教版字（全集交集，作为字库规模对照参考）
       const pepInSrc = rjbChars.filter(c => srcCharSet.has(c));
       const pepTotal = rjbChars.length;
-      const pepCovered = pepInSrc.length;
-      // 按比例估算人教版掌握数（基于SRC测试的整体掌握率）
+      const pepFullOverlap = pepInSrc.length;
+      // 本次测试覆盖的教材字：按抽样比例估算（与 result 页口径一致）
+      const sampleRatio = testedChars / srcChars.length;
+      const pepCovered = Math.min(pepTotal, Math.round(pepFullOverlap * sampleRatio));
+      // 按整体掌握率估算人教版掌握数（统一规则：最后只 round 一次）
       const pepMasteryRate = charMasteryRate;
-      const pepCoveredCorrect = Math.round(pepCovered * pepMasteryRate);
       const pepEstimated = Math.round(pepTotal * pepMasteryRate);
 
       const vocabMasteryRate = testedVocab > 0 ? correctVocab / testedVocab : 0;
@@ -85,6 +87,7 @@ export default function GrowthMapPage() {
           total: pepTotal,
           masteryRate: pepMasteryRate,
           covered: pepCovered,
+          full_overlap: pepFullOverlap,
           coverageRate: pepCovered / pepTotal,
         },
         vocabMastery: {
@@ -172,6 +175,17 @@ export default function GrowthMapPage() {
   return (
     <div className="min-h-screen bg-[var(--color-src-bg)] py-8 px-4">
       <div className="max-w-3xl mx-auto">
+        {/* 返回 Hub 入口 */}
+        {user && (
+          <div className="mb-6">
+            <Link
+              href="/hub"
+              className="inline-flex items-center gap-2 text-sm text-[var(--color-src-text-light)] hover:text-[var(--color-src-primary)] transition-colors"
+            >
+              ← 返回我的中文世界
+            </Link>
+          </div>
+        )}
         {/* 标题 */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-display text-[var(--color-src-text)] mb-2">
@@ -235,6 +249,12 @@ export default function GrowthMapPage() {
                     本次测试覆盖 {data.pepMastery.covered} 个教材汉字（覆盖率{' '}
                     {Math.round(data.pepMastery.coverageRate * 100)}%）
                   </p>
+                  {data.pepMastery.full_overlap !== undefined && (
+                    <p className="text-xs text-gray-300">
+                      {data.srcMastery.level} 字库包含 {data.pepMastery.full_overlap} 个
+                      {data.pepMastery.level}教材基础汉字
+                    </p>
+                  )}
                 </>
               )}
             </div>

@@ -178,8 +178,17 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
   // ===== 6. 人教版交叉计算
   const rjbSet = new Set(allRJBChars);
   const overlapChars = allSrcChars.filter(c => rjbSet.has(c));
-  const rjbMastered = Math.floor(overlapChars.length * charMasteryRate);
   const rjbTotal = allRJBChars.length;
+  // 全集交集：SRC 字库与教材字库的公共字（字库规模对照，非本次测试覆盖）
+  const pepFullOverlap = overlapChars.length;
+  // 本次测试实际覆盖的教材字（按抽样比例 × 全集交集估算，正式测试同样适用，因为正式测试也是抽样）
+  const totalSrcChars = allSrcChars.length;
+  const testSamplingRatio = totalSrcChars > 0 ? testedCount / totalSrcChars : 0;
+  const rjbCovered = hasFormalTest || testSamplingRatio > 0
+    ? Math.min(pepFullOverlap, Math.round(pepFullOverlap * testSamplingRatio))
+    : Math.round(pepFullOverlap * 0.3); // 无测试数据时按30%粗略估算
+  // 人教版掌握数（统一规则：全字库掌握率 × 总字数，最后 round 一次）
+  const rjbMastered = Math.round(rjbTotal * charMasteryRate);
   const rjbMasteryRate = rjbTotal > 0 ? rjbMastered / rjbTotal : 0;
 
   // ===== 7. 成长趋势
@@ -243,8 +252,9 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
       mastered: rjbMastered,
       total: rjbTotal,
       masteryRate: rjbMasteryRate,
-      covered: overlapChars.length,
-      coverageRate: rjbTotal > 0 ? overlapChars.length / rjbTotal : 0,
+      covered: rjbCovered,
+      full_overlap: pepFullOverlap,
+      coverageRate: rjbTotal > 0 ? rjbCovered / rjbTotal : 0,
     },
     vocabMastery: {
       mastered: vocabMastered,
