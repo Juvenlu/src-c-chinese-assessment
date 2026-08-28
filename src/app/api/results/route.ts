@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient, getCurrentUser } from '@/lib/auth-utils';
 import { calculatePartScores, calculateTotalScore, calculateStableCharCount, calculateStableVocabCount } from '@/lib/scoring';
+import { LEVEL_CONFIG, Level } from '@/lib/types';
 import { requireChildOwnership, requireSessionOwnership } from '@/lib/auth/child-access';
 
 /**
@@ -63,16 +64,42 @@ export async function POST(request: NextRequest) {
 
     const typedAnswers = answers?.map((a: any) => ({
       ...a,
-      question_content: a.question_bank?.character || a.question_bank?.word || '',
+      // 正式测试（question_id 为 null）答案的题干存在 question_content 字段
+      // 趣味闯关答案从 question_bank 关联读取
+      question_content: a.question_content || a.question_bank?.character || a.question_bank?.word || '',
       part: a.part || a.question_bank?.part || 'character',
       question_type: a.question_bank?.type || 'character',
     })) || [];
 
+    // 安全校验：没有有效答案时拒绝生成结果
+    const validAnswers = typedAnswers.filter((a: any) => a.question_content && (a.part === 1 || a.part === 2 || a.part === 'character' || a.part === 'vocabulary'));
+    if (validAnswers.length === 0) {
+      return NextResponse.json({ error: '没有有效答题记录，无法生成结果' }, { status: 400 });
+    }
+
     // 第四步：计算得分（纯计算，不涉及权限）
     const partScores = calculatePartScores(typedAnswers, typedAnswers.length);
-    const totalScore = calculateTotalScore(partScores);
-    const stableCharCount = calculateStableCharCount(totalScore, level, typedAnswers);
-    const stableVocabCount = calculateStableVocabCount(stableCharCount, level);
+    let totalScore: number;
+    let stableCharCount: number;
+    let stableVocabCount: number;
+
+    const isFormalTest = testMode === 'formal' || testMode === 'full';
+    if (isFormalTest) {
+      // 正式 SRC 测试：只有单字 + 词组两部分，各占 50% 权重
+      const charRate = partScores.characterScore / 100;
+      const vocabRate = partScores.vocabScore / 100;
+      totalScore = Math.round((charRate * 0.5 + vocabRate * 0.5) * 100);
+      // 稳定识字量：单字掌握率 × 等级字库总数
+      const levelCharCount = LEVEL_CONFIG[level as keyof typeof LEVEL_CONFIG]?.charCount || 300;
+      const levelVocabCount = LEVEL_CONFIG[level as keyof typeof LEVEL_CONFIG]?.vocabCount || 300;
+      stableCharCount = Math.round(charRate * levelCharCount);
+      stableVocabCount = Math.round(vocabRate * levelVocabCount);
+    } else {
+      // 趣味闯关：四部分加权
+      totalScore = calculateTotalScore(partScores);
+      stableCharCount = calculateStableCharCount(totalScore, level, typedAnswers);
+      stableVocabCount = calculateStableVocabCount(stableCharCount, level);
+    }
 
     const startTime = new Date(session.started_at).getTime();
     const endTime = session.completed_at ? new Date(session.completed_at).getTime() : Date.now();

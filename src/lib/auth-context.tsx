@@ -192,12 +192,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 quickResult: d.assessmentType !== 'formal' && d.quickConfidence
                   ? {
                       reading_base: d.recommended_test_level === 'SRC100' ? 100 : d.recommended_test_level === 'SRC300' ? 300 : d.recommended_test_level === 'SRC500' ? 500 : 800,
-                      // character_level/word_level 等原始 l/u 不硬编码，
-                      // Hub 统一使用 estimated_level / current_level 作为等级来源
-                      character_level_l: 0,
+                      // 从 Growth Map API 读取真实 Quick Assessment 等级
+                      character_level_l: d.quick_char_level ?? 0,
                       character_level_u: 0,
-                      word_level_l: 0,
-                      word_level_u: 0,
+                      word_level_l: d.quick_word_level_l ?? 0,
+                      word_level_u: d.quick_word_level_u ?? 0,
                       confidence: d.quickConfidence,
                     }
                   : null,
