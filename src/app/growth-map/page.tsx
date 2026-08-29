@@ -212,6 +212,9 @@ export default function GrowthMapPage() {
             <div className="flex-1">
               <h2 className="text-xl font-display text-[var(--color-src-text)] mb-2">
                 第一阶段：教材基础识字
+                <span className="text-xs font-sans font-normal text-gray-400 ml-2">
+                  人教版参照
+                </span>
               </h2>
               {isEstimated ? (
                 <div className="py-4">

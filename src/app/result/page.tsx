@@ -178,25 +178,42 @@ export default function ResultPage() {
           <h1 className="text-3xl font-display text-[var(--color-src-text)]">
             测字完成！
           </h1>
-          <p className="text-[var(--color-src-text-light)] mt-2">
-            {level} · 中文成长基础评估
+          <div className="text-4xl font-display text-[var(--color-src-primary)] mt-3 mb-2">
+            {level}
+          </div>
+          <p className="text-[var(--color-src-text-light)]">
+            中文成长基础评估
           </p>
         </div>
 
-        {/* 三张卡片 — 一次测试、双体系映射、三维结果 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* 卡片1：基础识字（人教版映射） */}
-          <div className="bg-white rounded-3xl p-6 shadow-lg text-center border-2 border-blue-100 hover:scale-105 transition-transform">
-            <div className="text-4xl mb-2">📘</div>
-            <div className="text-sm text-[var(--color-src-text-light)] mb-2">
-              基础识字
+        {/* 三维度结果 — 教材参照 → 阅读识字 → 词语应用 */}
+        <div className="space-y-4 mb-6">
+          {/* ① 教材基础识字（人教版参照） */}
+          <div className="bg-white rounded-3xl p-5 shadow-md border border-blue-50">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl">📘</div>
+              <div>
+                <div className="text-xs text-blue-400 font-medium">① 教材基础识字</div>
+                <div className="text-sm font-bold text-[var(--color-src-text)]">
+                  人教版基础字参照
+                </div>
+              </div>
             </div>
-            <div className="text-4xl font-display text-[var(--color-src-primary)] mb-1">
-              {Math.round(pepMasteryRate * 100)}
-              <span className="text-xl text-[var(--color-src-text-light)]">%</span>
-            </div>
-            <div className="text-xs text-[var(--color-src-text-light)] mb-3">
-              {pepLevelName}基础汉字
+            <div className="flex items-end justify-between mb-2">
+              <div>
+                <span className="text-3xl font-display text-blue-500">
+                  {estimatedPepMastered}
+                </span>
+                <span className="text-sm text-[var(--color-src-text-light)]">
+                  {' '}/ {pepTotal} 字
+                </span>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-display text-blue-500">
+                  {Math.round(pepMasteryRate * 100)}%
+                </div>
+                <div className="text-xs text-[var(--color-src-text-light)]">掌握率</div>
+              </div>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
               <div
@@ -204,57 +221,80 @@ export default function ResultPage() {
                 style={{ width: `${Math.min(100, pepMasteryRate * 100)}%` }}
               />
             </div>
-            <div className="text-xs text-gray-400">
-              本次覆盖 {pepCovered} 个教材汉字
-            </div>
-            {!isFullTest && (
-              <div className="text-xs text-blue-400 mt-1">
-                预计已掌握约 {estimatedPepMastered} 字
-              </div>
-            )}
+            <p className="text-xs text-[var(--color-src-text-light)] leading-relaxed">
+              人教版字库用于提供教材识字参照，帮助了解孩子的基础汉字积累。
+              本次测试覆盖 {pepCovered} 个教材汉字。
+            </p>
           </div>
 
-          {/* 卡片2：阅读识字（SRC） */}
-          <div className="bg-white rounded-3xl p-6 shadow-lg text-center border-2 border-orange-100 hover:scale-105 transition-transform">
-            <div className="text-4xl mb-2">📚</div>
-            <div className="text-sm text-[var(--color-src-text-light)] mb-2">
-              阅读识字
+          {/* ② SRC阅读识字（核心） */}
+          <div className="bg-white rounded-3xl p-6 shadow-lg border-2 border-[var(--color-src-primary)]/20 relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-[var(--color-src-primary)] text-white text-xs px-3 py-1 rounded-bl-2xl font-medium">
+              核心指标
             </div>
-            <div className="text-4xl font-display text-[var(--color-src-primary)] mb-1">
-              {Math.round(charMasteryRate * 100)}
-              <span className="text-xl text-[var(--color-src-text-light)]">%</span>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-3xl">📚</div>
+              <div>
+                <div className="text-xs text-[var(--color-src-primary)] font-bold">② 阅读识字</div>
+                <div className="text-lg font-display text-[var(--color-src-text)]">
+                  {level} 阅读常用字
+                </div>
+              </div>
             </div>
-            <div className="text-xs text-[var(--color-src-text-light)] mb-3">
-              SRC阅读常用字
+            <div className="flex items-end justify-between mb-3">
+              <div>
+                <span className="text-4xl font-display text-[var(--color-src-primary)]">
+                  {estimatedCharMastered}
+                </span>
+                <span className="text-base text-[var(--color-src-text-light)]">
+                  {' '}/ {totalChars} 字
+                </span>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-display text-[var(--color-src-primary)]">
+                  {Math.round(charMasteryRate * 100)}%
+                </div>
+                <div className="text-xs text-[var(--color-src-text-light)]">掌握率</div>
+              </div>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
+            <div className="w-full bg-gray-100 rounded-full h-3 mb-2">
               <div
-                className="bg-[var(--color-src-primary)] h-2 rounded-full transition-all duration-1000"
+                className="bg-[var(--color-src-primary)] h-3 rounded-full transition-all duration-1000"
                 style={{ width: `${Math.min(100, charMasteryRate * 100)}%` }}
               />
             </div>
-            <div className="text-xs text-gray-400">
+            <p className="text-xs text-[var(--color-src-text-light)]">
               {isFullTest ? `全量测试 ${testedChars} 字` : `本次抽测 ${testedChars} 字`}
-            </div>
-            {!isFullTest && (
-              <div className="text-xs text-orange-400 mt-1">
-                预计已掌握约 {estimatedCharMastered} 字
-              </div>
-            )}
+              ，稳定掌握约 {estimatedCharMastered} 个阅读常用字。
+            </p>
           </div>
 
-          {/* 卡片3：词组掌握 */}
-          <div className="bg-white rounded-3xl p-6 shadow-lg text-center border-2 border-green-100 hover:scale-105 transition-transform">
-            <div className="text-4xl mb-2">🔤</div>
-            <div className="text-sm text-[var(--color-src-text-light)] mb-2">
-              词组掌握
+          {/* ③ 词语应用 */}
+          <div className="bg-white rounded-3xl p-5 shadow-md border border-green-50">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-2xl bg-green-50 flex items-center justify-center text-2xl">🔤</div>
+              <div>
+                <div className="text-xs text-emerald-500 font-medium">③ 词语应用</div>
+                <div className="text-sm font-bold text-[var(--color-src-text)]">
+                  常用词组掌握情况
+                </div>
+              </div>
             </div>
-            <div className="text-4xl font-display text-[var(--color-src-secondary)] mb-1">
-              {Math.round(vocabMasteryRate * 100)}
-              <span className="text-xl text-[var(--color-src-text-light)]">%</span>
-            </div>
-            <div className="text-xs text-[var(--color-src-text-light)] mb-3">
-              常用词组
+            <div className="flex items-end justify-between mb-2">
+              <div>
+                <span className="text-2xl font-display text-[var(--color-src-secondary)]">
+                  {correctVocab}
+                </span>
+                <span className="text-sm text-[var(--color-src-text-light)]">
+                  {' '}/ {testedVocab} 词
+                </span>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-display text-[var(--color-src-secondary)]">
+                  {Math.round(vocabMasteryRate * 100)}%
+                </div>
+                <div className="text-xs text-[var(--color-src-text-light)]">掌握率</div>
+              </div>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
               <div
@@ -262,22 +302,18 @@ export default function ResultPage() {
                 style={{ width: `${Math.min(100, vocabMasteryRate * 100)}%` }}
               />
             </div>
-            <div className="text-xs text-gray-400">
-              本次抽测 {testedVocab} 个词组
-            </div>
-            <div className="text-xs text-teal-500 mt-1">
-              估算词汇量约 {estimatedVocabMastered} 词
-            </div>
+            <p className="text-xs text-[var(--color-src-text-light)] leading-relaxed">
+              认识单字不等于掌握词语。词汇量估算约 {estimatedVocabMastered} 词，
+              词语应用是阅读能力的重要补充指标。
+            </p>
           </div>
         </div>
 
-        {/* 教育逻辑说明 */}
-        <div className="bg-white/60 rounded-2xl p-4 mb-6 text-center">
-          <p className="text-sm text-[var(--color-src-text)] font-medium">
-            课本基础 → 阅读基础 → 词语应用
-          </p>
-          <p className="text-xs text-[var(--color-src-text-light)] mt-1">
-            一次测字，三维评估，看见孩子的中文成长基础
+        {/* 三维关系说明 */}
+        <div className="bg-white/60 rounded-2xl p-4 mb-6">
+          <p className="text-sm text-[var(--color-src-text)] text-center leading-relaxed">
+            教材识字反映基础汉字积累；SRC 阅读识字进一步观察阅读常用字掌握情况；
+            词语测试则帮助了解汉字进入实际词语应用的基础。
           </p>
         </div>
 
