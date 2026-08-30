@@ -151,6 +151,9 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     vocabMasteryRate = (latestFormal.vocab_mastery_rate ?? latestFormal.vocab_score / 100) || 0;
     masteredCount = latestFormal.stable_char_count || Math.floor(allSrcChars.length * charMasteryRate);
     vocabMastered = latestFormal.stable_vocab_count || Math.floor(allWords.length * vocabMasteryRate);
+    // P1修复：确保 mastered 不超过对应等级 total（当测试等级高于确认等级时会出现 mastered > total）
+    masteredCount = Math.min(masteredCount, allSrcChars.length);
+    vocabMastered = Math.min(vocabMastered, allWords.length);
     testedCount = allSrcChars.length;
     vocabTested = allWords.length;
     learningCount = Math.floor(testedCount * 0.1);
