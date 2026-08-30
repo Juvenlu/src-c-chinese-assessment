@@ -61,6 +61,7 @@ function FullTestContent() {
   const [isPaused, setIsPaused] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
   // Character list (smart sampling, not all)
   const charList = useMemo(() => getCharList(level), [level]);
@@ -203,37 +204,42 @@ function FullTestContent() {
     setSaveError(null);
 
     try {
-      // Step 1: 创建 session
-      const sessionRes = await authFetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ child_id: childId, level, test_mode: 'formal' }),
-      });
-      if (!sessionRes.ok) {
-        throw new Error(`创建测试会话失败 (${sessionRes.status})`);
+      // Step 1: 创建 session（复用已有 sessionId，避免重试产生脏 session）
+      let sessionId = savedSessionId;
+      if (!sessionId) {
+        const sessionRes = await authFetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ child_id: childId, level, test_mode: 'formal' }),
+        });
+        if (!sessionRes.ok) {
+          const errBody = await sessionRes.json().catch(() => null);
+          throw new Error(errBody?.error || `创建测试会话失败 (${sessionRes.status})`);
+        }
+        const sessionJson = await sessionRes.json();
+        const sessionData = sessionJson?.data;
+        if (!sessionData?.id) {
+          throw new Error('测试会话创建失败：未返回 session ID');
+        }
+        sessionId = sessionData.id;
+        setSavedSessionId(sessionId);
       }
-      const sessionJson = await sessionRes.json();
-      const sessionData = sessionJson?.data;
-      if (!sessionData?.id) {
-        throw new Error('测试会话创建失败：未返回 session ID');
-      }
-      const sessionId = sessionData.id;
 
-      // Step 2: 保存 answers（批量）
+      // Step 2: 保存 answers（批量）— 核心数据，失败必须阻断
       const allAnswers = [
         ...results.map((r) => ({
           question_content: r.character,
           part: 1 as number,
           is_correct: r.recognized,
           reaction_time_ms: r.reaction_time_ms,
-          answer: r.recognized ? 'known' : 'unknown',
+          selected_answer: r.recognized ? 'known' : 'unknown',
         })),
         ...wordResults.map((r) => ({
           question_content: r.word,
           part: 2 as number,
           is_correct: r.recognized,
           reaction_time_ms: r.reaction_time_ms,
-          answer: r.recognized ? 'known' : 'unknown',
+          selected_answer: r.recognized ? 'known' : 'unknown',
         })),
       ];
 
@@ -243,20 +249,25 @@ function FullTestContent() {
         body: JSON.stringify({ session_id: sessionId, answers: allAnswers }),
       });
       if (!answersRes.ok) {
-        console.warn('[fulltest] answers 保存返回非2xx:', answersRes.status);
-        // 非致命，继续完成结果保存
+        const errBody = await answersRes.json().catch(() => null);
+        throw new Error(errBody?.error || `答案保存失败 (${answersRes.status})`);
+      }
+      const answersData = await answersRes.json();
+      const savedCount = answersData?.count ?? 0;
+      if (savedCount !== allAnswers.length) {
+        console.warn(`[fulltest] answers 保存数量不符：预期 ${allAnswers.length}，实际 ${savedCount}`);
       }
 
       // Step 3: 标记 session 完成
-      try {
-        await authFetch(`/api/sessions?id=${sessionId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'completed' }),
-        });
-      } catch (e) {
-        console.warn('[fulltest] session 状态更新失败:', e);
-        // 非致命
+      const patchRes = await authFetch('/api/sessions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: sessionId, status: 'completed' }),
+      });
+      if (!patchRes.ok) {
+        const errBody = await patchRes.json().catch(() => null);
+        console.warn('[fulltest] session 状态更新失败:', errBody?.error || patchRes.status);
+        // 非致命，继续保存 results
       }
 
       // Step 4: 保存 results
@@ -283,7 +294,8 @@ function FullTestContent() {
         }),
       });
       if (!resultRes.ok) {
-        throw new Error(`测试结果保存失败 (${resultRes.status})`);
+        const errBody = await resultRes.json().catch(() => null);
+        throw new Error(errBody?.error || `测试结果保存失败 (${resultRes.status})`);
       }
 
       // 全部成功，跳转结果页（登录用户优先从数据库读取，但仍传 URL 参数作为 fallback）

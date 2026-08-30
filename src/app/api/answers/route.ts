@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
         question_id: a.question_id || null,
         question_content: a.question_content || null,
         part: a.part || null,
-        answer: a.answer || null,
+        selected_answer: a.selected_answer ?? a.answer ?? null,
         is_correct: a.is_correct ?? null,
         reaction_time_ms: a.reaction_time_ms || null,
       }));
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ===== 单条提交模式（sampling 趣味闯关 / 旧接口兼容）=====
-    const { session_id, question_id, question_content, part, answer, is_correct, reaction_time_ms } = body;
+    const { session_id, question_id, question_content, part, answer, selected_answer, is_correct, reaction_time_ms } = body;
 
     if (!session_id) {
       return NextResponse.json({ error: 'session_id required' }, { status: 400 });
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
         question_id: question_id || null,
         question_content: question_content || null,
         part: part || null,
-        answer: answer || null,
+        selected_answer: selected_answer ?? answer ?? null,
         is_correct: is_correct ?? null,
         reaction_time_ms: reaction_time_ms || null,
       })
