@@ -19,11 +19,16 @@ function getSupabaseCredentials(): SupabaseCredentials {
   return { url, anonKey };
 }
 
-function getSupabaseServiceRoleKey(): string | undefined {
-  return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-}
+// 惰性单例：build 阶段不执行，运行时首次调用才真正初始化
+let _cachedClient: SupabaseClient | null = null;
+let _cachedToken: string | undefined = undefined;
 
 function getSupabaseClient(token?: string): SupabaseClient {
+  // 同 token 复用实例；token 变化时重建
+  if (_cachedClient && _cachedToken === token) {
+    return _cachedClient;
+  }
+
   const { url, anonKey } = getSupabaseCredentials();
 
   let key: string;
@@ -39,7 +44,7 @@ function getSupabaseClient(token?: string): SupabaseClient {
     globalOptions.headers = { Authorization: `Bearer ${token}` };
   }
 
-  return createClient(url, key, {
+  const client = createClient(url, key, {
     global: globalOptions,
     db: {
       timeout: 60000,
@@ -49,6 +54,14 @@ function getSupabaseClient(token?: string): SupabaseClient {
       persistSession: false,
     },
   });
+
+  _cachedClient = client;
+  _cachedToken = token;
+  return client;
+}
+
+function getSupabaseServiceRoleKey(): string | undefined {
+  return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
 export { getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };

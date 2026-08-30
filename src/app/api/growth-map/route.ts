@@ -29,8 +29,6 @@ import {
   isValidLevel,
 } from '@/lib/level-service';
 
-const supabase = getSupabaseClient();
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const childId = searchParams.get('child_id');
@@ -59,6 +57,7 @@ export async function GET(request: Request) {
  * 优先使用正式测试结果（test_results），否则降级到快速测评（仅建议级别）
  */
 async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
+  const supabase = getSupabaseClient();
   // ===== 1. 查询正式测试结果（test_results）
   // 仅识别 test_mode = 'formal'（新标准）或 'full'（历史兼容）
   // 绝对不能把 sampling 趣味闯关当作正式 confirmed test
