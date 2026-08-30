@@ -1,0 +1,1084 @@
+# SRC 平台 P0 架构确认任务：getConfirmedLevel 真实实现与 confirmedLevel 链路审计
+
+## ——只读诊断，禁止修改代码
+
+### 一、任务背景
+
+上一轮 SRC500 API 回归测试已经确认：
+
+* `POST /api/sessions` → 201 ✅
+* `POST /api/answers` → 200 ✅
+* `PATCH /api/sessions` → 200 ✅
+* `POST /api/results` → 200 ✅
+* `selected_answer` 列名问题已经修复
+* PATCH session 的 `id` 参数问题已经修复
+* authFetch 全链路正常
+
+但是第二轮诊断报告发现了一个潜在的 **P0 架构问题**：
+
+> `confirmedLevel` 可能直接使用正式测试的 `testLevel`，而不是根据 `stable_char_count → numToLevel()` 计算。
+
+然而，当前诊断报告自身存在一个重要矛盾：
+
+一处报告声称当前代码是：
+
+```ts
+export function getConfirmedLevel(
+  latestFormal: { level: string } | null | undefined
+): Level | null {
+  if (!latestFormal) return null;
+  if (isValidLevel(latestFormal.level)) return latestFormal.level;
+  return null;
+}
+```
+
+但另一处报告又声称当前代码已经是：
+
+```ts
+export function getConfirmedLevel(result?: any): Level | null {
+  if (!result || !result.stable_char_count) return null;
+  return numToLevel(result.stable_char_count);
+}
+```
+
+这两个结论互相矛盾。
+
+因此：
+
+# 本轮唯一任务
+
+**准确确定当前项目实际生效的 `getConfirmedLevel()` 定义、调用路径以及 confirmedLevel 的真实计算逻辑。**
+
+---
+
+# 二、本轮严格规则
+
+## 1. 本轮首先禁止修改任何代码
+
+本轮只做：
+
+* 全项目搜索
+* 文件读取
+* import / export 追踪
+* 调用链追踪
+* 类型检查
+* 静态逻辑验证
+* 必要的只读 API 验证
+* 必要的只读数据库查询
+
+**未经我明确批准，不得修改任何代码。**
+
+---
+
+## 2. 不要根据上一轮报告猜测
+
+上一轮报告可能存在旧代码、新代码、缓存代码或不同版本代码混杂。
+
+必须以：
+
+> **当前工作区实际文件**
+
+作为唯一代码依据。
+
+不要因为报告声称“已经修复”就假定已经修复。
+
+---
+
+## 3. 不要删除或修改任何 Mia 数据
+
+特别禁止：
+
+* 删除 Mia 历史 session
+* 删除 Mia test_answers
+* 删除 Mia test_results
+* 修改 Mia test_sessions
+* 修改 Growth Map 数据
+* 修改任何已有正式测试数据
+
+本轮只读。
+
+---
+
+# 三、第一步：全项目搜索 getConfirmedLevel
+
+请首先执行全项目搜索：
+
+```text
+getConfirmedLevel
+```
+
+列出所有出现位置。
+
+必须形成：
+
+| 文件 | 行号 | 类型                         | 内容 |
+| -- | -: | -------------------------- | -- |
+| ?  |  ? | definition / import / call | ?  |
+| ?  |  ? | definition / import / call | ?  |
+
+重点确认：
+
+1. 是否存在多个 `getConfirmedLevel()` 定义？
+2. 是否存在旧版本函数？
+3. 是否存在重复 export？
+4. 是否存在同名函数来自不同文件？
+5. 是否存在 alias import？
+6. 是否存在 barrel export，例如：
+
+```ts
+index.ts
+```
+
+重新导出另一个版本？
+
+---
+
+# 四、第二步：确认 level-service.ts 当前真实代码
+
+打开：
+
+```text
+src/lib/level-service.ts
+```
+
+完整检查：
+
+```text
+getConfirmedLevel()
+numToLevel()
+LEVEL_CONFIG
+isValidLevel()
+```
+
+必须原样确认函数签名和函数体。
+
+特别确认：
+
+### A. getConfirmedLevel 参数
+
+究竟是：
+
+```ts
+{ level: string }
+```
+
+还是：
+
+```ts
+{ stable_char_count: number }
+```
+
+还是：
+
+```ts
+any
+```
+
+还是其它结构。
+
+### B. getConfirmedLevel 函数体
+
+确认到底是：
+
+```text
+return latestFormal.level
+```
+
+还是：
+
+```text
+return numToLevel(latestFormal.stable_char_count)
+```
+
+还是其它逻辑。
+
+### C. numToLevel()
+
+完整确认它的真实阈值。
+
+不要只报告函数名字。
+
+必须报告类似：
+
+```text
+SRC800 >= ?
+SRC500 >= ?
+SRC300 >= ?
+SRC100 >= ?
+```
+
+并说明这些阈值是：
+
+* 100% threshold
+* 80% threshold
+* 其它 threshold
+
+---
+
+# 五、第三步：追踪 /api/growth-map 实际调用
+
+打开：
+
+```text
+src/app/api/growth-map/route.ts
+```
+
+确认：
+
+```text
+getConfirmedLevel
+```
+
+到底从哪里 import。
+
+例如：
+
+```ts
+import { getConfirmedLevel } from '@/lib/level-service'
+```
+
+然后找到实际调用位置。
+
+必须回答：
+
+> `/api/growth-map` 实际传给 `getConfirmedLevel()` 的对象包含哪些字段？
+
+特别确认：
+
+```text
+level
+stable_char_count
+character_mastery_rate
+session_id
+test_mode
+```
+
+哪些字段实际存在。
+
+---
+
+# 六、第四步：追踪 latestFormal 的真实来源
+
+这是本次 P0 审计最重要的一步。
+
+从：
+
+```text
+latestFormal
+```
+
+向前追踪。
+
+必须找到：
+
+```text
+latestFormal
+↓
+数据库查询
+↓
+test_results / test_sessions
+↓
+具体 select 字段
+```
+
+确认数据库查询到底拿到了什么。
+
+例如：
+
+```ts
+.select(...)
+```
+
+必须确认是否包含：
+
+```text
+level
+stable_char_count
+```
+
+以及：
+
+```text
+test_mode
+session_id
+child_id
+```
+
+不能只看变量名称。
+
+---
+
+# 七、第五步：确认 confirmedLevel 的真实架构链
+
+最终必须明确下面哪一个才是当前代码：
+
+### 正确架构
+
+```text
+用户选择 SRC500
+        ↓
+testLevel = SRC500
+        ↓
+决定测试题目范围
+        ↓
+孩子实际答题
+        ↓
+character_mastery_rate
+        ↓
+stable_char_count
+        ↓
+numToLevel(stable_char_count)
+        ↓
+confirmedLevel
+```
+
+还是：
+
+### 错误架构
+
+```text
+用户选择 SRC500
+        ↓
+testLevel = SRC500
+        ↓
+latestFormal.level
+        ↓
+confirmedLevel = SRC500
+```
+
+或者：
+
+### 第三种架构
+
+```text
+stable_char_count
+        ↓
+numToLevel()
+        ↓
+得到候选等级
+        ↓
+testLevel 作为上限/下限
+        ↓
+最终 confirmedLevel
+```
+
+如果是第三种，必须完整解释实际规则。
+
+---
+
+# 八、第六步：不要只检查 getConfirmedLevel
+
+全项目搜索以下字段和函数：
+
+```text
+confirmed_level
+confirmedLevel
+current_level
+estimated_level
+recommended_test_level
+level
+testLevel
+stable_char_count
+numToLevel
+```
+
+特别寻找是否存在其它地方直接写：
+
+```ts
+confirmed_level: level
+```
+
+或者：
+
+```ts
+confirmedLevel = testLevel
+```
+
+或者：
+
+```ts
+currentLevel = latestFormal.level
+```
+
+或者类似逻辑。
+
+必须列出所有可能影响最终 confirmedLevel 的代码位置。
+
+---
+
+# 九、第七步：验证 numToLevel 的实际行为
+
+本轮不要修改代码。
+
+可以通过：
+
+* 单元测试
+* Node 临时只读调用
+* 已有测试工具
+* 纯计算验证
+
+确认以下输入的实际输出。
+
+至少测试：
+
+```text
+stable_char_count = 0
+stable_char_count = 90
+stable_char_count = 100
+stable_char_count = 200
+stable_char_count = 254
+stable_char_count = 300
+stable_char_count = 422
+stable_char_count = 500
+stable_char_count = 528
+stable_char_count = 800
+```
+
+最终形成：
+
+| stable_char_count | numToLevel 实际返回 |
+| ----------------: | --------------- |
+|                 0 | ?               |
+|                90 | ?               |
+|               100 | ?               |
+|               200 | ?               |
+|               254 | ?               |
+|               300 | ?               |
+|               422 | ?               |
+|               500 | ?               |
+|               528 | ?               |
+|               800 | ?               |
+
+注意：
+
+**如果 numToLevel 的真实阈值不是这些数字对应的结果，以代码实际结果为准。**
+
+---
+
+# 十、第八步：用一个明确的反例验证架构
+
+这是判断 P0 是否真实存在的关键。
+
+构造一个纯逻辑测试，不写入数据库。
+
+假设：
+
+```text
+testLevel = SRC500
+stable_char_count = 264
+```
+
+如果当前设计是：
+
+```text
+stable_char_count → numToLevel()
+```
+
+那么 confirmedLevel 应该完全由 `264` 决定。
+
+不能因为：
+
+```text
+testLevel = SRC500
+```
+
+就直接得到：
+
+```text
+confirmedLevel = SRC500
+```
+
+请报告实际结果。
+
+然后再测试：
+
+```text
+testLevel = SRC300
+stable_char_count = SRC500 对应水平
+```
+
+观察 confirmedLevel 是否允许升级。
+
+最后测试：
+
+```text
+testLevel = SRC500
+stable_char_count = SRC100 对应水平
+```
+
+观察 confirmedLevel 是否正确降低。
+
+这些都是纯逻辑测试。
+
+**不要写入 Mia 数据库。**
+
+---
+
+# 十一、第九步：重点检查“低等级测试是否降级”的产品规则
+
+当前产品架构要求：
+
+> `testLevel` 是测试范围，不等于孩子最终中文等级。
+
+因此必须确认：
+
+如果孩子当前已经是：
+
+```text
+SRC500
+```
+
+然后主动选择：
+
+```text
+SRC300
+```
+
+进行测试，
+
+是否会因为：
+
+```text
+latestFormal.level = SRC300
+```
+
+而错误地把：
+
+```text
+confirmedLevel
+```
+
+降到 SRC300。
+
+必须找出代码中是否存在：
+
+```text
+直接使用最新 formal test 的 level
+```
+
+作为 current/confirmed level 的逻辑。
+
+如果存在，这是 P0。
+
+---
+
+# 十二、第十步：检查“高等级测试误升级”
+
+同样确认：
+
+如果：
+
+```text
+testLevel = SRC800
+```
+
+但是：
+
+```text
+stable_char_count
+```
+
+只达到 SRC300 水平，
+
+是否仍然会：
+
+```text
+confirmedLevel = SRC800
+```
+
+如果会：
+
+**明确判定为 P0 架构错误。**
+
+---
+
+# 十三、第十一步：检查 P1 RJB Bug，但本轮只读
+
+同时确认：
+
+```text
+src/app/api/growth-map/route.ts
+```
+
+中的：
+
+```ts
+const rjbMastered = Math.round(
+  pepFullOverlap * charMasteryRate
+);
+```
+
+当前实际代码。
+
+确认：
+
+```text
+charMasteryRate
+```
+
+在当前系统中究竟代表：
+
+```text
+50
+```
+
+还是：
+
+```text
+0.5
+```
+
+查找它的来源：
+
+```text
+latestFormal.character_mastery_rate
+```
+
+或者其它来源。
+
+如果数据库保存：
+
+```text
+50
+```
+
+代表 50%，则当前：
+
+```ts
+pepFullOverlap * charMasteryRate
+```
+
+确实存在百分比/比例单位错误。
+
+本轮只报告，不修改。
+
+---
+
+# 十四、第十二步：检查 P2 answers 重试幂等性
+
+同样只读。
+
+检查：
+
+```text
+test_answers
+```
+
+schema。
+
+确认是否存在：
+
+```text
+UNIQUE(session_id, question_id)
+```
+
+或者：
+
+```text
+UNIQUE(session_id, question_content)
+```
+
+或者其它 duplicate protection。
+
+同时检查：
+
+```text
+POST /api/answers
+```
+
+是否使用：
+
+```text
+insert
+upsert
+update
+delete + insert
+```
+
+最终明确：
+
+> 如果 answers 已经保存成功，但 results 保存失败，然后用户点击“重新保存结果”，是否会重复创建 answers？
+
+本轮不要修改。
+
+---
+
+# 十五、第十三步：检查 PATCH 非阻断问题
+
+检查：
+
+```text
+src/app/fulltest/page.tsx
+```
+
+确认：
+
+```text
+PATCH /api/sessions
+```
+
+失败后到底：
+
+```text
+throw
+```
+
+还是：
+
+```text
+console.warn
+继续 results
+```
+
+本轮只报告。
+
+---
+
+# 十六、第十四步：检查上一轮修复是否仍然存在
+
+确认以下修改目前全部存在：
+
+### answers
+
+```text
+answer → selected_answer
+```
+
+### PATCH
+
+```text
+/api/sessions?id=...
+```
+
+是否已经变成：
+
+```text
+/api/sessions
+```
+
+并且：
+
+```json
+{
+  "id": sessionId,
+  "status": "completed"
+}
+```
+
+在 body 中发送。
+
+### answers failure
+
+是否：
+
+```text
+throw
+```
+
+而不是：
+
+```text
+warn + continue
+```
+
+### results failure
+
+是否读取真实：
+
+```text
+response body
+error
+```
+
+### retry
+
+是否复用：
+
+```text
+savedSessionId
+```
+
+---
+
+# 十七、第十五步：不要进行 Mia 人工 SRC500 E2E
+
+在本轮完成之前：
+
+**禁止进行新的 Mia SRC500 人工测试。**
+
+原因：
+
+如果 confirmedLevel 架构仍然错误，那么即使保存链路成功：
+
+```text
+Result
+Growth Map
+Hub
+```
+
+得到的等级也没有验证意义。
+
+---
+
+# 十八、最终输出格式
+
+请严格按照以下结构输出。
+
+# SRC confirmedLevel P0 架构审计报告
+
+## 1. 最终结论
+
+必须明确选择：
+
+```text
+P0 CONFIRMED
+```
+
+或者：
+
+```text
+P0 NOT CONFIRMED
+```
+
+不能使用：
+
+```text
+可能
+大概率
+应该
+推测
+```
+
+---
+
+## 2. getConfirmedLevel 当前真实定义
+
+完整列出：
+
+```text
+文件：
+行号：
+函数签名：
+函数逻辑：
+```
+
+---
+
+## 3. 是否存在多个定义
+
+明确：
+
+```text
+是 / 否
+```
+
+如果是，列出全部。
+
+---
+
+## 4. /api/growth-map 实际调用链
+
+完整写成：
+
+```text
+数据库查询
+↓
+latestFormal
+↓
+getConfirmedLevel()
+↓
+numToLevel()
+↓
+confirmedLevel
+```
+
+或者真实的其它链路。
+
+---
+
+## 5. confirmedLevel 是否依赖 stable_char_count
+
+明确：
+
+```text
+YES
+```
+
+或者：
+
+```text
+NO
+```
+
+并给出代码证据。
+
+---
+
+## 6. confirmedLevel 是否直接依赖 testLevel
+
+明确：
+
+```text
+YES
+```
+
+或者：
+
+```text
+NO
+```
+
+并给出代码证据。
+
+---
+
+## 7. numToLevel 实际阈值
+
+完整列出 SRC100 / SRC300 / SRC500 / SRC800 的实际阈值。
+
+---
+
+## 8. 反例验证
+
+至少报告：
+
+```text
+testLevel = SRC500
+stable_char_count = 264
+实际 confirmedLevel = ?
+
+testLevel = SRC300
+stable_char_count = SRC500 水平
+实际 confirmedLevel = ?
+
+testLevel = SRC500
+stable_char_count = SRC100 水平
+实际 confirmedLevel = ?
+```
+
+---
+
+## 9. P1 RJB Bug
+
+明确：
+
+```text
+CONFIRMED / NOT CONFIRMED
+```
+
+并指出：
+
+```text
+文件
+行号
+当前公式
+charMasteryRate 单位
+正确计算逻辑
+```
+
+本轮不修改。
+
+---
+
+## 10. P2 answers 重试风险
+
+明确：
+
+```text
+存在 / 不存在
+```
+
+并解释原因。
+
+---
+
+## 11. PATCH 非阻断风险
+
+明确：
+
+```text
+存在 / 不存在
+```
+
+---
+
+## 12. 上一轮 P0/P1 修复状态
+
+逐项报告：
+
+| 修复项                      | 当前状态      |
+| ------------------------ | --------- |
+| selected_answer          | PASS/FAIL |
+| PATCH body.id            | PASS/FAIL |
+| answers failure blocking | PASS/FAIL |
+| results error body       | PASS/FAIL |
+| savedSessionId retry     | PASS/FAIL |
+
+---
+
+# 十九、本轮禁止事项
+
+再次强调：
+
+**禁止：**
+
+* 修改代码
+* 删除数据
+* 修改 Mia 数据
+* 清理历史脏 session
+* 创建新的正式测试数据
+* 修改数据库 schema
+* 修改前端展示
+* 为了通过测试而增加默认值
+* 用 mock 数据伪造 confirmedLevel
+* 直接修复问题后再声称“诊断通过”
+
+本轮必须保持当前代码和数据库原状。
+
+---
+
+# 二十、下一步处理规则
+
+如果最终结果：
+
+```text
+P0 CONFIRMED
+```
+
+则停止。
+
+只告诉我：
+
+1. P0 根因
+2. 具体文件
+3. 具体代码位置
+4. 正确修复方案
+5. 需要修改哪些文件
+
+**不要自行修改。**
+
+如果：
+
+```text
+P0 NOT CONFIRMED
+```
+
+则继续报告：
+
+* confirmedLevel 当前真实逻辑
+* 是否符合产品设计
+* 是否可以进入 Mia SRC500 人工 E2E
+
+同样不要修改代码。
+
+# 最重要原则
+
+本轮不是“修 bug”。
+
+本轮是：
+
+> **证明当前 confirmedLevel 的真实计算路径到底是什么。**
+
+必须以当前实际代码、实际调用关系和实际计算结果为证据。
+
+不要根据上一轮报告、设计文档或预期架构直接下结论。
