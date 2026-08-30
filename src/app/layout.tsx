@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 
+// 所有页面均依赖用户登录态与 searchParams，统一动态渲染避免 SSG 预渲染报错
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: {
     default: 'SRC-C 中文成长评估',
