@@ -17,63 +17,86 @@ export default function GrowthMapPage() {
 
   useEffect(() => {
     if (authLoading) return;
+
+    // === 规则：登录用户优先从数据库 / API 读取成长地图 ===
+    // URL 参数只能作为导航上下文（例如从结果页跳转时高亮本次测试等级），
+    // 绝不能覆盖数据库中的正式 confirmedLevel / stable_char_count 等真实数据。
+    // 只有未登录的游客模式才使用 URL 参数做前端展示。
+
     const params = new URLSearchParams(window.location.search);
-    const childId = params.get('child_id') || activeChild?.id || 'demo_child';
+    const urlChildId = params.get('child_id');
     const urlLevel = params.get('level') as Level | null;
     const testedChars = parseInt(params.get('testedChars') || '0');
     const correctChars = parseInt(params.get('correctChars') || '0');
     const testedVocab = parseInt(params.get('testedVocab') || '0');
     const correctVocab = parseInt(params.get('correctVocab') || '0');
+    const hasUrlTestData = testedChars > 0 && correctChars > 0;
 
-    // 确定当前级别：URL 参数 > 最新快速测评结果（通过 level-service 统一转换）> 默认 SRC100
-    let level: Level = urlLevel || 'SRC100';
-    if (!urlLevel && latestResult?.reading_base) {
-      level = numToLevel(latestResult.reading_base);
+    // 已登录用户：直接走 API，数据库为唯一可信来源
+    if (user && activeChild) {
+      const levelParam = urlLevel || 'SRC100';
+      authFetch(`/api/growth-map?child_id=${activeChild.id}&level=${levelParam}`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success && json.data) {
+            setData(json.data);
+          }
+        })
+        .catch((e) => {
+          console.error('[GrowthMap] API error:', e);
+        })
+        .finally(() => setLoading(false));
+      return;
     }
-    // 如果URL带了测试数据，直接计算显示（从结果页跳转过来）
-    if (testedChars > 0 && correctChars > 0) {
+
+    // 未登录：使用 URL 参数展示（游客/演示模式，不是正式 confirmed 数据）
+    if (hasUrlTestData) {
+      const level: Level = urlLevel || 'SRC100';
       const config = LEVEL_CONFIG[level];
       const totalChars = config.charCount;
       const charMasteryRate = correctChars / testedChars;
       const estimatedMastered = Math.round(totalChars * charMasteryRate);
       const isFullTest = testedChars >= totalChars;
 
+      // 用稳定掌握量推导实际等级（不是直接用 testLevel）
+      const derivedLevel = numToLevel(estimatedMastered);
+
       // 人教版映射
       const srcChars = getCharList(level);
       const rjbLevel = getCorrespondingRJBLevel(level);
       const rjbChars = getRJBCharList(rjbLevel);
       const srcCharSet = new Set(srcChars);
-      // 计算SRC字库中包含了多少人教版字（全集交集，作为字库规模对照参考）
+      // SRC与RJB的全集交集（字库规模对照参考）
       const pepInSrc = rjbChars.filter(c => srcCharSet.has(c));
       const pepTotal = rjbChars.length;
       const pepFullOverlap = pepInSrc.length;
-      // 本次测试覆盖的教材字：按抽样比例估算（与 result 页口径一致）
+      // 本次测试覆盖的教材字：按抽样比例 × 全集交集估算
       const sampleRatio = testedChars / srcChars.length;
-      const pepCovered = Math.min(pepTotal, Math.round(pepFullOverlap * sampleRatio));
-      // 按整体掌握率估算人教版掌握数（统一规则：最后只 round 一次）
+      const pepCovered = Math.round(pepFullOverlap * sampleRatio);
+      // RJB 掌握估算：使用全集交集 × 掌握率（而不是 RJB 总量 × 掌握率，避免过度推断）
       const pepMasteryRate = charMasteryRate;
-      const pepEstimated = Math.round(pepTotal * pepMasteryRate);
+      const pepEstimated = Math.round(pepFullOverlap * pepMasteryRate);
 
       const vocabMasteryRate = testedVocab > 0 ? correctVocab / testedVocab : 0;
       const vocabEstimated = Math.round(config.vocabCount * vocabMasteryRate);
 
-      const nextLv = getNextLevel(level);
-      const nextLevelVal = nextLv ? (nextLv as Level) : undefined;
+      const nextLv = getNextLevel(derivedLevel);
+      const nextLevelVal = nextLv ?? undefined;
 
+      // 注意：URL 模式是"游客/结果查看"，不是正式 confirmed
+      // confirmed_level 为 null，assessment_status 不设为 confirmed
       setData({
-        childId,
-        // 核心架构字段：URL模式是正式测试结果跳转 → confirmed
-        confirmed_level: level,
-        estimated_level: null,
-        recommended_test_level: level,
-        current_level: level,
+        childId: urlChildId || activeChild?.id || 'demo_child',
+        confirmed_level: null,
+        estimated_level: derivedLevel,
+        recommended_test_level: derivedLevel,
+        current_level: derivedLevel,
         next_level: nextLevelVal ?? null,
-        assessment_status: 'confirmed',
-        // 兼容旧字段
-        currentLevel: level,
-        assessmentType: 'formal',
+        assessment_status: 'estimated',
+        currentLevel: derivedLevel,
+        assessmentType: 'quick',
         srcMastery: {
-          level,
+          level: derivedLevel,
           mastered: estimatedMastered,
           learning: 0,
           untested: totalChars - estimatedMastered,
@@ -88,7 +111,7 @@ export default function GrowthMapPage() {
           masteryRate: pepMasteryRate,
           covered: pepCovered,
           full_overlap: pepFullOverlap,
-          coverageRate: pepCovered / pepTotal,
+          coverageRate: pepFullOverlap > 0 ? pepCovered / pepFullOverlap : 0,
         },
         vocabMastery: {
           mastered: vocabEstimated,
@@ -99,12 +122,8 @@ export default function GrowthMapPage() {
         },
         nextLevel: nextLevelVal,
         trend: {
-          charMastery: [
-            { date: '本次', rate: charMasteryRate },
-          ],
-          vocabMastery: [
-            { date: '本次', rate: vocabMasteryRate },
-          ],
+          charMastery: [{ date: '本次', rate: charMasteryRate }],
+          vocabMastery: [{ date: '本次', rate: vocabMasteryRate }],
         },
         strengths: charMasteryRate >= 0.85
           ? ['单字掌握扎实，基础框架已建立', '识字量增长稳定']
@@ -125,19 +144,8 @@ export default function GrowthMapPage() {
       return;
     }
 
-    // 否则调用API获取历史数据（带鉴权）
-    if (user && activeChild) {
-      authFetch(`/api/growth-map?child_id=${activeChild.id}&level=${level}`)
-        .then((res) => res.json())
-        .then((json) => {
-          if (json.success) {
-          setData(json.data);
-        }
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // 无数据
+    setLoading(false);
   }, [user, activeChild, latestResult, authLoading, authFetch]);
 
   if (loading) {

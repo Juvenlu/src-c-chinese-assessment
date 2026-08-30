@@ -59,6 +59,8 @@ function FullTestContent() {
   const [questionStartTime, setQuestionStartTime] = useState(0);
   const [testStartTime, setTestStartTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Character list (smart sampling, not all)
   const charList = useMemo(() => getCharList(level), [level]);
@@ -159,117 +161,146 @@ function FullTestContent() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [phase, currentItem, currentIndex, totalItems, questionStartTime]);
 
-  // Save results to database when done
+  // Save results to database — 必须可靠完成，全部 await，失败不跳转
   const saveAndGoToResult = async () => {
     // 逐字测试：识字量 = 字形识别认识的字数，词汇量 = 词汇识别认识的词数
-    // 因为300字库逐个测试了，认识数就是稳定识字量/词汇量
     const charMasteryRate = results.length > 0 ? knownCount / results.length : 0;
     const vocabMasteryRate = wordResults.length > 0 ? wordKnownCount / wordResults.length : 0;
-    const stableCharCount = knownCount; // 直接用认识的字数
-    const stableVocabCount = wordKnownCount; // 直接用认识的词数
+    const stableCharCount = knownCount;
+    const stableVocabCount = wordKnownCount;
     const totalScore = Math.round((charMasteryRate * 0.5 + vocabMasteryRate * 0.5) * 100);
     const charMasteryPct = Math.round(charMasteryRate * 100);
     const vocabMasteryPct = Math.round(vocabMasteryRate * 100);
 
-    // Collect known characters for the child's character library
     const knownChars = results.filter(r => r.recognized).map(r => r.character);
     const knownWords = wordResults.filter(r => r.recognized).map(r => r.word);
 
-    // Calculate actual completion time in seconds
     const completionTimeSeconds = testStartTime > 0
       ? Math.max(1, Math.round((Date.now() - testStartTime) / 1000))
       : 0;
 
-    // Save to test_results via API in the background (don't wait for it)
-    if (childId) {
-      try {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (isLoggedIn) {
-          const token = localStorage.getItem('src_session_token');
-          if (token) headers['x-session'] = token;
-        }
-        const sessionRes = await fetch('/api/sessions', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ child_id: childId, level, test_mode: 'formal' }),
-        });
-        const { data: sessionData } = await sessionRes.json();
-        if (sessionData?.id) {
-          // Save answers for each item (batch mode)
-          const allAnswers = [
-            ...results.map((r) => ({
-              question_content: r.character,
-              part: 1 as number,
-              is_correct: r.recognized,
-              reaction_time_ms: r.reaction_time_ms,
-              answer: r.recognized ? 'known' : 'unknown',
-            })),
-            ...wordResults.map((r) => ({
-              question_content: r.word,
-              part: 2 as number,
-              is_correct: r.recognized,
-              reaction_time_ms: r.reaction_time_ms,
-              answer: r.recognized ? 'known' : 'unknown',
-            })),
-          ];
-          // Save answers in background (batch)
-          fetch('/api/answers', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ session_id: sessionData.id, answers: allAnswers }),
-          }).catch(() => {});
+    const testedCharCount = results.length;
+    const correctCharCount = knownCount;
+    const testedVocabCount = wordResults.length;
+    const correctVocabCount = wordKnownCount;
 
-          // Complete session
-          fetch(`/api/sessions?id=${sessionData.id}`, {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({ status: 'completed' }),
-          }).catch(() => {});
-
-          // Save result with pre-calculated values
-          fetch('/api/results', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              session_id: sessionData.id,
-              child_id: childId,
-              level,
-              character_score: charMasteryPct,
-              vocab_score: vocabMasteryPct,
-              reading_score: totalScore,
-              comprehension_score: totalScore,
-              total_score: totalScore,
-              stable_char_count: stableCharCount,
-              stable_vocab_count: stableVocabCount,
-              character_mastery_rate: charMasteryPct,
-              vocab_mastery_rate: vocabMasteryPct,
-              reading_comprehension_rate: Math.round((charMasteryPct + vocabMasteryPct) / 2),
-              completion_time_seconds: completionTimeSeconds,
-              skip_recalculate: true,
-              known_characters: knownChars,  // 只存单字，词组不计入识字量
-            }),
-          }).catch(() => {});
-        }
-      } catch {
-        // Background save failed, not critical
-      }
+    // 未登录用户：直接跳转，用 URL 参数展示（游客模式）
+    if (!isLoggedIn || !childId) {
+      router.push(
+        `/result?mode=full&level=${level}` +
+        `&testedChars=${testedCharCount}&correctChars=${correctCharCount}` +
+        `&testedVocab=${testedVocabCount}&correctVocab=${correctVocabCount}` +
+        `&score=${totalScore}` +
+        `&charMastery=${charMasteryPct}` +
+        `&vocabMastery=${vocabMasteryPct}` +
+        `&duration=${completionTimeSeconds}`
+      );
+      return;
     }
 
-    const testedCharCount = results.length;
-    const correctCharCount = results.filter(r => r.recognized).length;
-    const testedVocabCount = wordResults.length;
-    const correctVocabCount = wordResults.filter(r => r.recognized).length;
+    // 已登录用户：必须真实写入数据库，失败不跳转
+    setSaving(true);
+    setSaveError(null);
 
-    // Always navigate with URL params to ensure accurate data display
-    router.push(
-      `/result?mode=full&level=${level}` +
-      `&testedChars=${testedCharCount}&correctChars=${correctCharCount}` +
-      `&testedVocab=${testedVocabCount}&correctVocab=${correctVocabCount}` +
-      `&score=${totalScore}` +
-      `&charMastery=${charMasteryPct}` +
-      `&vocabMastery=${vocabMasteryPct}` +
-      `&duration=${completionTimeSeconds}`
-    );
+    try {
+      // Step 1: 创建 session
+      const sessionRes = await authFetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ child_id: childId, level, test_mode: 'formal' }),
+      });
+      if (!sessionRes.ok) {
+        throw new Error(`创建测试会话失败 (${sessionRes.status})`);
+      }
+      const sessionJson = await sessionRes.json();
+      const sessionData = sessionJson?.data;
+      if (!sessionData?.id) {
+        throw new Error('测试会话创建失败：未返回 session ID');
+      }
+      const sessionId = sessionData.id;
+
+      // Step 2: 保存 answers（批量）
+      const allAnswers = [
+        ...results.map((r) => ({
+          question_content: r.character,
+          part: 1 as number,
+          is_correct: r.recognized,
+          reaction_time_ms: r.reaction_time_ms,
+          answer: r.recognized ? 'known' : 'unknown',
+        })),
+        ...wordResults.map((r) => ({
+          question_content: r.word,
+          part: 2 as number,
+          is_correct: r.recognized,
+          reaction_time_ms: r.reaction_time_ms,
+          answer: r.recognized ? 'known' : 'unknown',
+        })),
+      ];
+
+      const answersRes = await authFetch('/api/answers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, answers: allAnswers }),
+      });
+      if (!answersRes.ok) {
+        console.warn('[fulltest] answers 保存返回非2xx:', answersRes.status);
+        // 非致命，继续完成结果保存
+      }
+
+      // Step 3: 标记 session 完成
+      try {
+        await authFetch(`/api/sessions?id=${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'completed' }),
+        });
+      } catch (e) {
+        console.warn('[fulltest] session 状态更新失败:', e);
+        // 非致命
+      }
+
+      // Step 4: 保存 results
+      const resultRes = await authFetch('/api/results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          child_id: childId,
+          level,
+          character_score: charMasteryPct,
+          vocab_score: vocabMasteryPct,
+          reading_score: totalScore,
+          comprehension_score: totalScore,
+          total_score: totalScore,
+          stable_char_count: stableCharCount,
+          stable_vocab_count: stableVocabCount,
+          character_mastery_rate: charMasteryPct,
+          vocab_mastery_rate: vocabMasteryPct,
+          reading_comprehension_rate: Math.round((charMasteryPct + vocabMasteryPct) / 2),
+          completion_time_seconds: completionTimeSeconds,
+          skip_recalculate: true,
+          known_characters: knownChars,
+        }),
+      });
+      if (!resultRes.ok) {
+        throw new Error(`测试结果保存失败 (${resultRes.status})`);
+      }
+
+      // 全部成功，跳转结果页（登录用户优先从数据库读取，但仍传 URL 参数作为 fallback）
+      router.push(
+        `/result?mode=full&level=${level}&session_id=${sessionId}` +
+        `&testedChars=${testedCharCount}&correctChars=${correctCharCount}` +
+        `&testedVocab=${testedVocabCount}&correctVocab=${correctVocabCount}` +
+        `&score=${totalScore}` +
+        `&charMastery=${charMasteryPct}` +
+        `&vocabMastery=${vocabMasteryPct}` +
+        `&duration=${completionTimeSeconds}`
+      );
+    } catch (err) {
+      console.error('[fulltest] 保存测试结果失败:', err);
+      setSaveError(err instanceof Error ? err.message : '保存失败，请重试');
+      setSaving(false);
+    }
   };
 
   // Invalid level screen
@@ -379,49 +410,92 @@ function FullTestContent() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-[var(--color-src-bg)]">
         <div className="max-w-md w-full text-center">
-          <div className="text-6xl mb-4 animate-bounce-in">🎉</div>
-          <h1 className="font-display text-3xl text-[var(--color-src-text)] mb-3">
-            测试完成！
-          </h1>
+          {saving ? (
+            <>
+              <div className="text-6xl mb-4 animate-pulse">⏳</div>
+              <h1 className="font-display text-2xl text-[var(--color-src-text)] mb-3">
+                正在保存测试结果…
+              </h1>
+              <p className="text-[var(--color-src-text-light)] text-sm mb-6">
+                请稍等，不要关闭页面
+              </p>
+              <div className="w-full h-2 bg-white/60 rounded-full overflow-hidden mb-6">
+                <div
+                  className="h-full rounded-full animate-pulse"
+                  style={{
+                    width: '60%',
+                    backgroundColor: 'var(--color-src-primary)',
+                  }}
+                />
+              </div>
+            </>
+          ) : saveError ? (
+            <>
+              <div className="text-6xl mb-4">😢</div>
+              <h1 className="font-display text-2xl text-[var(--color-src-text)] mb-3">
+                测试结果保存失败
+              </h1>
+              <p className="text-[var(--color-src-text-light)] text-sm mb-3">
+                {saveError}
+              </p>
+              <p className="text-[var(--color-src-error)] text-sm mb-6">
+                请不要关闭页面，点击下方按钮重试
+              </p>
+              <button
+                onClick={saveAndGoToResult}
+                className="w-full rounded-2xl px-8 py-4 font-display text-lg font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105"
+                style={{ backgroundColor: 'var(--color-src-primary)' }}
+              >
+                重新保存结果
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-6xl mb-4 animate-bounce-in">🎉</div>
+              <h1 className="font-display text-3xl text-[var(--color-src-text)] mb-3">
+                测试完成！
+              </h1>
 
-          <div className="card-game space-y-4 mb-6">
-            <div className="bg-white rounded-2xl p-4">
-              <div className="text-sm text-[var(--color-src-text-light)] mb-1">字形识别</div>
-              <div className="flex justify-between items-center">
-                <span className="font-display text-2xl text-[var(--color-src-primary)]">
-                  {knownCount} / {results.length}
-                </span>
-                <span className="text-sm text-[var(--color-src-secondary)]">
-                  {results.length > 0 ? Math.round((knownCount / results.length) * 100) : 0}% 认识
-                </span>
+              <div className="card-game space-y-4 mb-6">
+                <div className="bg-white rounded-2xl p-4">
+                  <div className="text-sm text-[var(--color-src-text-light)] mb-1">字形识别</div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-display text-2xl text-[var(--color-src-primary)]">
+                      {knownCount} / {results.length}
+                    </span>
+                    <span className="text-sm text-[var(--color-src-secondary)]">
+                      {results.length > 0 ? Math.round((knownCount / results.length) * 100) : 0}% 认识
+                    </span>
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl p-4">
+                  <div className="text-sm text-[var(--color-src-text-light)] mb-1">词汇识别</div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-display text-2xl text-[var(--color-src-secondary)]">
+                      {wordKnownCount} / {wordResults.length}
+                    </span>
+                    <span className="text-sm text-[var(--color-src-primary)]">
+                      {wordResults.length > 0 ? Math.round((wordKnownCount / wordResults.length) * 100) : 0}% 认识
+                    </span>
+                  </div>
+                </div>
+                <div className="bg-[var(--color-src-accent)]/20 rounded-2xl p-4">
+                  <div className="text-sm text-[var(--color-src-text-light)] mb-1">综合掌握率</div>
+                  <div className="font-display text-4xl text-[var(--color-src-primary)]">
+                    {masteryRate}%
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="bg-white rounded-2xl p-4">
-              <div className="text-sm text-[var(--color-src-text-light)] mb-1">词汇识别</div>
-              <div className="flex justify-between items-center">
-                <span className="font-display text-2xl text-[var(--color-src-secondary)]">
-                  {wordKnownCount} / {wordResults.length}
-                </span>
-                <span className="text-sm text-[var(--color-src-primary)]">
-                  {wordResults.length > 0 ? Math.round((wordKnownCount / wordResults.length) * 100) : 0}% 认识
-                </span>
-              </div>
-            </div>
-            <div className="bg-[var(--color-src-accent)]/20 rounded-2xl p-4">
-              <div className="text-sm text-[var(--color-src-text-light)] mb-1">综合掌握率</div>
-              <div className="font-display text-4xl text-[var(--color-src-primary)]">
-                {masteryRate}%
-              </div>
-            </div>
-          </div>
 
-          <button
-            onClick={saveAndGoToResult}
-            className="w-full rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg"
-            style={{ backgroundColor: 'var(--color-src-primary)' }}
-          >
-            查看详细结果 ⭐
-          </button>
+              <button
+                onClick={saveAndGoToResult}
+                className="w-full rounded-2xl px-8 py-4 font-display text-xl font-bold text-white transition-all duration-200 active:scale-95 hover:scale-105 hover:shadow-lg"
+                style={{ backgroundColor: 'var(--color-src-primary)' }}
+              >
+                查看详细结果 ⭐
+              </button>
+            </>
+          )}
         </div>
       </div>
     );

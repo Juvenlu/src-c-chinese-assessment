@@ -1,0 +1,1626 @@
+# SRC 正式测试数据链路 P0 修复 + Growth Map 数据真实性修复 — Agent Vibe Coding 完整指令
+
+## 一、任务性质
+
+这是一次 **SRC 正式测试上线前的核心数据链路修复任务**。
+
+目标不是增加新功能，而是修复当前发现的正式测试数据没有可靠写入数据库、Growth Map 可能使用 URL 参数制造“看似正确结果”的问题。
+
+必须优先保证：
+
+> **正式测试显示的数据 = 实际测试数据 = 数据库保存数据 = Growth Map 数据 = Hub 数据 = 重新登录后恢复的数据**
+
+尤其必须彻底保证：
+
+> **testLevel（用户选择测试的等级） ≠ confirmedLevel（根据实际测试结果计算出的确认等级）**
+
+两者必须始终保持业务概念独立。
+
+---
+
+# 二、当前已经确认的问题
+
+## P0-1：登录用户正式测试 API 请求没有携带登录态
+
+当前 `src/app/fulltest/page.tsx` 中正式测试流程使用原生：
+
+```ts
+fetch('/api/sessions')
+fetch('/api/answers')
+fetch('/api/results')
+```
+
+而后端需要登录态鉴权。
+
+实际日志已经发现：
+
+```text
+POST /api/sessions 401
+POST /api/results 401
+```
+
+导致：
+
+```text
+正式测试
+↓
+session 创建失败
+↓
+answers 保存失败
+↓
+results 保存失败
+↓
+前端 catch 静默吞掉错误
+↓
+仍然跳转 result
+↓
+result 页面依靠 URL 参数显示
+↓
+Growth Map URL 模式又依靠 URL 参数显示
+↓
+用户看到“正确结果”
+↓
+但数据库实际上没有新增正式测试记录
+```
+
+这是当前最高优先级问题。
+
+---
+
+# 三、P0 修复要求：正式测试必须真实写入数据库
+
+## 1. fulltest/page.tsx 使用 authFetch
+
+检查项目当前认证架构，使用现有的 `authFetch`，不要重新设计认证机制。
+
+从现有 `useAuth()` 中取得 `authFetch`。
+
+将正式测试涉及的 API 请求统一改为认证请求。
+
+重点检查：
+
+```text
+POST /api/sessions
+POST /api/answers
+PATCH /api/sessions
+POST /api/results
+```
+
+全部必须使用项目现有的 `authFetch` 或等价的、能够正确携带当前登录用户 token 的认证请求方法。
+
+不要自行复制 token。
+
+不要新增第二套认证逻辑。
+
+不要修改后端鉴权规则来“绕过”401。
+
+---
+
+# 四、P0 修复要求：finishTest 必须严格按照成功顺序执行
+
+当前不能出现：
+
+```text
+API失败
+↓
+catch {}
+↓
+继续跳转 result
+```
+
+必须改成可靠的同步流程：
+
+```text
+1. 创建 session
+↓
+2. 确认 session 创建成功
+↓
+3. 保存全部 answers
+↓
+4. 确认 answers 保存成功
+↓
+5. 更新 session 完成状态（如果当前架构需要）
+↓
+6. 创建 results
+↓
+7. 确认 results 保存成功
+↓
+8. 最后才允许 router.push(result)
+```
+
+所有关键 API 必须 `await`。
+
+不得后台 fire-and-forget：
+
+```ts
+fetch(...).catch(...)
+```
+
+尤其不能：
+
+```ts
+fetch(...)
+router.push(...)
+```
+
+---
+
+# 五、API 失败时必须阻止跳转
+
+如果以下任意一步失败：
+
+* session 创建失败
+* answers 保存失败
+* session 更新失败
+* results 保存失败
+
+必须：
+
+1. 停留在当前页面或显示明确错误状态
+2. 告知用户“测试结果保存失败，请重试”
+3. 不允许进入一个看起来已经完成的 result 页面
+4. 不允许 Growth Map 把未保存的数据当成正式测试结果
+5. 控制台保留真实错误信息，方便开发调试
+
+禁止：
+
+```ts
+catch {}
+```
+
+或者：
+
+```ts
+catch {
+   router.push(...)
+}
+```
+
+---
+
+# 六、必须验证 session 创建返回值
+
+不能只判断 fetch 有没有抛异常。
+
+必须检查：
+
+```ts
+response.ok
+```
+
+例如逻辑上必须达到：
+
+```text
+response.status 2xx
++
+返回合法 session_id
+```
+
+才认为 session 创建成功。
+
+如果返回：
+
+```text
+401
+403
+400
+500
+```
+
+均不得继续正式测试结果保存流程。
+
+---
+
+# 七、answers 保存必须可靠完成
+
+当前 answers 保存存在：
+
+```text
+无 await
+后台执行
+失败可能无法被发现
+```
+
+必须改为：
+
+```text
+await authFetch(...)
+```
+
+并检查：
+
+```text
+response.ok
+```
+
+同时确认保存数量。
+
+例如：
+
+SRC500：
+
+```text
+单字约132
+词组约56
+总题量约188
+```
+
+如果本次确实产生 188 道题，则最终 answers 应与实际测试题目数量一致。
+
+不要假设固定数字。
+
+必须以本次实际生成题目数量为准。
+
+---
+
+# 八、results 必须以数据库正式测试数据为唯一可信来源
+
+正式测试完成后：
+
+```text
+results API
+```
+
+必须根据实际保存的 session + answers 生成正式结果。
+
+不得因为 URL 中存在：
+
+```text
+level=SRC500
+testedChars=132
+correctChars=119
+...
+```
+
+就直接认为测试已经完成。
+
+URL 参数只能用于：
+
+> 页面导航 / 显示上下文
+
+不能作为：
+
+> 正式测试数据库结果的权威来源。
+
+---
+
+# 九、P1 修复：彻底取消 Growth Map URL 模式伪造 confirmedLevel
+
+当前 `src/app/growth-map/page.tsx` 存在类似逻辑：
+
+```ts
+confirmed_level: level
+```
+
+这必须修复。
+
+## 核心原则
+
+如果：
+
+```text
+testLevel = SRC500
+```
+
+绝不能因此直接得到：
+
+```text
+confirmedLevel = SRC500
+```
+
+confirmedLevel 必须来自正式测试结果。
+
+正确关系：
+
+```text
+用户选择 testLevel
+        ↓
+完成正式测试
+        ↓
+实际 answers
+        ↓
+mastery rate
+        ↓
+stable_char_count
+        ↓
+LevelService.getConfirmedLevel()
+        ↓
+confirmedLevel
+```
+
+---
+
+# 十、Growth Map 数据源必须统一
+
+必须检查 `src/app/growth-map/page.tsx` 当前是否存在两套逻辑：
+
+### A. URL 参数模式
+
+例如：
+
+```text
+testedChars
+correctChars
+level
+```
+
+### B. API / 数据库模式
+
+例如：
+
+```text
+/api/growth-map
+```
+
+正式登录用户完成正式测试以后：
+
+> **Growth Map 必须以数据库/API结果为权威来源。**
+
+不要让 URL 参数覆盖真实数据库结果。
+
+特别是：
+
+```text
+confirmedLevel
+currentLevel
+stableCharCount
+stableVocabCount
+RJB数据
+```
+
+不能由 URL 参数直接覆盖 API 数据。
+
+---
+
+# 十一、如果保留 URL 参数，仅允许作为导航上下文
+
+如果当前架构为了兼容 result → Growth Map 的跳转而仍然保留 URL 参数，可以保留：
+
+```text
+level
+```
+
+但必须明确：
+
+> URL 中的 level = testLevel / 本次测试等级
+
+而不是：
+
+> confirmedLevel
+
+例如：
+
+```text
+/fulltest?level=SRC500
+```
+
+代表：
+
+```text
+testLevel = SRC500
+```
+
+完成测试后：
+
+```text
+confirmedLevel
+```
+
+必须重新从真实测试结果计算。
+
+---
+
+# 十二、P1：Growth Map confirmedLevel 统一走 LevelService
+
+所有 confirmedLevel 计算必须统一调用现有：
+
+```text
+LevelService.getConfirmedLevel(...)
+```
+
+或者项目中当前负责 confirmedLevel 的唯一标准函数。
+
+不要在：
+
+```text
+growth-map/page.tsx
+result/page.tsx
+hub/page.tsx
+```
+
+分别自己实现 confirmedLevel 计算。
+
+必须保持：
+
+> confirmedLevel 单一计算来源。
+
+---
+
+# 十三、P2：修复 RJB 数据估算口径
+
+当前发现：
+
+RJB500：
+
+```text
+实际去重字数 = 499
+```
+
+SRC500 与 RJB500 的交集：
+
+```text
+323
+```
+
+当前 URL 模式可能使用：
+
+```text
+499 × SRC mastery rate
+```
+
+例如：
+
+```text
+499 × 90% ≈ 449
+```
+
+这会造成家长误解：
+
+> 好像孩子实际测试了499个人教版汉字。
+
+这是错误的。
+
+---
+
+## 正确原则
+
+RJB 是：
+
+> 教材识字参照
+
+不是 SRC 的正式测试题库。
+
+如果本次正式测试实际只抽测了 SRC500 的部分字，则不能声称：
+
+```text
+449 / 499
+```
+
+除非这 499 个 RJB 字确实被实际测试。
+
+---
+
+# 十四、RJB显示规则必须重新确认
+
+当前 SRC500：
+
+```text
+RJB500 = 499字
+SRC500 ∩ RJB500 = 323字
+```
+
+如果测试 SRC500：
+
+```text
+25% × 323 ≈ 81
+```
+
+那么本次实际覆盖 RJB 字大约是：
+
+```text
+81
+```
+
+因此不能显示：
+
+```text
+450/499
+```
+
+除非系统真的对499个RJB字进行了独立测试。
+
+---
+
+# 十五、请严格区分三种数据
+
+系统必须明确区分：
+
+## ① RJB教材参照总量
+
+例如：
+
+```text
+RJB500 = 499
+```
+
+表示：
+
+> RJB500字库共有499个去重汉字。
+
+---
+
+## ② SRC与RJB交集
+
+例如：
+
+```text
+SRC500 ∩ RJB500 = 323
+```
+
+表示：
+
+> SRC500字库中有323个字同时存在于RJB500。
+
+---
+
+## ③ 本次实际测试覆盖的RJB字
+
+例如：
+
+```text
+约81个
+```
+
+表示：
+
+> 本次SRC500正式测试实际抽测到的RJB交集汉字数量。
+
+这三个数字绝对不能混为一谈。
+
+---
+
+# 十六、RJB掌握数量的显示原则
+
+如果系统无法根据实际被测试的RJB字精确计算掌握量：
+
+不要伪装成精确数据。
+
+可以显示：
+
+```text
+人教版基础字参照
+RJB500共499字
+本次测试覆盖约81个RJB相关汉字
+```
+
+或者：
+
+```text
+人教版基础字参照
+本次测试覆盖约81个相关汉字
+```
+
+如果确实能够根据实际测试答案计算：
+
+```text
+实际测试的RJB字
+↓
+认识数量
+↓
+RJB掌握情况
+```
+
+则优先使用真实计算结果。
+
+---
+
+# 十七、不要改变SRC核心算法
+
+本次任务严禁擅自修改：
+
+* SRC100字库
+* SRC300字库
+* SRC500字库
+* SRC800字库
+* RJB原始字库
+* SRC四级累积关系
+* charSampleRatio
+* wordSampleRatio
+* LEVEL_CONFIG
+* confirmedLevel阈值
+* estimatedLevel算法
+* recommendedTestLevel算法
+
+除非发现上述逻辑与当前修复直接冲突，否则不要修改。
+
+---
+
+# 十八、必须保持四级自由测试功能
+
+此前已经完成：
+
+```text
+登录Mia
+↓
+Hub
+↓
+我的SRC旅程
+↓
+自由选择任意SRC等级
+```
+
+可以选择：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+必须保持这个功能。
+
+特别注意：
+
+```text
+用户选择SRC500
+```
+
+只意味着：
+
+```text
+testLevel = SRC500
+```
+
+绝不能意味着：
+
+```text
+confirmedLevel = SRC500
+```
+
+---
+
+# 十九、必须保持“推荐测试”和“自由测试”的区别
+
+继续保持：
+
+### 推荐测试
+
+```text
+开始正式测试
+↓
+进入recommendedTestLevel
+```
+
+### 自由测试
+
+```text
+自由选择其他等级
+↓
+用户选择任意SRC等级
+↓
+进入对应testLevel
+```
+
+两者均进入同一个正式测试数据链路。
+
+---
+
+# 二十、Hub必须继续保持三项指标独立
+
+必须保证：
+
+### 识字水平
+
+来自：
+
+```text
+formalResult.character...
+```
+
+或者真实数据库中的正式结果。
+
+### 词语水平
+
+来自：
+
+```text
+formalResult.vocab...
+```
+
+不能重新改成：
+
+```text
+currentLevel
+```
+
+### 推荐阅读基础
+
+来自：
+
+```text
+recommendedTestLevel
+```
+
+三者不要混淆。
+
+---
+
+# 二十一、currentLevel 的定义必须保持
+
+继续保持：
+
+```text
+currentLevel =
+confirmedLevel ?? estimatedLevel
+```
+
+但注意：
+
+> 自由选择SRC500测试，不代表currentLevel必然变成SRC500。
+
+例如：
+
+孩子当前：
+
+```text
+estimatedLevel = SRC300
+```
+
+自由选择：
+
+```text
+testLevel = SRC800
+```
+
+如果测试结果只有：
+
+```text
+stable_char_count = 450
+```
+
+则 confirmedLevel 仍然可能低于SRC800。
+
+这是正确行为。
+
+---
+
+# 二十二、必须特别检查“低级测试不会让孩子降级”
+
+例如孩子已经：
+
+```text
+confirmedLevel = SRC500
+```
+
+然后家长为了验证系统，再自由选择：
+
+```text
+SRC100
+```
+
+完成100级测试。
+
+不能因为：
+
+```text
+testLevel = SRC100
+```
+
+就把：
+
+```text
+currentLevel
+```
+
+降到SRC100。
+
+正式测试等级是：
+
+> 测试范围
+
+不是：
+
+> 用户等级。
+
+必须保持这个原则。
+
+---
+
+# 二十三、历史坏数据处理
+
+Mia 当前已知存在一条历史异常 formal 数据：
+
+```text
+SRC300
+stable_char_count = 6
+```
+
+本次修复前：
+
+> 不要直接删除。
+
+先确认该记录的：
+
+```text
+test_session
+test_mode
+level
+stable_char_count
+stable_vocab_count
+created_at
+child_id
+```
+
+并判断它是否确实属于此前测试产生的坏数据。
+
+如果确认它是本次正式测试链路修复前产生的异常测试数据：
+
+可以提出清理方案，但：
+
+> 不要擅自删除生产数据。
+
+先报告：
+
+```text
+历史异常记录ID
+产生时间
+为什么判断为坏数据
+删除后会影响什么
+```
+
+等待确认后再清理。
+
+---
+
+# 二十四、增加正式测试的数据真实性保护
+
+建议在前端增加一个明确状态：
+
+```text
+正在保存测试结果…
+```
+
+只有：
+
+```text
+session success
++
+answers success
++
+results success
+```
+
+全部完成以后：
+
+```text
+测试结果已保存
+```
+
+然后跳转结果页。
+
+如果失败：
+
+```text
+测试结果保存失败
+请不要关闭页面，请重试
+```
+
+不要显示“测试完成”。
+
+---
+
+# 二十五、结果页的数据来源原则
+
+`result/page.tsx` 必须检查。
+
+如果是正式测试：
+
+优先：
+
+```text
+数据库/API真实results
+```
+
+而不是：
+
+```text
+URL参数
+```
+
+URL 参数最多作为：
+
+```text
+testLevel
+```
+
+等导航信息。
+
+如果数据库结果不存在：
+
+> 不应该伪造一个完整的正式测试结果。
+
+应该显示：
+
+```text
+结果正在保存
+```
+
+或者：
+
+```text
+无法读取正式测试结果，请重试
+```
+
+而不是显示一个看起来正常的结果页面。
+
+---
+
+# 二十六、必须检查 result → Growth Map 跳转
+
+正确流程必须是：
+
+```text
+正式测试
+↓
+真实保存session
+↓
+真实保存answers
+↓
+真实生成results
+↓
+result页面读取真实结果
+↓
+查看成长地图
+↓
+Growth Map读取真实数据库/API结果
+```
+
+而不是：
+
+```text
+正式测试
+↓
+URL参数
+↓
+result页面自己计算
+↓
+Growth Map再自己计算
+```
+
+---
+
+# 二十七、必须检查 logout → login
+
+修复完成后必须验证：
+
+```text
+测试完成
+↓
+数据库存在正式session
+↓
+数据库存在answers
+↓
+数据库存在results
+↓
+Growth Map显示
+↓
+Hub显示
+↓
+Logout
+↓
+Login
+↓
+Growth Map再次读取数据库
+↓
+数据完全一致
+```
+
+重新登录后：
+
+> 不允许依赖localStorage中的临时测试结果恢复正式测试状态。
+
+---
+
+# 二十八、必须增加代码层面的数据一致性检查
+
+修复完成后请进行只读审计：
+
+## 检查1
+
+正式测试session是否真的写入：
+
+```text
+test_sessions
+```
+
+## 检查2
+
+answers是否真的写入：
+
+```text
+test_answers
+```
+
+## 检查3
+
+results是否真的写入：
+
+```text
+test_results
+```
+
+## 检查4
+
+三者是否通过正确的：
+
+```text
+session_id
+```
+
+关联。
+
+## 检查5
+
+Mia的child_id是否一致。
+
+## 检查6
+
+test_mode是否为：
+
+```text
+formal
+```
+
+## 检查7
+
+level是否等于用户选择的：
+
+```text
+testLevel
+```
+
+## 检查8
+
+confirmedLevel是否由：
+
+```text
+stable_char_count
+```
+
+计算，而不是由：
+
+```text
+testLevel
+```
+
+直接赋值。
+
+---
+
+# 二十九、必须进行四级静态检查
+
+修复后重新检查：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+确保：
+
+```text
+getCharList(level)
+getWordList(level)
+LEVEL_CONFIG[level]
+charSampleRatio
+wordSampleRatio
+```
+
+全部仍然正确。
+
+预期：
+
+| Level  |  字库 |  词库 |  字抽样 | 词抽样 |
+| ------ | --: | --: | ---: | --: |
+| SRC100 | 114 | 128 | 100% | 60% |
+| SRC300 | 317 | 346 |  30% | 12% |
+| SRC500 | 528 | 558 |  25% | 10% |
+| SRC800 | 813 | 820 |  20% |  8% |
+
+预计题量：
+
+| Level  |  单字 | 词组 |  总量 |
+| ------ | --: | -: | --: |
+| SRC100 | 114 | 77 | 191 |
+| SRC300 |  95 | 42 | 137 |
+| SRC500 | 132 | 56 | 188 |
+| SRC800 | 163 | 66 | 229 |
+
+不要修改这些配置，只验证。
+
+---
+
+# 三十、修复完成后必须执行静态检查
+
+至少执行：
+
+```bash
+pnpm lint --quiet
+pnpm ts-check
+```
+
+如果项目已有 build 检查，也执行：
+
+```bash
+pnpm build
+```
+
+如果build成本较高，至少报告是否执行及结果。
+
+---
+
+# 三十一、修复完成后必须进行“只读链路审计”
+
+不要马上要求人工测试。
+
+先报告：
+
+## A. API认证链路
+
+列出：
+
+```text
+sessions
+answers
+session PATCH
+results
+```
+
+现在是否全部使用认证请求。
+
+## B. finishTest顺序
+
+确认是否：
+
+```text
+await session
+→ await answers
+→ await session update
+→ await results
+→ router.push
+```
+
+## C. 错误处理
+
+确认：
+
+```text
+没有静默catch
+没有失败后继续跳转
+```
+
+## D. Growth Map
+
+确认：
+
+```text
+正式测试结果来自数据库
+confirmedLevel来自LevelService
+URL testLevel不会覆盖confirmedLevel
+```
+
+## E. RJB
+
+确认：
+
+```text
+RJB总量
+SRC∩RJB
+本次实际覆盖
+掌握数量
+```
+
+三者口径没有混淆。
+
+---
+
+# 三十二、修复完成后的人工E2E测试顺序
+
+修复完成并通过静态审计后：
+
+## 第一轮：只测试SRC500
+
+原因：
+
+此前已经有一次SRC500人工测试，但它实际上暴露了数据没有入库的问题。
+
+因此最适合用SRC500作为修复后的回归测试。
+
+流程：
+
+```text
+登录Mia
+↓
+我的SRC旅程
+↓
+自由选择SRC500
+↓
+开始测试
+↓
+完成132字+约56词
+↓
+提交
+```
+
+---
+
+# 三十三、SRC500人工测试必须重点验证
+
+完成后不要只看页面。
+
+必须同时检查：
+
+### 1. Result
+
+确认：
+
+```text
+SRC500
+132字左右
+56词左右
+实际认识数量
+实际掌握率
+```
+
+### 2. 数据库
+
+确认：
+
+```text
+test_sessions新增一条
+test_answers新增对应答案
+test_results新增一条
+```
+
+### 3. Growth Map
+
+确认：
+
+```text
+currentLevel
+confirmedLevel
+stable_char_count
+stable_vocab_count
+```
+
+均来自真实数据库。
+
+### 4. Hub
+
+确认：
+
+```text
+识字水平
+词语水平
+推荐阅读基础
+```
+
+没有互相污染。
+
+### 5. Logout/Login
+
+确认重新登录后仍然存在。
+
+---
+
+# 三十四、SRC500测试时特别注意
+
+假设这次测试结果类似：
+
+```text
+132字
+119认识
+56词
+51认识
+```
+
+不能仅凭：
+
+```text
+testLevel = SRC500
+```
+
+认为：
+
+```text
+confirmedLevel = SRC500
+```
+
+必须由实际：
+
+```text
+stable_char_count
+```
+
+经过LevelService计算。
+
+例如，如果最终：
+
+```text
+stable_char_count ≈ 476
+```
+
+那么：
+
+```text
+SRC500阈值 = 528 × 80% ≈ 423
+```
+
+可以达到SRC500。
+
+但这必须由代码计算，而不是人工指定。
+
+---
+
+# 三十五、完成SRC500回归测试后再进行SRC100
+
+SRC100主要验证：
+
+```text
+100%单字
+60%词组
+```
+
+并验证：
+
+```text
+下一阶段SRC300
+```
+
+同时验证：
+
+> 自由测试SRC100不会因为testLevel较低而破坏原有更高currentLevel。
+
+---
+
+# 三十六、最后进行SRC800
+
+SRC800主要验证：
+
+```text
+最高等级边界
+```
+
+以及：
+
+```text
+getNextLevel() = null
+```
+
+确认不会错误显示：
+
+```text
+下一阶段SRC100
+```
+
+或者其他循环。
+
+---
+
+# 三十七、本次任务绝对禁止的做法
+
+禁止：
+
+1. 修改SRC字库内容
+2. 修改RJB字库内容
+3. 修改抽样比例
+4. 修改confirmedLevel门槛，只为了让测试通过
+5. 把testLevel直接赋值为confirmedLevel
+6. 用URL参数覆盖数据库正式结果
+7. 用localStorage伪造正式测试持久化
+8. 修改后端鉴权来绕过401
+9. catch静默吞掉错误
+10. API失败后仍然跳转result
+11. 为了让Hub显示正确而直接修改currentLevel
+12. 删除Mia历史数据而不先报告
+
+---
+
+# 三十八、最终架构必须达到的状态
+
+最终必须形成：
+
+```text
+                 ┌──────────────┐
+                 │ Quick Assess │
+                 └──────┬───────┘
+                        ↓
+                  estimatedLevel
+                        ↓
+                 recommendedLevel
+                        ↓
+              ┌─────────────────┐
+              │ 用户选择测试等级 │
+              │   testLevel     │
+              └────────┬────────┘
+                       ↓
+                Formal Test
+                       ↓
+                  Session DB
+                       ↓
+                  Answers DB
+                       ↓
+                  Results DB
+                       ↓
+             stable_char_count
+                       ↓
+             LevelService
+                       ↓
+              confirmedLevel
+                       ↓
+              currentLevel
+                       ↓
+        ┌──────────────┴──────────────┐
+        ↓                             ↓
+    Growth Map                       Hub
+        ↓                             ↓
+     数据展示                      三项核心指标
+```
+
+其中必须保证：
+
+```text
+testLevel
+```
+
+和：
+
+```text
+confirmedLevel
+```
+
+永远是两个不同概念。
+
+---
+
+# 三十九、最终验收标准
+
+只有同时满足以下条件，才认为本次修复完成：
+
+### P0
+
+* [ ] 登录用户POST /api/sessions不再401
+* [ ] answers真实写入数据库
+* [ ] results真实写入数据库
+* [ ] session真实完成
+* [ ] 所有关键请求await
+* [ ] API失败不会继续跳转
+* [ ] 没有静默catch
+
+### P1
+
+* [ ] Growth Map不再用testLevel直接作为confirmedLevel
+* [ ] confirmedLevel统一由LevelService计算
+* [ ] URL参数不能覆盖数据库正式结果
+* [ ] result页面正式结果来自真实数据
+
+### P2
+
+* [ ] RJB499与SRC∩RJB323口径正确
+* [ ] 不再用499 × SRC掌握率冒充实际RJB掌握数
+* [ ] 本次实际覆盖的RJB字与RJB总量明确区分
+
+### 数据持久化
+
+* [ ] Logout后重新Login数据仍然存在
+* [ ] Hub与Growth Map一致
+* [ ] Growth Map与数据库一致
+* [ ] Result与数据库一致
+
+### 四级兼容
+
+* [ ] SRC100
+* [ ] SRC300
+* [ ] SRC500
+* [ ] SRC800
+
+全部继续支持。
+
+### 静态检查
+
+* [ ] lint PASS
+* [ ] ts-check PASS
+* [ ] build PASS（如果项目支持）
+
+---
+
+# 四十、最终请向我返回一份修复报告
+
+报告必须包含：
+
+## 1. 修改文件
+
+逐个列出：
+
+```text
+文件
+修改内容
+```
+
+## 2. P0修复结果
+
+明确说明：
+
+```text
+sessions是否使用authFetch
+answers是否使用authFetch
+results是否使用authFetch
+是否全部await
+```
+
+## 3. Growth Map修复结果
+
+明确说明：
+
+```text
+testLevel来源
+confirmedLevel来源
+currentLevel来源
+```
+
+## 4. RJB口径修复结果
+
+明确说明：
+
+```text
+RJB总量
+SRC∩RJB
+本次覆盖
+掌握量如何计算
+```
+
+## 5. 数据库验证
+
+如果能够进行数据库只读查询，请提供：
+
+```text
+Mia最新formal session
+session.level
+test_mode
+answers count
+result
+stable_char_count
+stable_vocab_count
+confirmedLevel
+```
+
+## 6. 静态检查
+
+报告：
+
+```text
+lint
+ts-check
+build
+```
+
+## 7. 是否允许人工E2E
+
+只有确认：
+
+> **正式测试已经能够真实写入数据库**
+
+之后，才回复：
+
+> “可以开始Mia SRC500修复后回归测试。”
+
+如果仍存在任何P0/P1问题，不要让我开始人工测试，直接指出剩余问题。
+
+---
+
+# 最重要的原则
+
+本次修复的核心不是让页面“显示正确”。
+
+而是彻底消除：
+
+> **页面看起来正确，但数据库没有真实记录**
+
+这种情况。
+
+从现在开始，SRC正式测试必须遵循：
+
+> **数据库真实结果优先于URL参数，真实测试数据优先于前端计算，confirmedLevel优先由LevelService计算，testLevel永远只是本次测试范围。**

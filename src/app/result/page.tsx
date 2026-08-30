@@ -112,21 +112,19 @@ export default function ResultPage() {
     const srcCharList = getCharList(l);
     const rjbLevel = getCorrespondingRJBLevel(l);
     const rjbCharList = getRJBCharList(rjbLevel);
-    // 从测试单字列表中找出实际测了哪些字（用索引切片模拟抽样列表）
-    // 由于 result 页没有完整的测试汉字列表，用"从 src 字库中前 testedC 个"作为近似
-    // 更准确的做法：从 fulltest 传递 known/unknown 列表，但当前 URL 参数只有数量
-    // 这里使用掌握率反推估算（与 Growth Map 保持一致口径）
     const charMasteryRate = testedC > 0 ? correctC / testedC : 0;
     const rjbSet = new Set(rjbCharList);
     const srcSet = new Set(srcCharList);
-    // 真实 SRC 字库与教材字库的全集交集数（用于展示字库规模对照）
+    // 真实 SRC 字库与教材字库的全集交集数（字库规模对照）
     const overlapChars = srcCharList.filter(c => rjbSet.has(c));
     const pepTotal = rjbCharList.length;
-    // 本次测试覆盖的教材字数量：按抽样比例 × 全集交集数估算（掌握估算用全库掌握率）
-    const pepCoveredCount = Math.min(pepTotal, Math.round(overlapChars.length * (testedC / srcCharList.length)));
+    const pepFullOverlap = overlapChars.length;
+    // 本次测试覆盖的教材字数量：按抽样比例 × 全集交集数估算
+    const pepCoveredCount = Math.round(pepFullOverlap * (testedC / srcCharList.length));
     setPepTotal(pepTotal);
     setPepCovered(pepCoveredCount);
-    setPepCoveredCorrect(Math.round(pepCoveredCount * charMasteryRate));
+    // 教材掌握估算：使用全集交集 × 掌握率（而不是 RJB 总量 × 掌握率，避免过度推断）
+    setPepCoveredCorrect(Math.round(pepFullOverlap * charMasteryRate));
 
     setTimeout(() => setShowResult(true), 100);
   }, []);
@@ -138,9 +136,10 @@ export default function ResultPage() {
   // 人教版整体估算掌握率（统一使用全库掌握率 = 单字正确率，避免中间舍入误差）
   const pepMasteryRate = charMasteryRate;
 
-  // 估算掌握量（统一规则：掌握率 × 总字数，只在最终 round 一次）
+  // 估算掌握量（统一规则：掌握率 × 总量，只在最终 round 一次）
   const estimatedCharMastered = isFullTest ? correctChars : Math.round(totalChars * charMasteryRate);
-  const estimatedPepMastered = Math.round(pepTotal * charMasteryRate);
+  // RJB 估算掌握：基于 SRC∩RJB 全集交集 × 单字掌握率（避免用 RJB 总量直接外推导致过度推断）
+  const estimatedPepMastered = pepCoveredCorrect;
   const estimatedVocabMastered = Math.round(totalVocab * vocabMasteryRate);
 
   // 综合评价（单字60% + 词组30% + 历史稳定性10%，首测把10%分给单字和词组）

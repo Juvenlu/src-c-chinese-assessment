@@ -190,9 +190,9 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
   const rjbCovered = hasFormalTest || testSamplingRatio > 0
     ? Math.min(pepFullOverlap, Math.round(pepFullOverlap * testSamplingRatio))
     : Math.round(pepFullOverlap * 0.3); // 无测试数据时按30%粗略估算
-  // 人教版掌握数（统一规则：全字库掌握率 × 总字数，最后 round 一次）
-  const rjbMastered = Math.round(rjbTotal * charMasteryRate);
-  const rjbMasteryRate = rjbTotal > 0 ? rjbMastered / rjbTotal : 0;
+  // 人教版掌握数：基于 SRC∩RJB 全集交集 × 单字掌握率（避免用 RJB 总量直接外推导致过度推断）
+  const rjbMastered = Math.round(pepFullOverlap * charMasteryRate);
+  const rjbMasteryRate = pepFullOverlap > 0 ? rjbMastered / pepFullOverlap : 0;
 
   // ===== 7. 成长趋势
   const trend = buildTrend(
