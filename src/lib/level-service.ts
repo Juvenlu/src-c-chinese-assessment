@@ -161,10 +161,9 @@ export function deriveAssessmentStatus(opts: {
  * 获取当前正式级别（confirmed_level）
  * 有正式测试返回正式级别；否则返回 null
  */
-export function getConfirmedLevel(latestFormal: { level: string } | null | undefined): Level | null {
-  if (!latestFormal) return null;
-  if (isValidLevel(latestFormal.level)) return latestFormal.level;
-  return null;
+export function getConfirmedLevel(latestFormal: { stable_char_count: number } | null | undefined): Level | null {
+  if (!latestFormal || !latestFormal.stable_char_count) return null;
+  return numToLevel(latestFormal.stable_char_count);
 }
 
 /**
