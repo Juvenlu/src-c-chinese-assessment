@@ -147,8 +147,9 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
 
   if (latestFormal) {
     // === 正式测试：精确数据
-    charMasteryRate = (latestFormal.character_mastery_rate ?? latestFormal.character_score / 100) || 0;
-    vocabMasteryRate = (latestFormal.vocab_mastery_rate ?? latestFormal.vocab_score / 100) || 0;
+    // 统一为 ratio (0~1)：DB 存百分比，除以 100
+    charMasteryRate = (latestFormal.character_mastery_rate ? latestFormal.character_mastery_rate / 100 : latestFormal.character_score / 100) || 0;
+    vocabMasteryRate = (latestFormal.vocab_mastery_rate ? latestFormal.vocab_mastery_rate / 100 : latestFormal.vocab_score / 100) || 0;
     masteredCount = latestFormal.stable_char_count || Math.floor(allSrcChars.length * charMasteryRate);
     vocabMastered = latestFormal.stable_vocab_count || Math.floor(allWords.length * vocabMasteryRate);
     // P1修复：确保 mastered 不超过对应等级 total（当测试等级高于确认等级时会出现 mastered > total）
@@ -194,7 +195,7 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     ? Math.min(pepFullOverlap, Math.round(pepFullOverlap * testSamplingRatio))
     : Math.round(pepFullOverlap * 0.3); // 无测试数据时按30%粗略估算
   // 人教版掌握数：基于 SRC∩RJB 全集交集 × 单字掌握率（charMasteryRate 为百分比，需 /100）
-  const rjbMastered = Math.round(pepFullOverlap * (charMasteryRate / 100));
+  const rjbMastered = Math.round(pepFullOverlap * charMasteryRate);
   const rjbMasteryRate = pepFullOverlap > 0 ? rjbMastered / pepFullOverlap : 0;
 
   // ===== 7. 成长趋势
@@ -306,7 +307,9 @@ function buildTrend(
   const charTrend = sorted.map(r => ({
     date: formatDate(new Date(r.completed_at || r.created_at)),
     rate: isFormal
-      ? r.character_mastery_rate ?? (r.character_score ?? 0) / 100
+      ? (typeof r.character_mastery_rate === 'number'
+        ? r.character_mastery_rate / 100
+        : (r.character_score ?? 0) / 100)
       : r.character_level_u
         ? ((r.character_level_l + r.character_level_u) / 2) / totalChars
         : 0,
@@ -315,7 +318,9 @@ function buildTrend(
   const vocabTrend = sorted.map(r => ({
     date: formatDate(new Date(r.completed_at || r.created_at)),
     rate: isFormal
-      ? r.vocab_mastery_rate ?? (typeof r.vocab_score === 'number' ? r.vocab_score / 100 : 0)
+      ? (typeof r.vocab_mastery_rate === 'number'
+        ? r.vocab_mastery_rate / 100
+        : (typeof r.vocab_score === 'number' ? r.vocab_score / 100 : 0))
       : r.word_level_u
         ? ((r.word_level_l + r.word_level_u) / 2) / totalWords
         : 0,
