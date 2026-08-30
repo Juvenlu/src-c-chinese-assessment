@@ -129,10 +129,13 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
 
   const currentLevelNum = displayLevel === 'SRC100' ? 100 : displayLevel === 'SRC300' ? 300 : displayLevel === 'SRC500' ? 500 : 800;
 
-  // ===== 4. 获取字库数据（以展示级别为基准展示字库规模）
-  const allSrcChars = getCharList(displayLevel);
-  const allWords = getWordList(displayLevel);
-  const rjbLevel = getCorrespondingRJBLevel(displayLevel);
+  // ===== 4. 获取字库数据（有正式测试用测试等级，否则用展示级别）
+  // 字库规模基准：latestFormal.level 优先，保证最新测试结果在对应等级下正确展示
+  // confirmedLevel / currentLevel 保持不变（仍然是孩子的实际确认等级）
+  const libraryLevel = latestFormal?.level ?? displayLevel;
+  const allSrcChars = getCharList(libraryLevel);
+  const allWords = getWordList(libraryLevel);
+  const rjbLevel = getCorrespondingRJBLevel(libraryLevel);
   const allRJBChars = getRJBCharList(rjbLevel);
 
   // ===== 5. 计算掌握度
@@ -246,7 +249,7 @@ async function calculateGrowthMap(childId: string): Promise<GrowthMapData> {
     suggestedLevel: estimatedLevel ?? undefined,
     // ===== 掌握度数据 =====
     srcMastery: {
-      level: displayLevel,
+      level: libraryLevel,
       mastered: masteredCount,
       learning: learningCount,
       untested: untestedCount,
