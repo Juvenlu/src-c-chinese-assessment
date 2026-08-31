@@ -158,12 +158,39 @@ export function deriveAssessmentStatus(opts: {
 }
 
 /**
- * 获取当前正式级别（confirmed_level）
- * 有正式测试返回正式级别；否则返回 null
+ * 返回两个等级中更高的那个（基于 LEVEL_SEQUENCE 顺序）
+ * 保持 Level Mapping SSOT，不写死具体等级比较
  */
-export function getConfirmedLevel(latestFormal: { stable_char_count: number } | null | undefined): Level | null {
-  if (!latestFormal || !latestFormal.stable_char_count) return null;
-  return numToLevel(latestFormal.stable_char_count);
+export function getHigherLevel(a: Level | null, b: Level | null): Level | null {
+  if (!a) return b;
+  if (!b) return a;
+  const idxA = LEVEL_SEQUENCE.indexOf(a);
+  const idxB = LEVEL_SEQUENCE.indexOf(b);
+  if (idxA === -1 && idxB === -1) return null;
+  if (idxA === -1) return b;
+  if (idxB === -1) return a;
+  return idxA >= idxB ? a : b;
+}
+
+/**
+ * 获取当前正式级别（confirmed_level）
+ * - countLevel = numToLevel(stable_char_count)  （根据稳定识字量推算的掌握水平）
+ * - testLevel = latestFormal.level              （孩子实际完成过的最高测试等级）
+ * - confirmed_level = max(countLevel, testLevel)
+ *
+ * 语义：confirmed_level 表示"孩子已经正式挑战/完成到哪个阶段"，
+ * 不会因为某一次测试识字量不足而降级。
+ * 稳定识字量仍然独立展示，不与等级晋级混为一谈。
+ *
+ * 有正式测试返回确认级别；否则返回 null
+ */
+export function getConfirmedLevel(latestFormal: { stable_char_count?: number | null; level?: Level | null } | null | undefined): Level | null {
+  if (!latestFormal) return null;
+  const countLevel = latestFormal.stable_char_count
+    ? numToLevel(latestFormal.stable_char_count)
+    : null;
+  const testLevel = latestFormal.level ?? null;
+  return getHigherLevel(countLevel, testLevel);
 }
 
 /**

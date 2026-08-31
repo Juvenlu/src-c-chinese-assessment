@@ -1,0 +1,1350 @@
+# RC3.5：最高等级完成状态修复 + confirmed_level 语义统一
+
+## 一、任务目标
+
+当前 SRC 平台已经完成：
+
+```text
+SRC100
+↓
+SRC300
+↓
+SRC500
+↓
+SRC800
+```
+
+正式测试入口已经在 RC3.3 修复。
+
+目前发现新的边界问题：
+
+孩子完成 SRC800 正式测试后，如果 `stable_char_count < 800`，系统会因为 `confirmed_level` 仍被计算为 SRC500，而继续显示：
+
+> 下一阶段：SRC800
+
+并允许孩子再次通过“进入下一阶段”进入 SRC800 测试。
+
+本次 RC3.5 的目标：
+
+> **修复“完成 SRC800 后仍显示 SRC500 / 下一阶段 SRC800”的问题。**
+
+同时必须明确区分：
+
+```text
+完成了哪个等级测试
+```
+
+和：
+
+```text
+实际稳定掌握到什么程度
+```
+
+不得因为修复 `confirmed_level` 而伪造孩子已经掌握整个 SRC800 字库。
+
+---
+
+# 二、严格数据保护要求
+
+本次可以修改代码，但：
+
+### 严禁修改任何历史数据
+
+不得修改：
+
+```text
+test_results
+test_answers
+test_sessions
+question_bank
+children
+Growth Map 历史数据
+历史测试记录
+```
+
+不得：
+
+```text
+重新生成历史 test_results
+重新计算并写回 stable_char_count
+重新计算并写回 stable_vocab_count
+批量更新历史 confirmed_level
+删除任何测试记录
+```
+
+所有修改必须通过代码逻辑解决。
+
+---
+
+# 三、先进行修改前只读审计
+
+修改代码之前，先检查当前实现。
+
+重点检查：
+
+```text
+src/lib/level-service.ts
+```
+
+以及：
+
+```text
+Growth Map API
+Growth Map page
+fulltest
+result
+profile
+children/profile
+```
+
+搜索：
+
+```text
+confirmed_level
+current_level
+next_level
+latestFormal
+stable_char_count
+stable_vocab_count
+getConfirmedLevel
+getNextLevel
+numToLevel
+```
+
+确认当前真实实现。
+
+不得根据本指令假设代码一定与之前版本完全相同。
+
+如果实际代码与本指令存在差异，以当前代码为准，并在最终报告说明。
+
+---
+
+# 四、核心产品语义
+
+本次必须建立并保持下面两个不同概念。
+
+## A. 最高完成测试阶段
+
+表示：
+
+> 孩子已经正式完成过哪个 SRC 等级的测试。
+
+例如：
+
+```text
+Hellenna 完成 SRC800 formal test
+
+highest completed formal level = SRC800
+```
+
+这不意味着：
+
+```text
+已经掌握全部 SRC800 字
+```
+
+---
+
+## B. 实际掌握水平
+
+表示：
+
+> 根据实际测试表现，孩子目前稳定掌握的识字/词汇水平。
+
+例如：
+
+```text
+SRC800 formal test
+
+stable_char_count = 715
+
+numToLevel(715)
+= SRC500
+```
+
+可以表示：
+
+```text
+实际稳定掌握水平约为 SRC500
+```
+
+但不能因此把：
+
+```text
+highest completed formal level
+```
+
+重新降回 SRC500。
+
+---
+
+# 五、RC3.5 最小修复方案
+
+当前 `getConfirmedLevel()` 如果仍然是：
+
+```ts
+export function getConfirmedLevel(latestFormal) {
+  if (!latestFormal?.stable_char_count) return null;
+  return numToLevel(latestFormal.stable_char_count);
+}
+```
+
+则修改为：
+
+```text
+countLevel = numToLevel(stable_char_count)
+testLevel = latestFormal.level
+
+confirmed_level =
+    两者中 Level Mapping 更高的等级
+```
+
+即：
+
+```text
+confirmed_level = max(countLevel, testLevel)
+```
+
+但这里的 `max`：
+
+### 不允许使用字符串比较
+
+错误：
+
+```ts
+Math.max(...)
+```
+
+或者：
+
+```ts
+"SRC800" > "SRC500"
+```
+
+必须使用：
+
+```text
+level-service.ts
+```
+
+中的统一 Level Sequence / Level Mapping。
+
+例如：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+通过统一索引比较。
+
+---
+
+# 六、建议的 getConfirmedLevel 逻辑
+
+请根据当前项目实际 Level Service 结构实现，不要机械复制下面代码。
+
+逻辑必须等价于：
+
+```ts
+export function getConfirmedLevel(latestFormal) {
+  if (!latestFormal) return null;
+
+  const countLevel =
+    latestFormal.stable_char_count
+      ? numToLevel(latestFormal.stable_char_count)
+      : null;
+
+  const testLevel =
+    latestFormal.level ?? null;
+
+  if (!countLevel) return testLevel;
+  if (!testLevel) return countLevel;
+
+  return getHigherLevel(countLevel, testLevel);
+}
+```
+
+其中：
+
+```text
+getHigherLevel()
+```
+
+如果当前 Level Service 已经存在类似能力，优先复用。
+
+如果不存在，可以在 `level-service.ts` 内采用最小方式实现。
+
+### 不允许：
+
+在 Growth Map page 中重新实现：
+
+```text
+SRC100 < SRC300 < SRC500 < SRC800
+```
+
+必须继续保持：
+
+> **Level Service 是 Level Mapping 的唯一来源。**
+
+---
+
+# 七、特别处理 Hellenna 场景
+
+使用真实 Hellenna 数据进行回归。
+
+她已经完成：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+假设最新 SRC800 测试：
+
+```text
+level = SRC800
+test_mode = formal
+status = completed
+stable_char_count = 715
+```
+
+那么：
+
+```text
+countLevel = SRC500
+testLevel = SRC800
+```
+
+最终：
+
+```text
+confirmed_level = SRC800
+```
+
+然后：
+
+```text
+current_level = SRC800
+```
+
+然后：
+
+```text
+getNextLevel(SRC800)
+= null
+```
+
+最终 Growth Map：
+
+```text
+当前等级：SRC800
+```
+
+并且：
+
+```text
+不显示：
+
+下一阶段：SRC800
+
+[进入下一阶段 →]
+```
+
+而应进入：
+
+```text
+最高等级完成状态
+```
+
+---
+
+# 八、非常重要：不得把 715 显示成 800
+
+修复以后：
+
+```text
+confirmed_level = SRC800
+```
+
+不意味着：
+
+```text
+stable_char_count = 800
+```
+
+也不意味着：
+
+```text
+740 / 813 → 813 / 813
+```
+
+更不能修改：
+
+```text
+471 / 799
+740 / 813
+92%
+```
+
+这些真实测试数据。
+
+例如 Hellenna 可以合理显示：
+
+```text
+当前阶段：SRC800
+
+阅读常用字
+740 / 813
+
+常用词组
+92%
+
+稳定识字水平：
+约 SRC500
+
+已完成测试：
+SRC800
+```
+
+具体 UI 文案可根据当前设计保持一致。
+
+### 核心原则：
+
+> **等级完成状态 ≠ 字库全部掌握状态。**
+
+---
+
+# 九、Growth Map 的 next_level 必须继续使用 Level Service
+
+修复后：
+
+```text
+current_level = confirmed_level
+```
+
+然后：
+
+```ts
+nextLevel = getNextLevel(current_level)
+```
+
+不得在 Growth Map 中增加：
+
+```ts
+if (currentLevel === 'SRC800') ...
+```
+
+这种写死逻辑。
+
+正确逻辑：
+
+```text
+current_level
+↓
+getNextLevel()
+↓
+null
+↓
+最高等级
+```
+
+因此：
+
+```text
+SRC800 → null
+```
+
+自然隐藏：
+
+> 进入下一阶段 →
+
+并显示最高等级状态。
+
+---
+
+# 十、必须保证未来 SRC1200 自动生效
+
+这是本次修改非常重要的架构要求。
+
+当前：
+
+```text
+SRC100 → SRC300
+SRC300 → SRC500
+SRC500 → SRC800
+SRC800 → null
+```
+
+未来如果 Level Service 增加：
+
+```text
+SRC1200
+```
+
+则：
+
+```text
+SRC800 → SRC1200
+```
+
+Growth Map 应自动恢复：
+
+```text
+下一阶段：SRC1200
+
+[进入下一阶段 →]
+```
+
+### 不允许：
+
+在 Growth Map 中写：
+
+```ts
+if (currentLevel === 'SRC800') {
+   hideNextButton();
+}
+```
+
+因为这会导致未来 SRC1200 上线后必须重新修改 Growth Map。
+
+必须依赖：
+
+```text
+getNextLevel(current_level) === null
+```
+
+判断当前是否处于最高等级。
+
+---
+
+# 十一、重新定义 Growth Map 中“最高等级”的判断
+
+正确逻辑：
+
+```text
+currentLevel = confirmedLevel
+
+nextLevel = getNextLevel(currentLevel)
+
+if (!nextLevel) {
+    当前等级已经是 Level Mapping 中最高等级
+}
+```
+
+而不是：
+
+```text
+if (currentLevel === 'SRC800')
+```
+
+这样未来可以自动扩展。
+
+---
+
+# 十二、关于“再次挑战 SRC800”
+
+本次不要禁止孩子再次做 SRC800。
+
+这是两个不同的问题：
+
+### Growth Map
+
+如果：
+
+```text
+current_level = SRC800
+next_level = null
+```
+
+则不应该显示：
+
+> 进入下一阶段 →
+
+应该显示最高等级状态。
+
+### 复测
+
+孩子仍然可以通过其他合理入口进行：
+
+> 再次挑战 SRC800
+
+或者：
+
+> 复测 SRC800
+
+但这不是本次 P1 修复的核心。
+
+---
+
+# 十三、Profile / Fulltest 的行为
+
+本次不要为了修复 Growth Map 而强制禁止：
+
+```text
+/profile?mode=formal&level=SRC800
+```
+
+或者：
+
+```text
+/fulltest?level=SRC800
+```
+
+因为正式测试允许复测本身并不是 Bug。
+
+只需要保证：
+
+```text
+Growth Map
+```
+
+不再把已经完成的 SRC800 当作“下一阶段”。
+
+如果当前系统没有“再次挑战”入口，本次也不要扩展新的产品功能。
+
+---
+
+# 十四、检查 confirmed_level 的所有使用位置
+
+修改 `getConfirmedLevel()` 后，必须全局搜索：
+
+```text
+getConfirmedLevel
+confirmed_level
+current_level
+next_level
+```
+
+确认没有其他地方：
+
+```text
+重新使用 stable_char_count
+```
+
+把已经完成的 SRC800 再次降回 SRC500。
+
+尤其检查：
+
+```text
+Growth Map API
+Growth Map page
+Hub
+Profile
+AuthContext
+Result
+```
+
+确认整个链路统一。
+
+---
+
+# 十五、检查 estimated_level
+
+不得因为本次修复而改变：
+
+```text
+estimated_level
+```
+
+Quick Assessment 的：
+
+```text
+estimated_level
+```
+
+继续只承担：
+
+> 初步估计孩子适合从哪个正式测试等级开始。
+
+正式测试完成以后：
+
+```text
+confirmed_level
+```
+
+应该来自正式测试链路。
+
+不要让：
+
+```text
+estimated_level
+```
+
+覆盖：
+
+```text
+confirmed_level
+```
+
+---
+
+# 十六、检查 URL / localStorage / AuthContext 优先级
+
+此前 RC3.1/RC3.3 已经处理过相关问题。
+
+本次修改后再次确认：
+
+```text
+Growth Map
+```
+
+显示的：
+
+```text
+current_level
+next_level
+```
+
+必须来自当前有效 API / confirmed 状态。
+
+不得被：
+
+```text
+旧 URL 参数
+旧 localStorage
+AuthContext.latestResult
+旧 estimated_level
+```
+
+错误覆盖。
+
+---
+
+# 十七、回归测试矩阵
+
+修改完成以后必须执行完整回归。
+
+## Case 1：SRC100
+
+完成：
+
+```text
+SRC100 formal
+```
+
+确认：
+
+```text
+current_level = SRC100
+next_level = SRC300
+```
+
+显示：
+
+```text
+下一阶段：SRC300
+```
+
+---
+
+## Case 2：SRC300
+
+完成：
+
+```text
+SRC300 formal
+```
+
+确认：
+
+```text
+current_level = SRC300
+next_level = SRC500
+```
+
+显示：
+
+```text
+下一阶段：SRC500
+```
+
+---
+
+## Case 3：SRC500
+
+完成：
+
+```text
+SRC500 formal
+```
+
+确认：
+
+```text
+current_level = SRC500
+next_level = SRC800
+```
+
+显示：
+
+```text
+下一阶段：SRC800
+```
+
+---
+
+## Case 4：SRC800
+
+完成：
+
+```text
+SRC800 formal
+```
+
+即使：
+
+```text
+stable_char_count < 800
+```
+
+例如：
+
+```text
+715
+```
+
+也必须：
+
+```text
+current_level = SRC800
+next_level = null
+```
+
+不能退回：
+
+```text
+SRC500
+```
+
+---
+
+# 十八、最高等级回归
+
+SRC800 完成后：
+
+刷新页面。
+
+然后：
+
+```text
+退出登录
+重新登录
+```
+
+再进入：
+
+```text
+我的中文成长地图
+```
+
+必须仍然：
+
+```text
+当前等级：SRC800
+```
+
+并且：
+
+```text
+next_level = null
+```
+
+不应该重新出现：
+
+```text
+下一阶段：SRC800
+```
+
+---
+
+# 十九、重复进入测试回归
+
+确认：
+
+```text
+Growth Map
+```
+
+不再显示：
+
+```text
+进入下一阶段 → SRC800
+```
+
+但是：
+
+```text
+/fulltest?level=SRC800
+```
+
+如果系统目前允许直接访问，则不要因为本次修复而破坏正式测试复测能力。
+
+确认：
+
+```text
+正式测试仍然可以正常完成
+```
+
+---
+
+# 二十、Sampling 回归
+
+RC3.3 已经修复：
+
+```text
+formal → /fulltest
+sampling → /test
+```
+
+本次不得破坏。
+
+必须确认：
+
+```text
+sampling
+↓
+/test
+```
+
+仍然正常。
+
+---
+
+# 二十一、四个等级的 Level Mapping 回归
+
+必须确认：
+
+```text
+getNextLevel('SRC100') = 'SRC300'
+
+getNextLevel('SRC300') = 'SRC500'
+
+getNextLevel('SRC500') = 'SRC800'
+
+getNextLevel('SRC800') = null
+```
+
+并确认 Growth Map 实际使用的是这个统一结果。
+
+---
+
+# 二十二、未来扩展测试
+
+如果当前项目允许测试 Level Service：
+
+可以增加一个纯逻辑测试：
+
+假设未来：
+
+```text
+LEVEL_SEQUENCE =
+SRC100
+SRC300
+SRC500
+SRC800
+SRC1200
+```
+
+那么：
+
+```text
+getNextLevel(SRC800)
+= SRC1200
+```
+
+同时：
+
+```text
+getNextLevel(SRC1200)
+= null
+```
+
+如果不方便修改测试文件，不要为了本次任务扩大代码范围。
+
+只需静态确认 Level Mapping 结构支持未来扩展。
+
+---
+
+# 二十三、不要做的事情
+
+本次禁止：
+
+### 1. 不得修改数据库
+
+包括：
+
+```text
+test_results
+test_answers
+test_sessions
+children
+question_bank
+```
+
+### 2. 不得重新计算历史测试
+
+不要重新生成：
+
+```text
+stable_char_count
+stable_vocab_count
+known_characters
+```
+
+### 3. 不得修改测试算法
+
+不要修改：
+
+```text
+正式测试题量
+抽测比例
+计时
+抽题算法
+```
+
+### 4. 不得修改 SRC 字库
+
+不要修改：
+
+```text
+SRC100
+SRC300
+SRC500
+SRC800
+```
+
+字库内容。
+
+### 5. 不得修改 Level Mapping 结构
+
+除非为了未来扩展而发现当前代码存在明确问题，否则本次不要改变：
+
+```text
+SRC100 → SRC300 → SRC500 → SRC800
+```
+
+### 6. 不要通过写死 SRC800 解决问题
+
+禁止：
+
+```ts
+if (level === 'SRC800')
+```
+
+作为最高等级判断。
+
+---
+
+# 二十四、建议的代码架构
+
+最终逻辑应接近：
+
+```text
+                  latest formal test
+                         │
+                         ↓
+              ┌─────────────────────┐
+              │  latestFormal.level │
+              └──────────┬──────────┘
+                         │
+                         │
+stable_char_count ───────┤
+                         ↓
+                confirmed_level
+             max(testLevel,
+                 countLevel)
+                         │
+                         ↓
+                  current_level
+                         │
+                         ↓
+                getNextLevel()
+                         │
+              ┌──────────┴──────────┐
+              ↓                     ↓
+        nextLevel exists       nextLevel = null
+              ↓                     ↓
+        下一阶段按钮             最高等级
+```
+
+同时：
+
+```text
+stable_char_count
+stable_vocab_count
+char mastery
+vocab mastery
+```
+
+继续作为独立的：
+
+```text
+实际掌握程度
+```
+
+数据存在。
+
+---
+
+# 二十五、UI 文案建议
+
+如果当前 UI 只需要最小修改：
+
+SRC800 完成后：
+
+```text
+当前等级：SRC800
+
+🎉 恭喜你完成当前最高等级！
+```
+
+不要显示：
+
+```text
+下一阶段：SRC800
+```
+
+也不要显示：
+
+```text
+进入下一阶段 →
+```
+
+如果未来增加复测入口，可以单独：
+
+```text
+再次挑战 SRC800
+```
+
+但本次不是必须实现。
+
+---
+
+# 二十六、最终验收标准
+
+必须全部满足：
+
+```text
+[ ] getConfirmedLevel 不再因为 stable_char_count 较低而
+    把已经完成的正式测试等级降级
+
+[ ] confirmed_level 至少不会低于 latestFormal.level
+
+[ ] stable_char_count 仍保持真实值
+
+[ ] stable_vocab_count 仍保持真实值
+
+[ ] 不伪造 mastered characters
+
+[ ] Hellenna 完成 SRC800 后 current_level = SRC800
+
+[ ] Hellenna 完成 SRC800 后 next_level = null
+
+[ ] Growth Map 不再显示“下一阶段：SRC800”
+
+[ ] Growth Map 不再显示“进入下一阶段 →”
+
+[ ] Growth Map 显示最高等级状态
+
+[ ] SRC100 → SRC300 正常
+
+[ ] SRC300 → SRC500 正常
+
+[ ] SRC500 → SRC800 正常
+
+[ ] SRC800 → null 正常
+
+[ ] formal 仍然进入 /fulltest
+
+[ ] sampling 仍然进入 /test
+
+[ ] Level Mapping 仍然由 level-service.ts 统一管理
+
+[ ] 没有写死 SRC800 最高等级判断
+
+[ ] estimated_level 未被错误修改
+
+[ ] URL/localStorage/AuthContext 未重新引入 level 覆盖问题
+
+[ ] 历史数据库数据完全未修改
+
+[ ] lint PASS
+
+[ ] type check PASS
+
+[ ] 相关回归测试 PASS
+```
+
+---
+
+# 二十七、最终输出报告
+
+完成后请输出：
+
+## RC3.5 最终验收报告
+
+### 1. 修改文件
+
+列出：
+
+```text
+文件
+修改位置
+修改内容
+```
+
+### 2. confirmed_level 新逻辑
+
+明确说明：
+
+```text
+countLevel =
+testLevel =
+confirmed_level =
+```
+
+### 3. Hellenna 验证
+
+输出：
+
+```text
+latestFormal.level：
+stable_char_count：
+countLevel：
+testLevel：
+confirmed_level：
+current_level：
+next_level：
+```
+
+### 4. Growth Map 最终状态
+
+明确说明：
+
+```text
+是否显示“下一阶段：SRC800”
+是否显示“进入下一阶段”
+是否显示最高等级状态
+```
+
+### 5. 四级回归
+
+```text
+SRC100 → SRC300：PASS/FAIL
+SRC300 → SRC500：PASS/FAIL
+SRC500 → SRC800：PASS/FAIL
+SRC800 → null：PASS/FAIL
+```
+
+### 6. Formal / Sampling 回归
+
+```text
+formal → /fulltest：PASS/FAIL
+sampling → /test：PASS/FAIL
+```
+
+### 7. 数据保护
+
+明确：
+
+```text
+test_results：未修改
+test_answers：未修改
+test_sessions：未修改
+question_bank：未修改
+历史数据：未修改
+```
+
+### 8. Level Mapping
+
+确认：
+
+```text
+Level Mapping SSOT：
+src/lib/level-service.ts
+
+SRC100 → SRC300
+SRC300 → SRC500
+SRC500 → SRC800
+SRC800 → null
+```
+
+### 9. 未来 SRC1200 扩展
+
+说明：
+
+> 当前实现是否可以在未来仅扩展 Level Mapping 后，让 SRC800 自动指向 SRC1200，而无需修改 Growth Map 最高等级判断。
+
+### 10. 风险
+
+列出仍然存在的风险，不要为了得到 PASS 而隐藏问题。
+
+---
+
+# 二十八、最终产品原则
+
+本次 RC3.5 最重要的不是简单解决一个 SRC800 按钮问题，而是确立以下长期原则：
+
+> **测试等级表示孩子已经挑战/完成到哪个阶段；掌握数据表示孩子实际掌握了多少。**
+
+因此：
+
+```text
+完成 SRC800
+≠
+掌握 800 个汉字
+```
+
+而应该允许：
+
+```text
+完成测试阶段：SRC800
+
+实际稳定掌握：
+约 SRC500 水平
+
+SRC800 字库掌握：
+740 / 813
+
+词组掌握：
+92%
+```
+
+这些信息可以同时存在，而且不会互相矛盾。
+
+未来：
+
+```text
+SRC800 → SRC1200
+SRC1200 → SRC1500
+...
+```
+
+都应该通过：
+
+```text
+Level Service
+```
+
+统一驱动，而不是在页面中写死等级。
+
+---
+
+## 本次任务性质
+
+这是：
+
+> **RC3.5 代码逻辑修复 + 回归验收**
+
+允许修改代码。
+
+但是：
+
+> **严禁修改任何历史测试数据和数据库记录。**
+
+请先只读确认当前实现，再进行最小代码修改，最后执行完整回归测试。
