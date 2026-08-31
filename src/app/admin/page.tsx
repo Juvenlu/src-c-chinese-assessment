@@ -48,14 +48,24 @@ function AdminContent() {
 
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
 
+  const adminFetch = (url: string, options: RequestInit = {}) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'x-admin-password': ADMIN_PASSWORD,
+      },
+    });
+  };
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [qRes, cRes, rRes, aRes] = await Promise.all([
         fetch(`/api/questions${filterLevel ? `?level=${filterLevel}` : ''}`),
         fetch('/api/children'),
-        fetch('/api/results'),
-        fetch('/api/admin/users'),
+        adminFetch('/api/admin/results'),
+        adminFetch('/api/admin/users'),
       ]);
 
       const qData = await qRes.json();
@@ -77,7 +87,9 @@ function AdminContent() {
       } else if (cData.data) {
         setChildren(cData.data);
       }
+      // admin results API 返回 { data: [...] }
       if (rData.data) setResults(rData.data);
+      else if (rData.results) setResults(rData.results);
     } catch (err) {
       console.error(err);
     } finally {
