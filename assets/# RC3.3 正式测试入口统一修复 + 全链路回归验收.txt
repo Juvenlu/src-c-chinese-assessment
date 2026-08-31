@@ -1,0 +1,1302 @@
+# RC3.3 正式测试入口统一修复 + 全链路回归验收
+
+## 一、任务性质
+
+本次任务目标：
+
+> 修复并统一系统中所有“进入下一阶段 →”“逐字测试”等正式测试入口，确保用户点击正式测试入口后，能够稳定进入正确等级、正确测试模式、正确测试组件、正确题库和正确测试规则。
+
+本次允许修改代码，但**严禁修改任何历史测试数据**。
+
+---
+
+# 二、已确认的核心问题
+
+RC3.2 只读审计已经确认：
+
+### P0 BUG
+
+Growth Map：
+
+```text
+/profile?mode=full&level=SRC500
+```
+
+但 `profile` 页面判断：
+
+```text
+mode === 'formal'
+```
+
+由于：
+
+```text
+'full' !== 'formal'
+```
+
+导致 Growth Map 的“进入下一阶段 →”错误进入抽测闯关 `/test`，而不是正式逐字测试 `/fulltest`。
+
+因此 Hellenna 点击：
+
+```text
+SRC300 → SRC500
+```
+
+后实际看到：
+
+```text
+字形识别
+11:57
+1 / 53
+赛
+```
+
+实际进入的是抽测闯关，而不是 SRC500 正式逐字测试。
+
+---
+
+# 三、严格数据保护要求
+
+本次可以修改代码，但：
+
+## 严禁修改任何历史数据
+
+不得：
+
+* UPDATE test_results
+* DELETE test_results
+* INSERT test_results
+* UPDATE test_answers
+* DELETE test_answers
+* INSERT test_answers
+* UPDATE test_sessions
+* DELETE test_sessions
+* 修改 question_bank 数据
+* 修改已有孩子的测试结果
+* 修改已有 confirmed_level
+* 修改已有 estimated_level
+* 修改 stable_char_count
+* 修改 stable_vocab_count
+* 修改 Growth Map 历史数据
+
+不要通过重新测试历史用户来“修复”数据。
+
+本次只修复：
+
+> 入口、路由、模式识别、测试配置和相关前端/后端代码。
+
+---
+
+# 四、第一原则：统一 Test Mode 命名
+
+请首先检查整个项目中：
+
+```text
+full
+formal
+sampling
+```
+
+的使用情况。
+
+建立明确的统一规则：
+
+### 推荐统一语义
+
+```text
+formal = 正式逐字测试
+sampling = 抽测闯关
+```
+
+如果 `/fulltest` 页面内部历史上使用：
+
+```text
+mode=full
+```
+
+请不要简单地大面积删除已有兼容逻辑。
+
+优先采用：
+
+> 对外 URL 可以兼容 `full`，但进入测试系统后统一转换成 `formal`。
+
+例如：
+
+```text
+URL mode:
+full
+↓
+normalizeTestMode()
+↓
+formal
+```
+
+或者采用项目现有最合理的统一方案。
+
+---
+
+# 五、建立 Test Mode 单一真相来源
+
+请寻找项目中是否已有：
+
+```text
+TestMode
+```
+
+类型定义。
+
+如果存在，请不要再创建第二套互相冲突的定义。
+
+最终确保：
+
+```ts
+type TestMode = 'formal' | 'sampling'
+```
+
+并建立明确的转换规则：
+
+```text
+full → formal
+formal → formal
+sampling → sampling
+```
+
+如果非法 mode：
+
+```text
+unknown
+xxx
+abc
+```
+
+不得默默进入抽测模式。
+
+应该：
+
+1. 明确转换
+2. 或回退到安全默认值
+3. 或显示错误
+4. 但绝不能因为非法值而悄悄进入另一种测试模式。
+
+---
+
+# 六、修复 RC3.2 已确认的两个 P0
+
+## P0-1 Growth Map
+
+检查：
+
+```text
+src/app/growth-map/page.tsx
+```
+
+已经确认：
+
+```text
+/profile?mode=full&level=SRCxxx
+```
+
+请修改为项目最终统一方案。
+
+如果采用：
+
+```text
+formal
+```
+
+作为正式测试 mode，则：
+
+```text
+/profile?mode=formal&level=SRCxxx
+```
+
+必须进入正式逐字测试。
+
+---
+
+# 七、修复首页“逐字测试”入口
+
+检查：
+
+```text
+src/app/page.tsx
+```
+
+已经确认首页“逐字测试”入口也使用：
+
+```text
+/profile?mode=full
+```
+
+而 profile 页面判断：
+
+```text
+mode === 'formal'
+```
+
+同样存在 P0。
+
+请统一修复。
+
+要求：
+
+> 首页点击“逐字测试”必须进入正式逐字测试，而不能进入抽测闯关。
+
+---
+
+# 八、检查 profile 页面，不允许再出现隐式模式错误
+
+重点检查：
+
+```text
+src/app/profile/page.tsx
+```
+
+当前类似：
+
+```ts
+const mode = searchParams.get('mode') || 'sampling'
+```
+
+以及：
+
+```ts
+(mode as TestMode)
+```
+
+这种强制类型转换。
+
+这里存在一个重要问题：
+
+```ts
+'full' as TestMode
+```
+
+虽然 TypeScript 不报错，但运行时：
+
+```text
+full
+```
+
+实际上并不是：
+
+```text
+formal | sampling
+```
+
+请修改为明确的 mode normalization。
+
+例如逻辑上实现：
+
+```text
+getRawMode()
+↓
+normalizeTestMode()
+↓
+formal / sampling
+```
+
+不得仅依靠 TypeScript cast。
+
+---
+
+# 九、正式测试与抽测必须有明确分流
+
+最终必须形成：
+
+```text
+formal
+↓
+正式逐字测试
+↓
+/fulltest
+```
+
+以及：
+
+```text
+sampling
+↓
+抽测闯关
+↓
+/test
+```
+
+禁止：
+
+```text
+formal → /test
+```
+
+禁止：
+
+```text
+sampling → /fulltest
+```
+
+禁止：
+
+```text
+invalid mode → 默默进入 sampling
+```
+
+---
+
+# 十、检查“进入下一阶段”的完整链路
+
+必须确保：
+
+```text
+current_level
+↓
+getNextLevel()
+↓
+next_level
+↓
+URL level
+↓
+profile
+↓
+normalize mode
+↓
+formal
+↓
+/fulltest
+↓
+正确 level
+↓
+正确题库
+↓
+正式逐字测试
+```
+
+其中：
+
+```text
+current_level
+```
+
+必须来自当前确认等级：
+
+```text
+confirmed_level
+```
+
+不要重新使用：
+
+```text
+estimated_level
+```
+
+覆盖已经确认的等级。
+
+---
+
+# 十一、Level Mapping 必须继续保持 SSOT
+
+RC3.2 已确认：
+
+```text
+src/lib/level-service.ts
+```
+
+是目前 Level Mapping 的统一来源。
+
+必须保持：
+
+```text
+SRC100 → SRC300
+SRC300 → SRC500
+SRC500 → SRC800
+SRC800 → null
+```
+
+不得在 Growth Map、Profile、Home、FullTest 中重新写一套：
+
+```text
+if SRC100 ...
+if SRC300 ...
+```
+
+不得重复实现 nextLevel。
+
+最终要求：
+
+> 所有“下一阶段”逻辑继续使用 `level-service.ts`。
+
+---
+
+# 十二、逐项检查四个等级
+
+请逐项进行静态代码检查，并记录结果。
+
+## SRC100 → SRC300
+
+必须：
+
+```text
+current = SRC100
+next = SRC300
+mode = formal
+test_type = formal/fulltest
+level = SRC300
+```
+
+---
+
+## SRC300 → SRC500
+
+必须：
+
+```text
+current = SRC300
+next = SRC500
+mode = formal
+test_type = formal/fulltest
+level = SRC500
+```
+
+---
+
+## SRC500 → SRC800
+
+必须：
+
+```text
+current = SRC500
+next = SRC800
+mode = formal
+test_type = formal/fulltest
+level = SRC800
+```
+
+---
+
+## SRC800
+
+必须：
+
+```text
+getNextLevel('SRC800') === null
+```
+
+Growth Map：
+
+```text
+不显示“进入下一阶段”
+```
+
+而应该显示最高等级完成状态。
+
+不得出现：
+
+```text
+SRC800 → SRC100
+SRC800 → SRC300
+SRC800 → SRC500
+```
+
+---
+
+# 十三、检查所有正式测试入口
+
+全局搜索：
+
+```text
+/fulltest
+/profile?mode=
+mode=full
+mode=formal
+进入下一阶段
+逐字测试
+正式测试
+```
+
+建立完整入口清单。
+
+至少检查：
+
+1. 首页“逐字测试”
+2. Growth Map“进入下一阶段”
+3. Hub 等级卡片
+4. Profile 页面
+5. 其他可能进入正式测试的按钮
+6. 任何直接链接 `/fulltest`
+7. 任何通过 `/profile` 间接进入测试的入口
+
+最终必须形成：
+
+| 入口         | URL | mode   | 最终页面      | 等级来源      | 是否正确 |
+| ---------- | --- | ------ | --------- | --------- | ---- |
+| 首页逐字测试     |     | formal | /fulltest |           |      |
+| Growth Map |     | formal | /fulltest | nextLevel |      |
+| Hub等级卡片    |     | formal | /fulltest | level     |      |
+
+---
+
+# 十四、检查抽测入口，确保修复不会误伤
+
+抽测闯关入口必须继续：
+
+```text
+mode=sampling
+↓
+/test
+```
+
+重点检查：
+
+```text
+首页抽测闯关
+```
+
+不能因为本次修改而进入：
+
+```text
+/fulltest
+```
+
+必须保持：
+
+```text
+sampling → /test
+```
+
+---
+
+# 十五、检查 fulltest 页面
+
+检查：
+
+```text
+src/app/fulltest/page.tsx
+```
+
+确认：
+
+1. level 如何读取
+2. 是否读取 URL 的 `level`
+3. 是否被其他数据源覆盖
+4. test_mode 最终写入什么
+5. 是否写入：
+
+```text
+formal
+```
+
+6. 是否使用正确等级的题库
+7. 是否存在默认 SRC100/SRC300/SRC500
+8. 是否存在默认 sampling
+9. 是否存在 timer
+10. 是否存在错误抽题比例
+
+特别要求：
+
+> `/fulltest?level=SRC500` 必须明确执行 SRC500 正式逐字测试。
+
+---
+
+# 十六、正式测试不能错误使用抽测配置
+
+重点检查：
+
+```text
+charSampleRatio
+wordSampleRatio
+sampling
+timeLimit
+questionLimit
+```
+
+等配置。
+
+正式测试：
+
+```text
+formal
+```
+
+必须使用正式测试规则。
+
+抽测：
+
+```text
+sampling
+```
+
+才使用：
+
+```text
+charSampleRatio
+wordSampleRatio
+```
+
+不得出现：
+
+```text
+formal → 10%/25%抽测
+formal → 53题
+formal → 12分钟抽测计时
+```
+
+---
+
+# 十七、解释 Hellenna 的“53题 + 11:57”问题
+
+修复完成后必须明确验证：
+
+当前 Hellenna 当时看到：
+
+```text
+SRC500
+1 / 53
+11:57
+赛
+```
+
+是因为：
+
+```text
+mode=full
+↓
+profile 未识别为 formal
+↓
+进入 sampling
+↓
+/test
+↓
+SRC500 抽测配置
+```
+
+修复后：
+
+```text
+Growth Map
+↓
+SRC500
+↓
+formal
+↓
+/fulltest
+↓
+SRC500 正式逐字测试
+```
+
+不能再出现上述错误链路。
+
+---
+
+# 十八、不要修改 Hellenna 已有测试数据
+
+Hellenna 当前已有：
+
+```text
+SRC100 completed
+SRC300 completed
+```
+
+以及 Growth Map 数据。
+
+本次修复：
+
+> 不需要重新生成 Hellenna 的历史测试结果。
+
+只需要确保她下一次点击：
+
+```text
+进入下一阶段
+```
+
+时：
+
+```text
+SRC500
+formal
+/fulltest
+```
+
+正确启动。
+
+---
+
+# 十九、URL 参数优先级检查
+
+继续检查此前 RC3.1/RC3.2 已经发现的 URL/API 优先级问题。
+
+例如：
+
+```text
+/profile?mode=formal&level=SRC500
+```
+
+必须确保：
+
+```text
+level=SRC500
+```
+
+不会被：
+
+```text
+estimated_level
+latestResult.level
+AuthContext
+API current_level
+```
+
+错误覆盖。
+
+原则：
+
+### 明确 URL 指定的测试目标等级
+
+应该优先使用：
+
+```text
+URL level
+```
+
+作为本次测试目标等级。
+
+而：
+
+```text
+current_level
+```
+
+只是用于决定：
+
+```text
+nextLevel
+```
+
+不要把：
+
+```text
+current_level
+```
+
+错误当成：
+
+```text
+target level
+```
+
+---
+
+# 二十、正式测试目标等级与当前等级必须区分
+
+必须明确区分：
+
+```text
+current_level = 当前已经确认等级
+```
+
+和：
+
+```text
+target_level = 本次准备测试的等级
+```
+
+例如：
+
+Hellenna：
+
+```text
+current_level = SRC300
+next_level = SRC500
+target_level = SRC500
+```
+
+不能出现：
+
+```text
+current_level = SRC300
+target_level = SRC300
+```
+
+也不能出现：
+
+```text
+estimated_level = SRC300
+覆盖 target_level = SRC500
+```
+
+---
+
+# 二十一、对 mode 做运行时安全校验
+
+建议实现类似：
+
+```text
+normalizeTestMode(rawMode)
+```
+
+逻辑：
+
+```text
+formal → formal
+full → formal
+sampling → sampling
+null → 根据页面默认值
+unknown → 安全处理
+```
+
+具体实现请根据现有代码架构决定。
+
+重要：
+
+> 不要使用简单 TypeScript cast 掩盖非法 mode。
+
+---
+
+# 二十二、代码修改原则
+
+遵循：
+
+### 最小修改
+
+不要重构整个测试系统。
+
+不要修改数据库结构。
+
+不要修改历史数据。
+
+不要重新设计 Growth Map。
+
+不要修改 Level Mapping。
+
+不要修改题库内容。
+
+本次重点只解决：
+
+```text
+mode 命名不一致
+↓
+正式测试入口错误
+↓
+统一 mode normalization
+↓
+确保正式测试进入 /fulltest
+```
+
+---
+
+# 二十三、修改完成后的自动检查
+
+修改代码后必须进行全局搜索：
+
+```text
+mode=full
+mode === 'formal'
+mode === 'full'
+as TestMode
+```
+
+列出所有仍然存在的位置，并解释其合理性。
+
+特别检查：
+
+```text
+mode=full
+```
+
+是否仍然存在。
+
+如果存在：
+
+> 必须说明为什么保留，以及它在哪里被转换成 formal。
+
+不能留下：
+
+```text
+mode=full
+```
+
+然后某个页面又：
+
+```text
+mode === 'formal'
+```
+
+这种隐式冲突。
+
+---
+
+# 二十四、必须执行回归测试
+
+至少验证以下场景：
+
+## Case 1
+
+```text
+/profile?mode=formal&level=SRC300
+```
+
+结果：
+
+```text
+→ /fulltest
+→ SRC300
+→ formal
+```
+
+---
+
+## Case 2
+
+```text
+/profile?mode=formal&level=SRC500
+```
+
+结果：
+
+```text
+→ /fulltest
+→ SRC500
+→ formal
+```
+
+---
+
+## Case 3
+
+```text
+/profile?mode=formal&level=SRC800
+```
+
+结果：
+
+```text
+→ /fulltest
+→ SRC800
+→ formal
+```
+
+---
+
+## Case 4
+
+```text
+/profile?mode=sampling&level=SRC500
+```
+
+结果：
+
+```text
+→ /test
+→ SRC500
+→ sampling
+```
+
+---
+
+## Case 5
+
+Growth Map：
+
+```text
+current_level=SRC300
+```
+
+点击：
+
+```text
+进入下一阶段
+```
+
+结果：
+
+```text
+next=SRC500
+mode=formal
+/fulltest
+SRC500
+```
+
+---
+
+## Case 6
+
+Growth Map：
+
+```text
+current_level=SRC500
+```
+
+点击：
+
+```text
+进入下一阶段
+```
+
+结果：
+
+```text
+next=SRC800
+mode=formal
+/fulltest
+SRC800
+```
+
+---
+
+## Case 7
+
+Growth Map：
+
+```text
+current_level=SRC800
+```
+
+结果：
+
+```text
+无“进入下一阶段”
+显示最高等级状态
+```
+
+---
+
+# 二十五、检查题量
+
+不要根据 Hellenna 之前看到的 53 题判断正式测试。
+
+必须直接读取正式测试组件的真实题量逻辑。
+
+分别确认：
+
+```text
+SRC100 formal：
+SRC300 formal：
+SRC500 formal：
+SRC800 formal：
+```
+
+并确认：
+
+```text
+不是 sampling ratio
+不是 53题
+不是 10%
+不是25%
+```
+
+除非当前正式测试设计本身明确如此。
+
+---
+
+# 二十六、检查计时
+
+确认：
+
+```text
+formal
+```
+
+是否应该计时。
+
+如果正式逐字测试当前设计有时间限制：
+
+> 按正式测试配置执行。
+
+如果正式逐字测试设计为不计时：
+
+> 必须确保不会继承 `/test` 的抽测倒计时。
+
+重点确认：
+
+```text
+11:57
+```
+
+这种抽测计时不会错误出现在正式测试中。
+
+---
+
+# 二十七、最终验收报告
+
+完成修改后，不要只告诉我“修好了”。
+
+必须输出完整报告：
+
+## 1. 修改文件
+
+列出：
+
+```text
+文件：
+修改位置：
+修改内容：
+```
+
+---
+
+## 2. Mode 统一结果
+
+明确：
+
+```text
+formal = ?
+sampling = ?
+full = ?
+```
+
+以及：
+
+```text
+full 是否继续存在？
+如果存在，在哪里转换成 formal？
+```
+
+---
+
+## 3. 所有正式测试入口
+
+输出：
+
+| 入口         | 原逻辑 | 修复后 | 最终页面 | 状态 |
+| ---------- | --- | --- | ---- | -- |
+| 首页逐字测试     |     |     |      |    |
+| Growth Map |     |     |      |    |
+| Hub        |     |     |      |    |
+| Profile    |     |     |      |    |
+
+---
+
+## 4. 四个等级回归
+
+```text
+SRC100 → SRC300：PASS/FAIL
+SRC300 → SRC500：PASS/FAIL
+SRC500 → SRC800：PASS/FAIL
+SRC800 → 最高等级：PASS/FAIL
+```
+
+---
+
+## 5. 抽测回归
+
+```text
+sampling → /test：PASS/FAIL
+```
+
+确保没有被正式测试修复误伤。
+
+---
+
+## 6. Hellenna 场景
+
+明确：
+
+```text
+Hellenna current_level = SRC300
+点击进入下一阶段
+target_level = SRC500
+mode = formal
+页面 = /fulltest
+结果 = PASS/FAIL
+```
+
+---
+
+## 7. 数据保护
+
+明确：
+
+```text
+test_results：未修改
+test_answers：未修改
+test_sessions：未修改
+question_bank：未修改
+历史测试数据：未修改
+```
+
+---
+
+# 二十八、最终成功标准
+
+只有同时满足以下条件，本次 RC3.3 才算 PASS：
+
+### ①
+
+```text
+Growth Map
+SRC100 → SRC300
+SRC300 → SRC500
+SRC500 → SRC800
+```
+
+全部进入正确正式测试。
+
+### ②
+
+正式测试统一：
+
+```text
+formal
+↓
+/fulltest
+```
+
+### ③
+
+抽测统一：
+
+```text
+sampling
+↓
+/test
+```
+
+### ④
+
+不会再出现：
+
+```text
+mode=full
+↓
+profile 判断失败
+↓
+误进入 sampling
+```
+
+### ⑤
+
+URL 指定：
+
+```text
+level=SRC500
+```
+
+时不会被其他等级覆盖。
+
+### ⑥
+
+Level Mapping 仍然只有：
+
+```text
+src/lib/level-service.ts
+```
+
+作为统一来源。
+
+### ⑦
+
+SRC800 正确作为最高等级。
+
+### ⑧
+
+历史数据库数据完全不变。
+
+---
+
+# 最终要求
+
+请先完成：
+
+> **代码修改 → 静态检查 → 全局搜索 → 四等级入口回归 → 正式/抽测模式回归 → Hellenna 场景回归**
+
+然后输出 RC3.3 最终验收报告。
+
+不要在没有完成上述检查之前只回复“已修复”。

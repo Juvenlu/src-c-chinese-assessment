@@ -188,7 +188,7 @@ function FullTestContent() {
     // 未登录用户：直接跳转，用 URL 参数展示（游客模式）
     if (!isLoggedIn || !childId) {
       router.push(
-        `/result?mode=full&level=${level}` +
+        `/result?mode=formal&level=${level}` +
         `&testedChars=${testedCharCount}&correctChars=${correctCharCount}` +
         `&testedVocab=${testedVocabCount}&correctVocab=${correctVocabCount}` +
         `&score=${totalScore}` +
@@ -300,7 +300,7 @@ function FullTestContent() {
 
       // 全部成功，跳转结果页（登录用户优先从数据库读取，但仍传 URL 参数作为 fallback）
       router.push(
-        `/result?mode=full&level=${level}&session_id=${sessionId}` +
+        `/result?mode=formal&level=${level}&session_id=${sessionId}` +
         `&testedChars=${testedCharCount}&correctChars=${correctCharCount}` +
         `&testedVocab=${testedVocabCount}&correctVocab=${correctVocabCount}` +
         `&score=${totalScore}` +

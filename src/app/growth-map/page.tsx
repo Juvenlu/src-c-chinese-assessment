@@ -394,7 +394,7 @@ export default function GrowthMapPage() {
                 继续扩大阅读常用字，并通过词组和闯关进一步提升中文理解能力。
               </p>
               <Link
-                href={`/profile?mode=full&level=${nextLevel}`}
+                href={`/profile?mode=formal&level=${nextLevel}`}
                 className="inline-block bg-white text-[var(--color-src-primary)] px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform"
               >
                 进入下一阶段 →

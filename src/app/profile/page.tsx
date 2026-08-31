@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LanguageEnv, LANGUAGE_ENV_LABELS, Level, LEVEL_CONFIG, TestMode } from '@/lib/types';
+import { LanguageEnv, LANGUAGE_ENV_LABELS, Level, LEVEL_CONFIG } from '@/lib/types';
+import { normalizeTestMode } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 
 function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const mode = (searchParams.get('mode') || 'sampling') as TestMode;
+  const mode = normalizeTestMode(searchParams.get('mode'));
   const urlLevel = searchParams.get('level') as Level | null;
 
   const { user, activeChild, loading, authFetch } = useAuth();

@@ -120,7 +120,7 @@ export default function HomePage() {
         {/* Mode selection - Two cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           {/* 逐字测试 */}
-          <Link href="/profile?mode=full" className="block">
+          <Link href="/profile?mode=formal" className="block">
             <div
               className="relative bg-white rounded-3xl p-6 shadow-md border-2 border-transparent transition-all duration-300 hover:shadow-xl hover:border-[var(--color-src-primary)] hover:-translate-y-1 cursor-pointer"
               onMouseEnter={() => setHoverFull(true)}
