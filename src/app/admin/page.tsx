@@ -409,12 +409,9 @@ function AdminContent() {
   const loadRewriteVersions = async (episodeId: string | number) => {
     try {
       const res = await adminFetch(`/api/books/episodes/${episodeId}/rewrites`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (data.data) {
-        setRewriteVersions(data.data);
-      } else {
-        setRewriteVersions([]);
-      }
+      setRewriteVersions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('加载改写版本失败:', err);
       setRewriteVersions([]);
@@ -426,10 +423,11 @@ function AdminContent() {
     setRewriteLoading(true);
     try {
       const res = await adminFetch(`/api/books/rewrite/${versionId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (data.data) {
-        setRewriteDetail(data.data);
-        setEditedPages(data.data.pages_json);
+      if (data && data.id) {
+        setRewriteDetail(data);
+        setEditedPages(data.pages_json);
       }
     } catch (err) {
       console.error('加载改写详情失败:', err);
@@ -454,18 +452,26 @@ function AdminContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (data.data) {
-        alert(`生成成功！版本ID: ${data.data.id.slice(0, 8)}...`);
-        loadRewriteVersions(selectedEpisode.id);
-        setSelectedRewriteId(data.data.id);
-        loadRewriteDetail(data.data.id);
-      } else {
-        alert('生成失败：' + data.error);
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        // 响应不是 JSON，用 HTTP 状态说明
       }
-    } catch (err) {
+
+      if (res.ok && data.rewrite_id) {
+        alert(`生成成功！版本ID: ${data.rewrite_id} (${data.status})`);
+        loadRewriteVersions(selectedEpisode.id);
+        setSelectedRewriteId(data.rewrite_id);
+        loadRewriteDetail(data.rewrite_id);
+      } else {
+        const msg = data.error || data.failure_reason || (data.validation?.summary ? `验证未通过：${data.validation.summary}` : '') || `HTTP ${res.status}`;
+        alert('生成失败：' + msg);
+      }
+    } catch (err: any) {
       console.error(err);
-      alert('生成失败');
+      const msg = err?.message || String(err);
+      alert('生成失败：' + msg);
     } finally {
       setRewriteGenerating(false);
     }
@@ -482,13 +488,13 @@ function AdminContent() {
         body: JSON.stringify({ pages_json: editedPages }),
       });
       const data = await res.json();
-      if (data.data) {
+      if (res.ok && data && data.id) {
         alert('保存成功！');
         setEditMode(false);
-        setRewriteDetail(data.data);
-        setEditedPages(data.data.pages_json);
+        setRewriteDetail(data);
+        setEditedPages(data.pages_json);
       } else {
-        alert('保存失败：' + data.error);
+        alert('保存失败：' + (data?.error || data?.failure_reason || res.statusText));
       }
     } catch (err) {
       console.error(err);
@@ -507,16 +513,16 @@ function AdminContent() {
         method: 'POST',
       });
       const data = await res.json();
-      if (data.data) {
+      if (res.ok && data && data.id && data.status === 'final') {
         alert('已发布！');
-        setRewriteDetail(data.data);
+        setRewriteDetail(data);
         loadRewriteVersions(selectedEpisode.id);
       } else {
-        alert('发布失败：' + data.error);
+        alert('发布失败：' + (data?.error || data?.failure_reason || res.statusText));
       }
     } catch (err) {
       console.error(err);
-      alert('发布失败');
+      alert('发布失败：' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -532,12 +538,12 @@ function AdminContent() {
         body: JSON.stringify({ reason }),
       });
       const data = await res.json();
-      if (data.data) {
+      if (res.ok && data && data.id && data.status === 'rejected') {
         alert('已驳回');
-        setRewriteDetail(data.data);
+        setRewriteDetail(data);
         loadRewriteVersions(selectedEpisode.id);
       } else {
-        alert('驳回失败：' + data.error);
+        alert('驳回失败：' + (data?.error || data?.failure_reason || res.statusText));
       }
     } catch (err) {
       console.error(err);
