@@ -1,0 +1,1031 @@
+# SRC i+1 定制绘本——Emma 真实案例端到端流程测试指令
+
+你现在继续开发 SRC 趣味中文平台。
+
+本次任务不是重新设计 SRC，也不是继续扩大功能，而是：
+
+> **以 Emma 作为真实测试孩子，完整跑通“正式测评 → SRC等级确认 → i+1定制绘本 → AI改写 → 验证 → Admin审核”的真实流程。**
+
+目标是通过 Emma 这个真实案例，找出当前系统在数据传递、等级判断、Frontier生成、AI改写、验证和后台审核过程中存在的问题，并修复必要问题。
+
+---
+
+# 一、核心产品原则——必须遵守
+
+本次开发必须遵守以下已经确定的 SRC 产品原则。
+
+## 1. 测评的作用
+
+正式测评的主要作用是：
+
+> **确定孩子目前属于哪个 SRC 阅读等级。**
+
+而不是要求系统知道孩子认识的每一个汉字。
+
+Emma 已完成正式 SRC300 抽测，结果：
+
+* 字形识别：94 / 95 = 99%
+* 词汇识别：40 / 42 = 95%
+* 综合掌握率：98%
+* stable_char_count ≈ 314
+* stable_vocab_count ≈ 329
+* formal test
+* level = SRC300
+
+因此本次测试：
+
+> **直接把 Emma 作为 confirmed_level = SRC300 的孩子进入定制绘本流程。**
+
+不要要求 Emma 再做一次测试。
+
+不要因为 `known_characters` 只有抽测正确的94个字，就阻止绘本生成。
+
+---
+
+# 二、i+1 的正确理解
+
+i+1 不是：
+
+> “生成一本孩子已经认识全部汉字的书。”
+
+而是：
+
+> **大部分语言属于孩子可以理解的 i，小部分语言是有价值的新输入 +1。**
+
+因此：
+
+### i
+
+主要来自：
+
+* Emma 的 SRC300 阅读水平
+* SRC300语言难度
+* 已有的阅读基础
+* 常见汉字、词汇和句式
+
+### +1
+
+可以包括：
+
+1. 已知汉字组成的新词
+2. 高频实用新词
+3. 与故事直接相关的新词
+4. 常见搭配
+5. 简单的新句式
+6. 少量新汉字
+
+特别注意：
+
+> “孩子认识两个字”并不意味着“孩子已经认识由这两个字组成的新词”。
+
+例如：
+
+孩子认识：
+
+* 学
+* 校
+
+但：
+
+* 学校
+
+仍然可以作为新的词汇单位。
+
+所以 i+1 必须同时考虑：
+
+> 汉字层 + 词汇层 + 短语层 + 句式层
+
+而不能只做字符级判断。
+
+---
+
+# 三、Master Story / Master Image 必须锁定
+
+本次测试使用：
+
+《西游记》EP001《大家都叫他孙悟空》
+
+现有10页 Master Story + Master Images。
+
+必须遵守：
+
+> **Master Story 决定故事，AI只负责语言改写。**
+
+AI绝对不能：
+
+* 新增故事事件
+* 删除核心事件
+* 修改人物
+* 修改人物关系
+* 改变事件顺序
+* 修改因果关系
+* 修改结局
+* 自己创造场景
+* 自己选择图片
+* 自己生成图片
+* 改变图片与页面的对应关系
+
+必须保持：
+
+```text
+Master Page 1 → Image 1 → Rewrite Page 1
+Master Page 2 → Image 2 → Rewrite Page 2
+...
+Master Page 10 → Image 10 → Rewrite Page 10
+```
+
+如果某一个 Frontier 无法自然放进原故事：
+
+> 放弃这个 Frontier。
+
+绝对不能为了塞入一个新词而创造故事。
+
+---
+
+# 四、Emma 是本次唯一重点测试对象
+
+Emma 当前正式测试数据：
+
+child_id：
+
+93bf1578-7751-4234-83c3-e70932c6dd21
+
+正式测试：
+
+result_id：
+
+1b04145e-1c74-438d-bafc-7ae529ee664f
+
+session_id：
+
+ab0c35d5-bf05-445c-8262-c51edfa0491b
+
+正式测试等级：
+
+SRC300
+
+结果：
+
+```text
+character_mastery_rate = 99%
+vocab_mastery_rate = 95%
+
+stable_char_count ≈ 314
+stable_vocab_count ≈ 329
+
+known_characters = 94个实际测试答对的汉字
+```
+
+注意：
+
+> `known_characters` 不是314个字。
+
+但是：
+
+> 不允许因此阻止Emma进入SRC300 i+1绘本。
+
+`stable_char_count` 是估算容量，不是一个具体的314字数组。
+
+不要自行把“前314个SRC300字”当成 Emma 的个人已知字表。
+
+---
+
+# 五、本次任务第一阶段：READ-ONLY 诊断
+
+在修改代码之前，先进行完整只读检查。
+
+请检查以下数据链：
+
+```text
+Emma child_id
+    ↓
+formal test result
+    ↓
+test_mode = formal
+    ↓
+level = SRC300
+    ↓
+confirmed_level
+    ↓
+stable_char_count
+    ↓
+stable_vocab_count
+    ↓
+known_characters
+    ↓
+vocabulary data
+    ↓
+custom book generation
+    ↓
+book_rewrite_versions
+    ↓
+AI rewrite
+    ↓
+validation
+    ↓
+Admin review
+```
+
+请输出实际代码和数据库逻辑，而不是猜测。
+
+---
+
+# 六、重点检查 confirmed_level
+
+目前发现：
+
+`test_results.confirmed_level` 似乎仍然是 null。
+
+请只读检查：
+
+1. 正式测试完成时是否计算 confirmed_level
+2. confirmed_level 是否只在 API runtime 中计算
+3. 为什么没有写回 test_results
+4. 哪个函数负责 getConfirmedLevel()
+5. 哪个 API负责正式测试完成
+6. Growth Map 为什么能够显示 SRC300
+7. AI Rewrite 是否读取 confirmed_level
+8. Custom Book 是否读取 confirmed_level
+9. 是否存在多个“当前等级”的来源
+
+请先报告。
+
+如果确认：
+
+> 正式测试已经确认SRC300，但DB没有持久化confirmed_level
+
+则将其列为需要修复的架构问题。
+
+不要因为目前 Growth Map 可以运行，就认为这个问题不存在。
+
+---
+
+# 七、检查正式测试 status / test_mode
+
+检查 Emma 对应正式测试：
+
+```text
+test_mode
+status
+level
+confirmed_level
+```
+
+确定：
+
+* `formal` 是否正确
+* `status = null` 是否设计如此
+* 是否应该为 completed
+* 前端是否根据 status 判断“是否完成正式测试”
+* 后续绘本生成是否受到 status 影响
+
+如果 status=null 是正常设计，不要为了“看起来完整”随便修改。
+
+如果 status=null 会导致正式测试识别错误，再修复。
+
+---
+
+# 八、检查 AI Rewrite 当前真实数据链
+
+请追踪：
+
+```text
+Admin选择Emma
+        ↓
+rewriteChildId
+        ↓
+POST /api/books/rewrite
+        ↓
+child_id
+        ↓
+generator
+        ↓
+child profile
+        ↓
+Frontier
+        ↓
+LLM
+        ↓
+book_rewrite_versions
+```
+
+确认每一步实际传递的数据。
+
+特别检查：
+
+> Admin选择的Emma是否真的进入AI Rewrite API。
+
+不能只检查UI。
+
+必须检查：
+
+* request body
+* API
+* generator
+* DB
+* final rewrite record
+
+---
+
+# 九、检查两个 child selector
+
+当前Admin存在两个不同的孩子选择：
+
+### 选择器A
+
+`selectedChildId`
+
+用于普通 Custom Book。
+
+### 选择器B
+
+`rewriteChildId`
+
+用于 AI Rewrite。
+
+本次测试必须使用：
+
+> `rewriteChildId = Emma`
+
+请检查UI是否容易让管理员误以为上面的孩子选择已经自动用于AI Rewrite。
+
+如果存在误操作风险，请提出最小UI修复方案。
+
+不要重构整个Admin。
+
+---
+
+# 十、Frontier生成逻辑
+
+本次需要验证：
+
+> Emma的SRC300 + 个人测试数据，是否真的产生了合理的i+1 Frontier。
+
+不要要求：
+
+```text
+known_characters = 314
+```
+
+因为目前不存在这个数据。
+
+正确逻辑应该至少允许：
+
+```text
+observed_known_chars = 94
+stable_char_count ≈ 314
+confirmed_level = SRC300
+```
+
+然后以SRC300作为主要语言等级锚点。
+
+Frontier优先级：
+
+```text
+P1 已知汉字 → 新词
+P2 高频实用词
+P3 故事相关词
+P4 常用搭配
+P5 句式
+P6 少量新汉字
+```
+
+Frontier数量必须少。
+
+不要为了显示“AI很聪明”而生成大量新词。
+
+---
+
+# 十一、Frontier的核心要求
+
+请检查当前系统是否存在以下错误：
+
+### 错误A
+
+把94个 `known_characters` 当成Emma完整识字表。
+
+这是错误的。
+
+---
+
+### 错误B
+
+把 `stable_char_count=314` 当成一个具体的314字符数组。
+
+这是错误的。
+
+---
+
+### 错误C
+
+因为无法确定完整314字表，就完全不生成Frontier。
+
+这也不是理想方案。
+
+---
+
+### 正确方向
+
+在目前V1.3阶段：
+
+```text
+confirmed_level = SRC300
++
+observed_known_chars = 94
++
+stable_char_count = 314
++
+stable_vocab_count = 329
++
+SRC300语言规则
+```
+
+即可生成一个：
+
+> **小规模、保守、故事相关的Frontier**
+
+并进入绘本生成。
+
+---
+
+# 十二、生成器必须使用“Single Structured LLM Generation”
+
+不要增加第二个LLM。
+
+不要增加Story Outline API。
+
+不要把任务拆成多个Agent。
+
+一个LLM调用读取：
+
+```text
+Master Story
+Master Images metadata
+confirmed_level
+Frontier
+SRC level rules
+reading volume target
+i+1 rules
+```
+
+然后输出结构化JSON：
+
+```json
+{
+  "pages": [
+    {
+      "page": 1,
+      "text": "...",
+      "frontier": []
+    },
+    {
+      "page": 2,
+      "text": "...",
+      "frontier": ["..."]
+    }
+  ]
+}
+```
+
+必须保持10页。
+
+---
+
+# 十三、SRC300阅读量
+
+本次目标：
+
+> **整本约300–380个中文字符。**
+
+不是每页必须完全一样。
+
+10页可以大致：
+
+```text
+每页约28–38字
+```
+
+但这是软约束。
+
+优先级：
+
+```text
+故事完整性
+>
+自然语言
+>
+i+1
+>
+总阅读量
+```
+
+不能为了达到380字而硬塞废话。
+
+也不能把故事压缩到100字。
+
+---
+
+# 十四、检查现有Validator
+
+这是本次非常重要的测试。
+
+目前已发现一个严重逻辑问题：
+
+Validator如果把：
+
+```text
+known_characters = 94个抽测正确字符
+```
+
+当成：
+
+> Emma全部认识的汉字
+
+那么会把大量正常SRC300字符错误判为unknown。
+
+例如：
+
+```text
+236 unknown chars
+37.2%
+```
+
+这种结果不能直接解释为：
+
+> Emma无法阅读这本书。
+
+因为94只是抽测样本中的实际正确字符。
+
+因此：
+
+> **不得用94个known_characters直接计算整本绘本unknown-character rate，并据此判定i+1失败。**
+
+请检查Validator代码。
+
+---
+
+# 十五、Validator V1.3只检查5项
+
+请确认Validator至少检查：
+
+### 1. Reading Volume
+
+SRC300：
+
+```text
+300–380 Chinese characters
+```
+
+---
+
+### 2. Language Difficulty
+
+检查：
+
+* 是否明显超出SRC300
+* 句子是否过长
+* 复杂句式是否过多
+* 生僻字是否异常集中
+
+不能简单：
+
+```text
+generated char NOT IN known_characters
+```
+
+就判unknown。
+
+---
+
+### 3. Frontier Presence
+
+检查：
+
+> 生成文本是否真正使用了选定Frontier。
+
+如果Frontier为空，则：
+
+> 不应该“因为没有Frontier而假装通过”。
+
+应该明确记录：
+
+```text
+frontier_targets = []
+frontier_status = none
+```
+
+但不能因此认为生成失败。
+
+---
+
+### 4. Master Story Preservation
+
+检查：
+
+* 人物
+* 事件
+* 顺序
+* 因果
+* 结局
+
+不能发生明显变化。
+
+---
+
+### 5. Image/Text Consistency
+
+检查：
+
+> 页面文字是否仍然描述对应Master Image。
+
+这一项可以作为：
+
+```text
+human_review_required
+```
+
+而不是要求AI做到100%自动判断。
+
+---
+
+# 十六、Validation失败处理
+
+V1.3：
+
+如果自动验证失败：
+
+```text
+retry <= 2
+```
+
+可以重新生成整本。
+
+但是：
+
+> 不要无限重试。
+
+超过2次：
+
+```text
+generation_failed
+failure_reason
+validation_result
+retry_count
+```
+
+必须保留日志。
+
+---
+
+# 十七、不要让Validator阻止第一次POC
+
+本次Emma测试的主要目的：
+
+> **验证整条生产链路是否跑通。**
+
+因此即使Validator发现：
+
+* 某些语言难度疑点
+* Frontier覆盖不足
+* 阅读量略超范围
+
+也不要立即把整个系统做成复杂自动纠错系统。
+
+Admin必须能够：
+
+> 查看 → 编辑 → 保存 → Final
+
+这一本书。
+
+---
+
+# 十八、Admin必须看到什么
+
+生成Emma的SRC300 EP001之后，Admin页面必须能够看到：
+
+```text
+Child:
+Emma
+
+Confirmed Level:
+SRC300
+
+Episode:
+EP001 大家都叫他孙悟空
+
+Master Image
+Master Text
+
+AI Rewritten Text
+
+Frontier
+
+Validation Result
+
+Version
+
+Status
+```
+
+管理员能够：
+
+```text
+查看
+编辑
+保存
+Reject
+Finalize
+```
+
+Master Image和Master Text永远不能被AI覆盖。
+
+---
+
+# 十九、不要增加V1.3功能
+
+本次禁止顺便开发：
+
+* AI图片生成
+* AI选图
+* 拼音
+* 单字音频
+* 单词解释
+* 故事扩展
+* 分支故事
+* 阅读游戏
+* 实时改写
+* 多Agent
+* 多阶段LLM
+* Story Outline API
+* 自动Final
+* 年龄版本
+* 复杂Adaptive Learning
+* 复杂Reading Profile
+
+本次只跑通：
+
+> **Emma → SRC300 → EP001 → i+1 → Admin Review**
+
+---
+
+# 二十、必须先给我READ-ONLY诊断报告
+
+在任何代码修改之前，请输出：
+
+## A. 数据链
+
+```text
+Emma child_id
+↓
+formal result
+↓
+level
+↓
+confirmed_level
+↓
+stable_char_count
+↓
+stable_vocab_count
+↓
+known_characters
+↓
+Frontier
+↓
+LLM
+↓
+rewrite version
+```
+
+每一步写明：
+
+* 数据来自哪里
+* 字段名
+* 当前值
+* 是否正确
+
+---
+
+## B. 发现的问题
+
+按：
+
+```text
+P0
+P1
+P2
+P3
+```
+
+分类。
+
+特别关注：
+
+1. confirmed_level是否没有持久化
+2. formal test status是否正确
+3. child_id是否正确传递
+4. rewriteChildId是否正确
+5. Frontier是否正确
+6. known_characters是否被错误当成完整识字表
+7. stable_char_count是否被错误当成字符集合
+8. Validator是否错误计算unknown
+9. SRC300阅读量是否正确
+10. Master Story是否被保护
+11. Master Image是否被保护
+
+---
+
+## C. 修复方案
+
+只有确认问题以后才修改。
+
+遵守：
+
+> **最小修改原则。**
+
+不要大规模重构。
+
+---
+
+# 二十一、然后执行真实测试
+
+诊断完成并修复必要问题后：
+
+使用：
+
+```text
+Emma
+child_id = 93bf1578-7751-4234-83c3-e70932c6dd21
+
+confirmed_level = SRC300
+
+Episode = EP001
+```
+
+生成一版：
+
+> **Emma SRC300 i+1定制绘本**
+
+必须是真实走生产API。
+
+不要直接写数据库模拟成功。
+
+不要直接插入假数据。
+
+必须跑真实：
+
+```text
+Admin
+→ API
+→ generator
+→ LLM
+→ validation
+→ book_rewrite_versions
+→ Admin
+```
+
+---
+
+# 二十二、生成完成后必须输出完整测试报告
+
+请报告：
+
+### 1. Emma数据
+
+```text
+child_id
+confirmed_level
+stable_char_count
+stable_vocab_count
+observed_known_char_count
+```
+
+### 2. Frontier
+
+列出最终Frontier：
+
+```text
+character frontier
+vocabulary frontier
+phrase frontier
+sentence-pattern frontier
+```
+
+如果某一类为空，明确写：
+
+```text
+none
+```
+
+---
+
+### 3. AI生成
+
+报告：
+
+```text
+model
+generation time
+retry count
+total Chinese character count
+page count
+```
+
+---
+
+### 4. Validation
+
+分别报告：
+
+```text
+Reading Volume: PASS/FAIL
+Language Difficulty: PASS/FAIL/WARN
+Frontier: PASS/FAIL/WARN
+Master Story Preservation: PASS/FAIL/WARN
+Image/Text Consistency: PASS/FAIL/WARN
+```
+
+---
+
+### 5. 重点判断
+
+明确回答：
+
+> **这本Emma的SRC300 i+1绘本，是否真正体现了“Emma的SRC300水平 + 少量i+1”，还是只是普通SRC300改写？**
+
+这是本次测试最重要的问题。
+
+---
+
+# 二十三、最后不要急着继续开发
+
+完成Emma这一本以后，先暂停。
+
+给出：
+
+## 《SRC i+1定制绘本——Emma POC测试报告》
+
+并回答四个问题：
+
+### Q1
+
+正式SRC抽测 → confirmed_level → 定制绘本，这条链路是否已经跑通？
+
+### Q2
+
+Emma的个人测试数据是否真正影响了Frontier？
+
+### Q3
+
+AI生成的内容是否真正体现了i+1，而不是普通SRC300降难度改写？
+
+### Q4
+
+如果下一步换成另一个SRC300孩子，系统能否自动产生不同的定制结果？
+
+如果Q4目前无法证明，不要马上改复杂算法。
+
+先告诉我：
+
+> **缺什么数据，为什么缺，以及最小解决方案是什么。**
+
+---
+
+# 二十四、本次成功标准
+
+本次不是追求：
+
+> “系统理论上完美。”
+
+而是追求：
+
+> **用Emma真实数据，把第一本真正的SRC300 i+1定制绘本跑出来。**
+
+最终形成：
+
+```text
+Emma
+  ↓
+Formal SRC300
+  ↓
+confirmed_level = SRC300
+  ↓
+SRC300 reading profile
+  ↓
+small Frontier
+  ↓
+Master Story + Master Images
+  ↓
+Single Structured LLM Generation
+  ↓
+SRC300 i+1 Rewrite
+  ↓
+Validation
+  ↓
+Admin Review
+  ↓
+Final Book
+```
+
+**先把这一条链路跑通，再根据真实结果决定下一步架构优化。**
+
+不要为了追求理论上的完整个人识字表而阻塞本次测试。

@@ -59,6 +59,13 @@ function buildUserPrompt(
   masterPages: { page: number; text: string; image_url?: string }[],
   level: Level,
   frontiers: string[],
+  childProfile?: {
+    observed_known_chars: number;
+    stable_char_count: number;
+    stable_vocab_count: number;
+    character_mastery_rate: number;
+    vocab_mastery_rate: number;
+  },
 ): string {
   const pagesText = masterPages
     .map((p) => `【第${p.page}页】\n${p.text}`)
@@ -68,9 +75,30 @@ function buildUserPrompt(
     ? frontiers.map((f, i) => `${i + 1}. ${f}`).join('\n')
     : '（无）';
 
+  let childSection = '';
+  if (childProfile) {
+    childSection = `
+【孩子阅读画像（个性化参考）】
+以下是这个孩子的实测数据，用于实现 i+1 个性化：
+- 已确认等级：${level}
+- 稳定识字量估算：约 ${childProfile.stable_char_count} 字
+- 稳定词汇量估算：约 ${childProfile.stable_vocab_count} 词
+- 抽样观测已知汉字：${childProfile.observed_known_chars} 个（正式测试中实际答对的字）
+- 单字掌握率：${childProfile.character_mastery_rate}%
+- 词汇掌握率：${childProfile.vocab_mastery_rate}%
+
+个性化改写要求：
+1. 以 ${level} 等级作为主要难度锚点，确保大部分语言在孩子可理解范围内
+2. 在自然的前提下，优先使用孩子已经见过/认识的字和表达
+3. Frontier 是 i+1 的重点，通过上下文帮助孩子理解新词
+4. 不要因为孩子抽样已知字较少就过度简化，保持故事的完整性和语言的自然度
+5. 整体难度以目标等级为准，个人数据用于微调用词偏好
+`;
+  }
+
   return `
 ${getLevelRulesPrompt(level)}
-
+${childSection}
 【Master Story（原始故事）】
 共 ${masterPages.length} 页。
 
@@ -94,6 +122,7 @@ ${frontierText}
  * @param masterPages 原始页面
  * @param level 目标等级
  * @param frontiers 目标 Frontier 列表
+ * @param childProfile 孩子阅读画像（可选，用于 i+1 个性化）
  * @param headers 请求头（用于转发追踪）
  * @returns 改写后的页面列表
  */
@@ -101,6 +130,13 @@ export async function generateRewrite(
   masterPages: { page: number; text: string; image_url?: string }[],
   level: Level,
   frontiers: string[],
+  childProfile?: {
+    observed_known_chars: number;
+    stable_char_count: number;
+    stable_vocab_count: number;
+    character_mastery_rate: number;
+    vocab_mastery_rate: number;
+  },
   headers?: Headers,
 ): Promise<{ pages: RewritePage[]; rewrite_notes?: string }> {
   const config = new Config();
@@ -111,7 +147,7 @@ export async function generateRewrite(
 
   const client = new LLMClient(config, customHeaders);
 
-  const userPrompt = buildUserPrompt(masterPages, level, frontiers);
+  const userPrompt = buildUserPrompt(masterPages, level, frontiers, childProfile);
 
   const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
     { role: 'system', content: SYSTEM_PROMPT },

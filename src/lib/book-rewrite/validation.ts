@@ -44,7 +44,14 @@ export function validateReadingVolume(
   };
 }
 
-/** 2. 语言难度启发式检查 */
+/** 2. 语言难度启发式检查
+ *
+ * 注意：已知字集合（knownChars）是正式测试中抽样答对的字（如94个），
+ * 不等于孩子完整识字量。因此：
+ * - 不再基于 knownChars 计算 "unknown character rate" 并据此判失败
+ * - 改为基于等级语言规则做启发式检查：句子长度、句式复杂度、生僻字密度
+ * - knownChars 命中情况仅作为 info 记录，不影响 pass/fail
+ */
 export function validateLanguageDifficulty(
   pages: RewritePage[],
   level: Level,
@@ -53,29 +60,65 @@ export function validateLanguageDifficulty(
   const fullText = pages.map((p) => p.text).join('\n');
   const totalChars = countChineseChars(fullText);
 
-  // 找生僻字（不在已知字集合中，且不常见的字）
-  const unknownChars = new Set<string>();
+  // 句子分析
+  const sentences = fullText.split(/[。！？；\n]/).filter((s) => s.trim().length > 0);
+  const sentenceCount = sentences.length;
+  const avgSentenceLen = sentenceCount > 0
+    ? Math.round(totalChars / sentenceCount)
+    : 0;
+
+  // 超长句（按等级设阈值）
+  const rule = LEVEL_LANGUAGE_RULES[level];
+  const longSentenceThreshold = level === 'SRC100' ? 20
+    : level === 'SRC300' ? 32
+    : level === 'SRC500' ? 45
+    : 55;
+  const longSentences = sentences.filter((s) => countChineseChars(s) > longSentenceThreshold);
+
+  // 极短句（1-2字的句子过多可能是碎片化）
+  const veryShortSentences = sentences.filter((s) => countChineseChars(s) <= 2);
+
+  // 生僻字启发式检测（基于Unicode CJK扩展区，简单版）
+  // 常见字范围：\u4e00-\u7a00（约常用字前半段）
+  const rareChars = new Set<string>();
   for (const char of fullText) {
-    if (/[\u4e00-\u9fa5]/.test(char) && !knownChars.has(char)) {
-      unknownChars.add(char);
+    if (/[\u7a01-\u9fff]/.test(char)) {
+      rareChars.add(char);
+    }
+  }
+  const rareCharRate = totalChars > 0 ? rareChars.size / totalChars : 0;
+
+  // 已知字命中（仅作 info 展示，不参与 pass/fail 判断）
+  let observedKnownCount = 0;
+  if (knownChars.size > 0) {
+    const seen = new Set<string>();
+    for (const char of fullText) {
+      if (/[\u4e00-\u9fa5]/.test(char) && knownChars.has(char) && !seen.has(char)) {
+        observedKnownCount++;
+        seen.add(char);
+      }
     }
   }
 
-  const unknownRate = totalChars > 0 ? unknownChars.size / totalChars : 0;
+  // 通过条件：句子长度基本合理 + 没有过多长句 + 生僻字比例低
+  // 这是启发式检查，阈值较宽松
+  const passed = longSentences.length <= 3
+    && rareCharRate < 0.05
+    && avgSentenceLen > 0;
 
-  // 检查超长句（超过 40 字的句子）
-  const sentences = fullText.split(/[。！？；\n]/).filter((s) => s.trim().length > 0);
-  const longSentences = sentences.filter((s) => countChineseChars(s) > 40);
-
-  const passed = unknownRate < 0.15 && longSentences.length <= 2; // 15% 以下未知字，长句不超过2句
-
-  const detail = `未知字 ${unknownChars.size} 个（占比 ${(unknownRate * 100).toFixed(1)}%），超长句 ${longSentences.length} 句`;
+  const details: string[] = [];
+  details.push(`平均句长 ${avgSentenceLen} 字（目标约 ${rule.avgSentenceLen}）`);
+  details.push(`超长句 ${longSentences.length} 句（>${longSentenceThreshold}字）`);
+  details.push(`生僻字 ${rareChars.size} 个（占 ${(rareCharRate * 100).toFixed(1)}%）`);
+  if (knownChars.size > 0) {
+    details.push(`抽样已知字命中 ${observedKnownCount}/${knownChars.size} 个（仅供参考）`);
+  }
 
   return {
     name: '语言难度（启发式）',
     passed,
-    detail,
-    score: Math.round((1 - unknownRate) * 100),
+    detail: details.join('；'),
+    score: Math.min(100, Math.max(0, 100 - longSentences.length * 10 - rareCharRate * 200)),
   };
 }
 

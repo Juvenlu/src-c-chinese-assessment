@@ -46,18 +46,27 @@ export async function POST(request: Request) {
       targetLevel = target_level as Level
     }
 
+    let childProfile: {
+      observed_known_chars: number;
+      stable_char_count: number;
+      stable_vocab_count: number;
+      character_mastery_rate: number;
+      vocab_mastery_rate: number;
+    } | undefined = undefined
+
     // 如果提供了 child_id，从 test_results 计算 confirmed_level 和 known_characters
+    // 注意：test_results 表没有 status/completed_at 字段，使用 test_mode + created_at
     if (child_id) {
       const { data: allResults, error: allError } = await supabase
         .from('test_results')
         .select('*')
         .eq('child_id', child_id)
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(20)
 
       if (!allError && allResults && allResults.length > 0) {
-        // 过滤 formal/full 测试
+        // 过滤 formal/full 正式测试（test_results 表无 status 字段，
+        // 能出现在 test_results 中的本身就是已完成计算的结果）
         const formalResults = allResults.filter(
           (r: any) => r.test_mode === 'full' || r.test_mode === 'formal'
         )
@@ -75,6 +84,14 @@ export async function POST(request: Request) {
             if (r.known_vocabulary && Array.isArray(r.known_vocabulary)) {
               for (const w of r.known_vocabulary) knownWords.add(w)
             }
+          }
+          // 组装孩子阅读画像（用于 i+1 个性化生成）
+          childProfile = {
+            observed_known_chars: knownChars.size,
+            stable_char_count: latest.stable_char_count || 0,
+            stable_vocab_count: latest.stable_vocab_count || 0,
+            character_mastery_rate: latest.character_mastery_rate || 0,
+            vocab_mastery_rate: latest.vocab_mastery_rate || 0,
           }
         }
       }
@@ -99,7 +116,7 @@ export async function POST(request: Request) {
       : selectFrontiers(masterText, knownCharsArr, 5)
 
     // 生成改写
-    const result = await generateRewrite(masterPages, targetLevel, frontiers)
+    const result = await generateRewrite(masterPages, targetLevel, frontiers, childProfile)
 
     // Validation
     const validation = runAllValidations(
@@ -120,8 +137,9 @@ export async function POST(request: Request) {
       frontierTargets: frontiers,
       generationParams: {
         model: 'doubao-seed-2-0-pro-260215',
-        prompt_version: 'v1.0',
+        prompt_version: 'v1.1',
         child_id: child_id || null,
+        child_profile: childProfile || null,
         custom_frontiers: custom_frontiers || null,
         rewrite_notes: result.rewrite_notes || null,
       } as any,
@@ -138,6 +156,7 @@ export async function POST(request: Request) {
       target_level: record.target_level,
       page_count: result.pages.length,
       frontiers,
+      child_profile: childProfile || null,
       validation,
     })
   } catch (error: any) {

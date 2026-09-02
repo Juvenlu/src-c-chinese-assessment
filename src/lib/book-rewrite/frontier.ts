@@ -39,6 +39,36 @@ const STOP_WORDS = new Set([
   '悄悄', '轻轻', '好好', '高高', '大大', '小小', '很多', '很少',
 ]);
 
+/** 常见词尾/后缀（不单独作为有意义的 frontier） */
+const BAD_SUFFIX_CHARS = new Set(['们', '子', '的', '了', '着', '过', '啊', '吧', '呢', '吗']);
+
+/** 判断词是否是有意义的学习单位（过滤掉明显的词片段/语法后缀） */
+function isMeaningfulWord(word: string): boolean {
+  if (word.length < 2) return false;
+  // 2字词：排除纯后缀组合
+  if (word.length === 2) {
+    if (BAD_SUFFIX_CHARS.has(word[0]) && BAD_SUFFIX_CHARS.has(word[1])) return false;
+  }
+  // 3字词：排除"XX们"、"XX的"这种纯添加后缀的形式
+  if (word.length === 3 && BAD_SUFFIX_CHARS.has(word[word.length - 1])) {
+    return false;
+  }
+  return true;
+}
+
+/** 从所有候选词中移除"被更长词包含的子串" */
+function removeSubstringCandidates(candidates: string[]): string[] {
+  const sorted = [...candidates].sort((a, b) => b.length - a.length);
+  const result: string[] = [];
+  for (const word of sorted) {
+    const isSub = result.some((longer) => longer.includes(word));
+    if (!isSub) {
+      result.push(word);
+    }
+  }
+  return result;
+}
+
 /** 判断词是否由已知汉字组成 */
 export function isWordFromKnownChars(word: string, knownChars: Set<string>): boolean {
   for (const char of word) {
@@ -60,8 +90,16 @@ export function countWordOccurrences(text: string, word: string): number {
 
 /**
  * 选择 Frontie r
+ *
+ * 三级选择策略（优先级从高到低）：
+ * P1：已知字组成的新词（孩子认识每个字，但组合成的词是新学习单位）
+ * P2：故事高频词（在全文中出现 ≥3 次的常用双字词）
+ * P3：故事核心词（人物名、地名等与故事强相关的词）
+ *
+ * 如果 P1 不足，依次用 P2、P3 补充。总量保持精简（默认 3-5 个）。
+ *
  * @param fullText 全书文本
- * @param knownCharacters 孩子认识的汉字集合
+ * @param knownCharacters 孩子认识的汉字集合（抽样观测集，可能不完整）
  * @param count 目标数量（默认 4）
  */
 export function selectFrontiers(
@@ -72,45 +110,68 @@ export function selectFrontiers(
   const knownSet = new Set(knownCharacters);
   const allCandidates = extractCandidateWords(fullText);
 
-  // 候选池：由已知字组成的 2-4 字词
-  const knownWordCandidates = allCandidates.filter(
-    (w) => !STOP_WORDS.has(w) && isWordFromKnownChars(w, knownSet) && w.length >= 2,
-  );
-
-  // 按在全文中出现次数排序（高频优先）
-  const scored = knownWordCandidates
-    .map((word) => ({
-      word,
-      count: countWordOccurrences(fullText, word),
-    }))
-    .filter((w) => w.count >= 2) // 至少出现2次才有学习价值
+  // ===== P1：已知字组成的新词 =====
+  const p1Candidates = allCandidates
+    .filter(
+      (w) => !STOP_WORDS.has(w)
+        && isWordFromKnownChars(w, knownSet)
+        && w.length >= 2
+        && isMeaningfulWord(w),
+    )
+    .map((word) => ({ word, count: countWordOccurrences(fullText, word) }))
+    .filter((w) => w.count >= 2)
     .sort((a, b) => b.count - a.count);
 
-  // 多样性：优先选择不同长度的词，避免都是2字词
+  // ===== P2：故事高频常用词（2字词，出现≥3次，非停用词，有意义）=====
+  const p2Candidates = allCandidates
+    .filter((w) => w.length === 2 && !STOP_WORDS.has(w) && isMeaningfulWord(w))
+    .map((word) => ({ word, count: countWordOccurrences(fullText, word) }))
+    .filter((w) => w.count >= 3)
+    .sort((a, b) => b.count - a.count);
+
+  // ===== P3：故事核心词（人物/地点等专有名词，启发式）=====
+  // 从文本中找高频且不是停用词的多字词，按频率排序（用于补充）
+  const p3Candidates = allCandidates
+    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w) && isMeaningfulWord(w))
+    .map((word) => ({ word, count: countWordOccurrences(fullText, word) }))
+    .filter((w) => w.count >= 2)
+    .sort((a, b) => b.count - a.count);
+
   const selected: string[] = [];
-  const seenLengths = new Set<number>();
+  const selectedSet = new Set<string>();
 
-  // 第一轮：按长度多样性选
-  for (const item of scored) {
-    if (selected.length >= count) break;
-    if (selected.includes(item.word)) continue;
-
-    // 如果这个长度还没选过，优先选
-    if (!seenLengths.has(item.word.length)) {
+  function pickFrom(list: { word: string; count: number }[], max: number, diversity: boolean = false) {
+    const seenLengths = new Set<number>();
+    let picked = 0;
+    for (const item of list) {
+      if (picked >= max) break;
+      if (selectedSet.has(item.word)) continue;
+      if (diversity && seenLengths.has(item.word.length)) continue;
       selected.push(item.word);
+      selectedSet.add(item.word);
       seenLengths.add(item.word.length);
+      picked++;
     }
   }
 
-  // 第二轮：如果不够，补高频词
+  // 从 P1 选（优先长度多样性）
+  const p1Target = Math.min(count, p1Candidates.length);
+  pickFrom(p1Candidates, p1Target, true);
+
+  // 如果 P1 不够，从 P2 补充（高频常用词）
   if (selected.length < count) {
-    for (const item of scored) {
-      if (selected.length >= count) break;
-      if (!selected.includes(item.word)) {
-        selected.push(item.word);
-      }
-    }
+    const remain = count - selected.length;
+    pickFrom(p2Candidates, remain, true);
   }
 
-  return selected.slice(0, count);
+  // 如果还不够，从 P3 补充（故事高频词）
+  if (selected.length < count) {
+    const remain = count - selected.length;
+    pickFrom(p3Candidates, remain, true);
+  }
+
+  // 最后移除"是更长词的子串"的候选（如"孙悟空"存在则去掉"孙悟""悟空"）
+  const filtered = removeSubstringCandidates(selected);
+
+  return filtered.slice(0, count);
 }
