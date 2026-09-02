@@ -1,0 +1,1134 @@
+# SRC-C 第一本文字定制绘本 POC
+
+## 《西游记》10页Master Story端到端验证——实施指令 V1.0
+
+---
+
+# 一、任务目标
+
+现在开始实施 SRC-C i+1 个性化绘本引擎的：
+
+> **第一本《西游记》定制绘本 POC（Proof of Concept）**
+
+本次不是开发完整的绘本系统。
+
+唯一目标：
+
+> **使用一套已经上传到 Cloudflare 的《西游记》Master Story + Master Image，为一个已经完成正式测字的真实孩子，生成第一本i+1定制绘本，并完整跑通从生成到人工审核再到孩子阅读的闭环。**
+
+本次POC成功的标准不是代码数量，而是：
+
+> **第一本真实绘本能否真正生成、审核、发布并阅读。**
+
+---
+
+# 二、最高优先级：禁止修改SRC核心架构
+
+本次实施必须严格遵守：
+
+> **现有SRC核心架构冻结。**
+
+不得因为本次绘本POC：
+
+* 修改Quick Assessment
+* 修改Formal Assessment
+* 修改测字算法
+* 修改SRC100/300/500/800等级定义
+* 修改`confirmed_level`
+* 修改`estimated_level`
+* 修改Growth Map
+* 修改Auth
+* 修改Registration
+* 修改Child Profile核心结构
+* 修改现有核心数据库字段语义
+* 删除或重命名核心字段
+* 修改现有核心API逻辑
+* 重构现有核心模块
+* 安装不必要的新依赖
+
+绘本功能必须：
+
+> **作为现有SRC系统的旁路模块接入。**
+
+如果发现现有架构存在必须修改才能完成POC的问题：
+
+> **立即停止该部分实施并报告，不得自行修改。**
+
+---
+
+# 三、本次POC范围严格限制
+
+本次只验证：
+
+> **1本Master Story**
+>
+> **约10页**
+>
+> **1个目标SRC等级**
+>
+> **1个真实孩子**
+>
+> **1套固定Cloudflare图片**
+>
+> **1次受控LLM改写**
+>
+> **1套Validation**
+>
+> **1次人工审核**
+>
+> **1本Final绘本**
+
+暂时不要实现：
+
+* 四个等级批量生成
+* 多年龄版本
+* 年龄自适应算法
+* 复杂Reading Profile
+* 复杂Frontier算法
+* 自动推荐算法
+* 阅读游戏
+* 拼音
+* 音频
+* AI图片生成
+* AI图片选择
+* 自动扩展故事
+* 分支故事
+* 实时改写
+* 多Agent
+* 多阶段LLM
+* 复杂Adaptive Learning
+* 自动Final
+
+---
+
+# 四、第一本Master Story
+
+本次Master Story由用户提供。
+
+结构约为：
+
+> **《西游记》10页左右**
+
+每一页已经拥有：
+
+```text
+page_number
+original_text
+image_url
+```
+
+其中：
+
+> `original_text` = Master Text
+
+> `image_url` = Master Image
+
+图片已经上传到：
+
+> **Cloudflare**
+
+因此：
+
+> **不要重新生成图片。**
+
+> **不要寻找其他图片。**
+
+> **不要修改图片。**
+
+> **不要改变图片与页面的对应关系。**
+
+---
+
+# 五、Master Story是最高内容权威
+
+本次POC必须遵守：
+
+> **Master Story决定“发生什么”。**
+>
+> **AI只决定“用什么难度的中文来表达”。**
+
+AI不得：
+
+* 创造新的故事
+* 增加新的核心事件
+* 删除核心事件
+* 改变人物
+* 改变人物关系
+* 改变事件顺序
+* 改变故事因果
+* 改变结局
+* 创造Master Story没有的新场景
+* 为了Frontier强行创造剧情
+
+如果某个Frontier无法自然进入Master Story：
+
+> **放弃这个Frontier。**
+
+不要修改故事来适应Frontier。
+
+---
+
+# 六、第一本选择一个真实孩子
+
+从现有数据库中选择：
+
+> **已经完成正式测字，并且拥有明确`confirmed_level`的真实测试孩子。**
+
+优先选择：
+
+> SRC300或SRC500
+
+作为第一本POC。
+
+不要因为测试方便而虚构一个孩子。
+
+读取：
+
+```text
+child_id
+confirmed_level
+```
+
+注意：
+
+> `confirmed_level`才是本次绘本语言难度的正式依据。
+
+不要使用：
+
+* latestResult.level
+* estimated_level
+* stable_char_count
+
+替代`confirmed_level`。
+
+---
+
+# 七、暂时忽略年龄版本化
+
+本次POC：
+
+> **不要把年龄作为绘本版本维度。**
+
+不要创建：
+
+```text
+SRC300-8岁
+SRC300-9岁
+SRC300-10岁
+```
+
+这种版本。
+
+本次只验证：
+
+```text
+Master Story
++
+target_level
++
+Frontier
+```
+
+年龄信息暂时可以读取，但：
+
+> 不参与版本区分。
+
+---
+
+# 八、第一本绘本的核心生成逻辑
+
+完整流程：
+
+```text
+真实孩子
+   ↓
+confirmed_level
+   ↓
+选择西游记Master Story
+   ↓
+读取10页Master Text + Master Image
+   ↓
+准备少量Frontier
+   ↓
+Single Structured LLM Generation
+   ↓
+生成10页改写文本
+   ↓
+Validation
+   ↓
+AI Draft
+   ↓
+Admin图文审核
+   ↓
+人工修改
+   ↓
+Final
+   ↓
+孩子阅读
+```
+
+---
+
+# 九、Frontier：第一本只做轻量版本
+
+本次不要开发复杂Frontier算法。
+
+只需要：
+
+> 为这一本Master Story准备少量、自然、值得学习的Frontier。
+
+建议：
+
+> **3–5个左右**
+
+但数量不是硬性要求。
+
+质量优先。
+
+Frontier优先选择：
+
+1. 已知汉字组成的新词
+2. 高频、有用词语
+3. 与当前西游记故事直接相关的词
+4. 常见词组/搭配
+5. 简单句式
+
+不要为了凑数量加入不自然的词。
+
+---
+
+# 十、Frontier特别注意“已知字组成新词”
+
+例如孩子已经认识：
+
+> 学、校
+
+仍然可以把：
+
+> 学校
+
+作为新的词汇单位。
+
+因此Frontier不能简单理解成：
+
+> “孩子不会的汉字”。
+
+本次重点验证：
+
+> **已知语言 → 新词/新表达**
+
+能否自然形成i+1。
+
+---
+
+# 十一、Frontier重复规则
+
+如果Frontier是一个词：
+
+> 尽量自然出现至少2次。
+
+如果Frontier是词组：
+
+> 尽量在不同语境出现。
+
+如果Frontier是汉字：
+
+> 不要求单独出现2次。
+
+如果Frontier是句式：
+
+> 尽量自然出现两次类似表达。
+
+但：
+
+> **禁止机械重复。**
+
+---
+
+# 十二、四级语言规则
+
+本次POC只实施：
+
+> **目标孩子实际confirmed_level对应的一级。**
+
+不要为了第一本测试，同时开发四级。
+
+语言规则如下：
+
+## SRC100
+
+* 高频字
+* 高频词
+* 短句
+* 简单动作
+* 简单关系
+* 直接表达
+
+目标阅读量：
+
+> 约100–150汉字
+
+---
+
+## SRC300
+
+* 简单连续叙事
+* 基础细节
+* 简单因果
+* 常见连接词
+* 句子比SRC100稍完整
+
+目标：
+
+> 约300–380汉字
+
+---
+
+## SRC500
+
+* 更完整叙事
+* 更多细节
+* 人物状态
+* 因果关系
+* 简单推理
+* 适当过渡表达
+
+目标：
+
+> 约500–600汉字
+
+---
+
+## SRC800
+
+* 丰富叙事
+* 更完整场景
+* 人物动机
+* 因果关系
+* 推理
+* 更高信息密度
+* 更复杂但自然的句式
+
+目标：
+
+> 约700–900汉字
+
+---
+
+# 十三、第一本不要求严格达到某个整数
+
+例如SRC300：
+
+> 不是必须精确300字。
+
+建议：
+
+> 300–380字
+
+但：
+
+> 不允许为了达到字数而添加无意义内容。
+
+核心优先级：
+
+```text
+故事完整
+>
+语言自然
+>
+符合SRC等级
+>
+i+1自然
+>
+阅读量
+```
+
+---
+
+# 十四、采用一次LLM调用
+
+不要建立：
+
+> Story Outline → Story Generation
+
+两阶段。
+
+本次只使用：
+
+> **Single Structured LLM Generation**
+
+LLM一次读取：
+
+```text
+Master Story
++
+Master Pages
++
+target_level
++
+Frontier
++
+SRC语言规则
+```
+
+一次输出：
+
+```json id="t9h5pn"
+{
+  "pages": [
+    {
+      "page": 1,
+      "text": "...",
+      "frontier": []
+    },
+    {
+      "page": 2,
+      "text": "...",
+      "frontier": ["某词"]
+    }
+  ]
+}
+```
+
+如果需要：
+
+```json id="l1n2uk"
+{
+  "rewrite_notes": []
+}
+```
+
+可以保留。
+
+但不要建立复杂中间结构。
+
+---
+
+# 十五、LLM Prompt的核心要求
+
+系统Prompt必须明确：
+
+> 你不是故事创作者。
+
+你的任务是：
+
+> **把用户提供的Master Story改写成适合目标SRC等级的中文阅读文本。**
+
+必须：
+
+* 保持人物
+* 保持事件
+* 保持情节顺序
+* 保持因果
+* 保持故事结局
+* 保持页面对应关系
+* 保持图片能够对应文字
+* 调整语言难度
+* 调整句子长度
+* 调整词汇难度
+* 自然加入Frontier
+
+禁止：
+
+* 添加剧情
+* 删除核心剧情
+* 修改人物
+* 修改关系
+* 改变故事
+* 添加Master Story没有的重要信息
+* 为Frontier创造剧情
+
+---
+
+# 十六、语言改写的核心原则
+
+必须遵守：
+
+> **降低语言难度，不降低故事内容价值。**
+
+尤其注意：
+
+如果真实孩子年龄较大但SRC等级较低：
+
+不要把文本改成幼儿语言。
+
+不要大量使用：
+
+* 幼儿化表达
+* 儿歌式语言
+* 无意义叠词
+* 过度卖萌
+
+但是自然表达如：
+
+> 慢慢地、悄悄地、轻轻地
+
+可以正常使用。
+
+---
+
+# 十七、图片绑定规则
+
+这是硬规则：
+
+```text
+Master Page 1
+    ↓
+Master Image 1
+    ↓
+Rewritten Text 1
+
+Master Page 2
+    ↓
+Master Image 2
+    ↓
+Rewritten Text 2
+```
+
+AI不能改变：
+
+> page_number
+
+不能重新排序。
+
+不能换图。
+
+不能选择其他图。
+
+---
+
+# 十八、Validation
+
+第一本只需要验证五件事情：
+
+## 1. 阅读量
+
+统计整本实际中文字符数。
+
+判断：
+
+> 是否大致符合目标SRC阅读量。
+
+---
+
+## 2. Language Difficulty
+
+检查：
+
+* 明显超等级词汇
+* 生僻字
+* 过长句子
+* 明显过难表达
+
+这一项允许是：
+
+> 启发式检查。
+
+不要声称能够100%判断语言难度。
+
+---
+
+## 3. Frontier Presence
+
+检查：
+
+> Frontier是否真正出现在生成文本。
+
+如果目标词要求自然重复：
+
+> 检查出现次数。
+
+---
+
+## 4. Master Story Preservation
+
+检查：
+
+* 人物
+* 核心事件
+* 情节顺序
+* 核心因果
+
+必须保留。
+
+---
+
+## 5. Image/Text Consistency
+
+程序可以进行基本检查。
+
+但必须明确：
+
+> **真正的图文一致性最终由管理员人工确认。**
+
+程序不能声称能够完全视觉判断。
+
+---
+
+# 十九、Validation失败处理
+
+如果Validation失败：
+
+> 整本重新生成。
+
+不要自动修改单句。
+
+最多：
+
+> **2次重新生成。**
+
+如果仍然失败：
+
+```text
+generation_failed
+```
+
+保存：
+
+* validation_result
+* failure_reason
+* retry_count
+
+然后进入：
+
+> Admin人工处理。
+
+---
+
+# 二十、Admin审核必须图文同时出现
+
+管理员打开这本AI Draft时，每一页必须看到：
+
+```text
+┌──────────────────────┐
+│ Master Image         │
+├──────────────────────┤
+│ Master Text          │
+├──────────────────────┤
+│ AI Rewritten Text    │
+└──────────────────────┘
+```
+
+管理员能够：
+
+* 阅读原文
+* 看原图
+* 查看AI改写
+* 编辑AI改写
+* 保存
+* Reject
+* Final
+
+这是第一本POC必须验证的核心功能。
+
+---
+
+# 二十一、版本状态
+
+至少：
+
+```text
+ai_draft
+review
+final
+rejected
+```
+
+AI生成：
+
+> `ai_draft`
+
+管理员进入审核：
+
+> `review`
+
+管理员确认：
+
+> `final`
+
+管理员驳回：
+
+> `rejected`
+
+AI绝对不能直接：
+
+> `final`
+
+---
+
+# 二十二、Master Asset保护
+
+任何AI操作都不能修改：
+
+```text
+book_episode_pages.original_text
+book_episode_pages.image_url
+```
+
+这两个字段属于：
+
+> Master Asset
+
+AI只能产生：
+
+> Derived Rewrite Version
+
+---
+
+# 二十三、数据库实施
+
+如果当前项目已经确认：
+
+> `book_rewrite_versions`
+
+是最小旁路方案，
+
+可以新增该表。
+
+但：
+
+> **不得修改现有核心表的数据语义。**
+
+第一本POC只需要支持：
+
+```text
+episode_id
+target_level
+pages_json
+frontier_targets
+status
+generation_params
+validation_result
+version
+retry_count
+failure_reason
+created_at
+finalized_at
+finalized_by
+```
+
+不要加入：
+
+> 年龄版本。
+
+也不要现在加入复杂Reading Profile。
+
+---
+
+# 二十四、custom_books处理
+
+现有：
+
+> `custom_books`
+
+保持不动。
+
+不要删除。
+
+不要重构。
+
+不要因为新版本而修改旧逻辑。
+
+本次POC可以：
+
+> 新的rewrite_version作为新的绘本版本来源。
+
+等第一本POC成功以后，再决定如何与现有`custom_books`长期整合。
+
+---
+
+# 二十五、API
+
+可以新增：
+
+```text
+POST /api/books/rewrite
+GET  /api/books/rewrite/[id]
+POST /api/books/rewrite/[id]/finalize
+POST /api/books/rewrite/[id]/reject
+GET  /api/books/episodes/[id]/rewrites
+```
+
+如果异步生成确实需要：
+
+```text
+GET /api/books/rewrite/[id]/status
+```
+
+否则不要为了“完整架构”而增加不必要API。
+
+---
+
+# 二十六、孩子端
+
+第一本POC只需要能够：
+
+> **让Final版本能够被一个孩子打开并阅读。**
+
+不需要现在完成完整的：
+
+* 推荐系统
+* 多本书管理
+* 阅读成长统计
+* 自适应算法
+
+如果现有`/book/[id]`可以直接复用：
+
+> 优先复用。
+
+---
+
+# 二十七、阅读反馈
+
+如果实现成本很低，可以加入：
+
+```text
+😊 刚刚好
+🙂 有点简单
+😕 有点难
+```
+
+但：
+
+> **反馈绝不能修改confirmed_level。**
+
+如果本次POC为了尽快跑通而暂时不加入，也可以放到下一阶段。
+
+---
+
+# 二十八、第一本POC的最终验收标准
+
+只有以下流程全部跑通，才算POC成功：
+
+```text
+① 读取真实Master Story
+        ↓
+② 正确读取Cloudflare图片
+        ↓
+③ 正确读取真实孩子confirmed_level
+        ↓
+④ 生成少量Frontier
+        ↓
+⑤ Single LLM Generation
+        ↓
+⑥ 得到完整8–10页改写文本
+        ↓
+⑦ Validation
+        ↓
+⑧ 保存AI Draft
+        ↓
+⑨ Admin看到“图片+原文+改写文”
+        ↓
+⑩ Admin可以编辑
+        ↓
+⑪ Admin Final
+        ↓
+⑫ 孩子可以阅读Final版本
+```
+
+---
+
+# 二十九、POC成功后再做什么
+
+第一本成功以后，不要立即大规模开发。
+
+先分析：
+
+### A. AI改写质量
+
+是否真的做到：
+
+> 同一故事，不同中文难度。
+
+### B. i+1质量
+
+Frontier是否：
+
+> 自然、有用、不过量。
+
+### C. 阅读量
+
+实际字数是否：
+
+> 足够形成真正的阅读，而不是只有几句话。
+
+### D. 图文一致性
+
+管理员是否容易发现问题。
+
+### E. 孩子真实体验
+
+孩子是否：
+
+> 愿意读
+> 能读懂
+> 感觉略有挑战
+
+然后再决定：
+
+> 是否进入SRC100/300/500/800完整版本开发。
+
+---
+
+# 三十、当前执行命令
+
+现在开始实施。
+
+请严格按照以下顺序：
+
+### Step 1
+
+确认用户上传到Cloudflare的《西游记》Master Story和10页图片。
+
+### Step 2
+
+确认对应数据库：
+
+```text
+book_episodes
+book_episode_pages
+```
+
+中的：
+
+```text
+original_text
+image_url
+```
+
+是否完整。
+
+### Step 3
+
+从真实测试数据中找到一个具有明确：
+
+```text
+confirmed_level
+```
+
+的孩子。
+
+优先：
+
+> SRC300或SRC500。
+
+### Step 4
+
+建立最小：
+
+```text
+book_rewrite_versions
+```
+
+旁路结构。
+
+### Step 5
+
+实现轻量Frontier准备。
+
+### Step 6
+
+实现：
+
+```text
+POST /api/books/rewrite
+```
+
+使用Single Structured LLM Generation。
+
+### Step 7
+
+实现五类Validation。
+
+### Step 8
+
+实现Admin图文审核。
+
+### Step 9
+
+生成第一本AI Draft。
+
+### Step 10
+
+由管理员人工审核。
+
+### Step 11
+
+Final。
+
+### Step 12
+
+让孩子阅读。
+
+---
+
+# 三十一、最终限制
+
+在第一本POC完成之前：
+
+> 不要扩展到整个SRC绘本系统。
+
+不要批量生成。
+
+不要做四级批量。
+
+不要做复杂推荐。
+
+不要做年龄版本。
+
+不要做复杂Frontier算法。
+
+不要做游戏。
+
+不要做音频。
+
+不要做拼音。
+
+不要做AI图片。
+
+不要修改SRC核心架构。
+
+---
+
+# 最终产品原则
+
+始终记住：
+
+> **用户提供故事和图片。**
+
+> **SRC提供孩子的正式中文能力等级。**
+
+> **系统提供少量Frontier。**
+
+> **AI只负责受控语言改写。**
+
+> **程序负责基本Validation。**
+
+> **人负责最终判断。**
+
+> **孩子负责真实阅读验证。**
+
+第一本的真正目的不是“生成一个漂亮的AI故事”。
+
+而是验证：
+
+> **SRC测字结果能否真正转化为一本孩子读得懂、读得下去、又有一点点挑战的中文绘本。**
+
+完成本指令后，请输出：
+
+# 《SRC-C 第一本文字定制绘本 POC 实施报告》
+
+包括：
+
+1. 使用的Master Story
+2. 使用的真实孩子confirmed_level
+3. Frontier
+4. LLM生成结果
+5. Validation结果
+6. Admin审核结果
+7. Final绘本状态
+8. 孩子阅读结果
+9. 发现的问题
+10. 下一步建议
+
+**不要在第一本POC成功之前扩大开发范围。**

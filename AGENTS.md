@@ -232,3 +232,73 @@ SRC-C (Stable Reading Chinese & Culture) 是面向海外华人青少年的中文
 - `vocabulary_mastery`：词汇掌握度历史
 - `test_history`：测试会话历史记录
 - 注：当前V1.0版本使用前端内存+API模拟数据，数据库表结构已定义在 types.ts 中
+
+## i+1 个性化绘本引擎 V1.3（POC）
+
+### 设计原则
+- **旁路接入**：完全不修改 SRC 核心测字架构（confirmed_level、Growth Map、Auth 等均不动）
+- **Master Asset Lock**：AI 只能改写文字，不能修改 original_text / image_url
+- **Single Structured LLM Generation**：一次 LLM 调用生成整本 8-12 页 JSON
+
+### 核心文件
+```
+src/lib/book-rewrite/
+├── types.ts              # 类型定义（BookRewriteVersion / RewriteStatus / RewritePage / ValidationResult）
+├── level-rules.ts        # 四级语言规则（SRC100/300/500/800 阅读量目标）
+├── frontier.ts           # 轻量 Frontier 选择（已知字组成新词 + 故事相关词）
+├── generator.ts          # LLM 改写引擎（Single Structured Generation）
+├── validation.ts         # 五类 Validation（阅读量/语言难度/Frontier/Master Story/图文一致性）
+└── rewrite-store.ts      # 数据库存储（pg 直连，绕过 Supabase PostgREST schema cache）
+
+src/storage/database/
+├── pg-client.ts          # pg 库直接连接 PostgreSQL（book_rewrite_versions 表专用）
+└── migrations/
+    └── 001_book_rewrite_versions.sql  # 建表 SQL
+
+src/app/api/books/
+├── rewrite/route.ts              # POST 触发生成
+├── rewrite/[id]/route.ts         # GET 详情
+├── rewrite/[id]/finalize/route.ts # POST 确认 Final
+├── rewrite/[id]/reject/route.ts  # POST 驳回
+├── rewrite/[id]/public/route.ts  # GET 公开访问（仅 final 状态）
+└── episodes/[id]/rewrites/route.ts # GET 某绘本所有改写版本
+
+src/app/book-rewrite/[id]/page.tsx # 孩子阅读 Final 版本页面
+```
+
+### 数据库表：book_rewrite_versions
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | SERIAL PK | 自增ID |
+| episode_id | INTEGER FK | 关联 book_episodes |
+| target_level | VARCHAR | SRC100/SRC300/SRC500/SRC800 |
+| pages_json | JSONB | 改写页 [{page, text, frontier, image_url, original_text}] |
+| frontier_targets | TEXT[] | 目标 Frontiers |
+| status | VARCHAR | ai_draft / review / final / rejected / failed |
+| generation_params | JSONB | LLM 参数 |
+| validation_result | JSONB | 五类验证结果 |
+| version | INT | 版本号 |
+| retry_count | INT | 重试次数 |
+| failure_reason | TEXT | 失败原因 |
+| child_id | VARCHAR | 目标孩子ID（可选） |
+| created_at | TIMESTAMPTZ | 创建时间 |
+| finalized_at | TIMESTAMPTZ | Final 时间 |
+| finalized_by | VARCHAR | Final 操作人 |
+
+### Admin 绘本工坊
+- 位置：`/admin` → 绘本工坊 tab
+- 功能：选择绘本集 → 查看 AI 改写版本 → 图文并排审核 → 编辑 → Final/Reject
+- 鉴权：x-admin-password: srcc2026（与现有 Admin API 一致）
+
+### 技术说明
+- **pg 直连原因**：Supabase PostgREST schema cache 对动态创建的表不刷新，使用 `pg` 库直接连 PostgreSQL 绕过此限制
+- **LLM 模型**：doubao-seed-2-0-lite-260215（平衡质量与速度）
+- **POC 状态**：第一本《西游记-大家都叫他孙悟空》SRC500 已成功生成并 Final
+
+### 暂未实现（POC 范围外）
+- 四个等级批量生成
+- 年龄版本化
+- 复杂 Frontie r 算法
+- 自动推荐系统
+- 阅读反馈与自适应
+- 拼音/音频/AI 图片
