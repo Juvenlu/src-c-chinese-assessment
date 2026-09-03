@@ -17,11 +17,13 @@ function BookSelectContent() {
   const [episodes, setEpisodes] = useState<any[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [customBooks, setCustomBooks] = useState<any[]>([]);
+  const [aiRewrites, setAiRewrites] = useState<any[]>([]);
 
   useEffect(() => {
     if (childId) {
       fetch(`/api/children?id=${childId}`).then(r => r.json()).then(d => setChild(d.data?.[0]));
       fetch(`/api/books/custom?child_id=${childId}`).then(r => r.json()).then(d => setCustomBooks(d.data || []));
+      fetch(`/api/books/rewrites?child_id=${childId}&status=final`).then(r => r.json()).then(d => setAiRewrites(d.rewrites || []));
     }
     fetch("/api/books/episodes").then(r => r.json()).then(d => setEpisodes(d.data || []));
   }, [childId]);
@@ -68,6 +70,35 @@ function BookSelectContent() {
                   <div className="text-sm text-gray-500">{book.episodes?.episode_title}</div>
                   <div className="text-xs text-gray-400 mt-1">
                     {book.level_tier} · {new Date(book.created_at).toLocaleDateString()}
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI 定制绘本 */}
+        {aiRewrites.length > 0 && (
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <h2 className="text-lg font-bold mb-4">🎯 AI 定制绘本</h2>
+            <div className="space-y-3">
+              {aiRewrites.map((rw) => (
+                <a
+                  key={rw.id}
+                  href={`/book-rewrite/${rw.id}`}
+                  className="block border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 hover:shadow-md hover:border-orange-300 transition"
+                >
+                  <div className="font-bold text-orange-700">
+                    {rw.series_name} · 第{rw.episode_number}集
+                  </div>
+                  <div className="text-sm text-gray-600">{rw.episode_title}</div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                      {rw.target_level}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      v{rw.version} · {new Date(rw.finalized_at || rw.created_at).toLocaleDateString()}
+                    </span>
                   </div>
                 </a>
               ))}

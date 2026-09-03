@@ -95,6 +95,14 @@ export async function listFinalRewritesByEpisode(episodeId: string | number): Pr
   return rows.map(mapRecord)
 }
 
+export async function listFinalRewritesByChild(childId: string): Promise<BookRewriteVersion[]> {
+  const rows = await query<RewriteRecord>(
+    `SELECT * FROM ${TABLE} WHERE child_id = $1 AND status = 'final' ORDER BY finalized_at DESC`,
+    [childId]
+  )
+  return rows.map(mapRecord)
+}
+
 export async function updateRewriteStatus(
   id: string | number,
   status: RewriteStatus,
