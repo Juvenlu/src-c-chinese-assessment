@@ -23,7 +23,7 @@ import {
  */
 export default function HubPage() {
   const router = useRouter();
-  const { user, activeChild, loading, latestResult, assessmentStatus } = useAuth();
+  const { user, activeChild, loading, latestResult, assessmentStatus, authFetch } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -68,7 +68,7 @@ export default function HubPage() {
   useEffect(() => {
     if (!activeChild?.id) return;
     let cancelled = false;
-    fetch(`/api/books/rewrites?child_id=${activeChild.id}`)
+    authFetch(`/api/books/rewrites?child_id=${activeChild.id}`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
