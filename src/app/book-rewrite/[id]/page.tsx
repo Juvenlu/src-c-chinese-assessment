@@ -80,16 +80,6 @@ export default function BookRewriteReaderPage() {
               <div className="text-gray-400">暂无图片</div>
             )}
           </div>
-          {/* Frontier 标签 */}
-          {page?.frontier && page.frontier.length > 0 && (
-            <div className="px-6 pt-4 flex flex-wrap gap-2">
-              {page.frontier.map((f: string, i: number) => (
-                <span key={i} className="text-xs px-2 py-1 bg-teal-100 text-teal-700 rounded-full">
-                  🌟 {f}
-                </span>
-              ))}
-            </div>
-          )}
           {/* Text */}
           <div className="p-6 min-h-[140px] flex items-center justify-center">
             <p className="text-xl leading-relaxed text-gray-800 text-center" style={{ fontFamily: "KaiTi, STKaiti, 楷体, sans-serif" }}>
