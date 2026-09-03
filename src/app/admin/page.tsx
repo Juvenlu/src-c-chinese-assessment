@@ -511,6 +511,8 @@ function AdminContent() {
     try {
       const res = await adminFetch(`/api/books/rewrite/${selectedRewriteId}/finalize`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (res.ok && data && data.id && data.status === 'final') {
