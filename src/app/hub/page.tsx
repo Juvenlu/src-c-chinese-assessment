@@ -54,13 +54,59 @@ export default function HubPage() {
   const readingBase = latestResult?.reading_base || 100;
   const confidence = latestResult?.confidence || "high";
 
-  // 推荐绘本（模拟数据，未来接真实接口）
-  const recommendedBook = {
-    title: "西游记-趣味中文故事",
-    level: recommendedLevel,
-    pages: "约10页",
-    coverColor: "#FFE66D",
-  };
+  // 今日故事：当前孩子最新 Final AI 定制绘本
+  const [todayStory, setTodayStory] = useState<{
+    id: number;
+    title: string;
+    level: string;
+    pages: string;
+    coverColor: string;
+  } | null>(null);
+  const [todayStoryLoading, setTodayStoryLoading] = useState(true);
+  const [todayStoryHref, setTodayStoryHref] = useState("/book-select");
+
+  useEffect(() => {
+    if (!activeChild?.id) return;
+    let cancelled = false;
+    fetch(`/api/books/rewrites?child_id=${activeChild.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const rewrites = data.rewrites || [];
+        if (rewrites.length > 0) {
+          const latest = rewrites[0];
+          const title = latest.episode_title
+            ? `${latest.series_name || "故事"}·${latest.episode_title}`
+            : `${latest.series_name || "故事"} 第${latest.episode_number}集`;
+          setTodayStory({
+            id: latest.id,
+            title,
+            level: latest.target_level || recommendedLevel,
+            pages: `约${latest.page_count || 10}页`,
+            coverColor: "#FFE66D",
+          });
+          setTodayStoryHref(`/book-rewrite/${latest.id}`);
+        } else {
+          setTodayStory({
+            id: 0,
+            title: "探索你的第一本中文故事",
+            level: recommendedLevel,
+            pages: "即将开始",
+            coverColor: "#FFE66D",
+          });
+          setTodayStoryHref("/book-select");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTodayStoryHref("/book-select");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTodayStoryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeChild?.id, recommendedLevel]);
 
   // 今日闯关（暂时不开放）
   const gameDisabled = true;
@@ -95,32 +141,40 @@ export default function HubPage() {
         <div className="grid gap-6 md:grid-cols-3">
           {/* 📚 今日故事 */}
           <Link
-            href="/book-select"
+            href={todayStoryHref}
             className="group relative overflow-hidden rounded-3xl border border-border bg-card p-6 transition-all hover:scale-[1.02] hover:shadow-lg"
           >
             <div
               className="mb-4 flex h-32 w-full items-center justify-center rounded-2xl"
-              style={{ backgroundColor: `${recommendedBook.coverColor}33` }}
+              style={{ backgroundColor: todayStory ? `${todayStory.coverColor}33` : "#FFE66D33" }}
             >
-              <BookOpen
-                className="h-12 w-12"
-                style={{ color: recommendedBook.coverColor }}
-              />
+              {todayStoryLoading ? (
+                <div className="h-6 w-24 animate-pulse rounded bg-muted" />
+              ) : (
+                <BookOpen
+                  className="h-12 w-12"
+                  style={{ color: todayStory?.coverColor || "#FFE66D" }}
+                />
+              )}
             </div>
             <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               📚 今日故事
             </p>
             <h3 className="mb-2 text-lg font-bold text-foreground">
-              {recommendedBook.title}
+              {todayStoryLoading ? (
+                <span className="inline-block h-5 w-32 animate-pulse rounded bg-muted" />
+              ) : (
+                todayStory?.title
+              )}
             </h3>
             <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
               <span
                 className="rounded-full px-2 py-0.5 font-medium"
                 style={{ backgroundColor: "var(--color-primary, #FF6B35)22", color: "var(--color-primary, #FF6B35)" }}
               >
-                推荐 {recommendedBook.level}
+                推荐 {todayStory?.level || recommendedLevel}
               </span>
-              <span>{recommendedBook.pages}</span>
+              <span>{todayStory?.pages || "约10页"}</span>
             </div>
             <div className="flex items-center gap-1 text-sm font-medium"
               style={{ color: "var(--color-primary, #FF6B35)" }}
