@@ -95,7 +95,7 @@ export default function HubPage() {
         <div className="grid gap-6 md:grid-cols-3">
           {/* 📚 今日故事 */}
           <Link
-            href="/books"
+            href="/book-select"
             className="group relative overflow-hidden rounded-3xl border border-border bg-card p-6 transition-all hover:scale-[1.02] hover:shadow-lg"
           >
             <div
