@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 export default function BookRewriteReaderPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, authFetch } = useAuth();
   const [book, setBook] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,7 @@ export default function BookRewriteReaderPage() {
       router.replace("/login");
       return;
     }
-    fetch(`/api/books/rewrite/${params.id}/public`)
+    authFetch(`/api/books/rewrite/${params.id}/public`)
       .then((r) => {
         if (r.status === 401) {
           router.replace("/login");
