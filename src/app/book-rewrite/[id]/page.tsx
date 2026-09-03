@@ -19,8 +19,9 @@ export default function BookRewriteReaderPage() {
     fetch(`/api/books/rewrite/${params.id}/public`)
       .then((r) => r.json())
       .then((res) => {
-        if (res.data) {
-          setBook(res.data);
+        // public API 直接返回 rewrite 对象（无 data 字段包裹）
+        if (res && res.id) {
+          setBook(res);
         }
         setLoading(false);
       });
