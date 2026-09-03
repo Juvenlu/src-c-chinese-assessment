@@ -1,0 +1,909 @@
+# SRC i+1 绘本 POC —— EP001 Master Text / Image 丢失问题诊断与最小修复指令
+
+## 一、任务背景
+
+我们正在进行 SRC 趣味中文平台的第一个真实 i+1 定制绘本 POC。
+
+目标孩子：
+
+* child_id: `93bf1578-7751-4234-83c3-e70932c6dd21`
+* child_name: Emma
+* 年龄：8岁
+* Grade 3
+* Canada
+* 双语环境
+* 已完成正式 SRC300 测试
+* confirmed_level = SRC300
+
+本次定制绘本：
+
+* series：西游记
+* episode：EP001
+* episode_id：2
+* rewrite_id：9
+* target_level：SRC300
+* status：`ai_draft`
+
+本次 rewrite_id=9 已经成功生成：
+
+* 10 pages
+* 473 Chinese characters
+* Frontier = `只小猴子、孙悟空、看看`
+* validation overall_pass = true
+* Master Story validation = PASS
+* image/text consistency validation = PASS
+* language difficulty = WARN，但非阻断
+* retry_count = 0
+
+**现在不要重新生成这本书。**
+
+---
+
+# 二、当前发现的问题
+
+进入 Admin → 绘本工坊 → 西游记 EP001 → AI 改写版本 → Emma 的：
+
+`SRC300 v1 · rewrite_id=9 · AI草稿`
+
+进入 Review 页面后发现：
+
+每一页都显示：
+
+> 无图片
+
+以及：
+
+> 原文：（无原文）
+
+但 AI Rewritten Text 正常存在。
+
+例如第5页可以看到：
+
+> 石头里跳出来一只小猴子。这只小猴子不哭也不怕，睁大眼睛看看世界。他跑一跑跳一跳，跑得特别快跳得特别高。别的猴子看见都觉得他好厉害。
+
+也就是说：
+
+> AI改写文本存在，但 Review 页面无法显示 Master Image 和 Master Text。
+
+这与 SRC 当前设计中的 **Master Asset Lock** 不一致。
+
+---
+
+# 三、Master Story 的正确设计
+
+Master Story 是本次绘本生成的唯一故事内容来源。
+
+EP001 原始故事已经存在，并且有10页：
+
+* Page 1 → Master Text + Master Image
+* Page 2 → Master Text + Master Image
+* ...
+* Page 10 → Master Text + Master Image
+
+设计要求：
+
+```text
+Master Story
+    ↓
+Master Text
+Master Image
+    ↓
+AI只进行语言等级改写
+    ↓
+AI Rewritten Text
+```
+
+Master Text 和 Master Image 必须保持不变。
+
+AI不能：
+
+* 改写 Master Text 本身
+* 覆盖 original_text
+* 覆盖 image_url
+* 改变图片
+* 自动重新选择图片
+* 改变页面对应关系
+* 自动 Finalize
+
+Review 页面应该最终显示：
+
+```text
+┌──────────────────┬──────────────────────┬──────────────────────┐
+│ Master Image     │ Master Text          │ AI Rewritten Text    │
+│                  │                      │                      │
+│ 原始图片         │ 原始故事文字         │ Emma 的SRC300改写    │
+│                  │                      │                      │
+└──────────────────┴──────────────────────┴──────────────────────┘
+```
+
+---
+
+# 四、本次任务第一阶段：严格只读诊断
+
+在修改任何代码之前，请先进行完整 read-only diagnosis。
+
+**不要修改数据库。**
+
+**不要修改 Master Story。**
+
+**不要重新生成 rewrite_id=9。**
+
+**不要 Finalize。**
+
+**不要删除任何版本。**
+
+**不要改变 Frontier 算法。**
+
+**不要改变 i+1 算法。**
+
+---
+
+## A. 检查 Master Story 数据是否存在
+
+请直接检查：
+
+`book_episode_pages`
+
+对于：
+
+`episode_id = 2`
+
+返回10页的至少以下字段：
+
+```text
+id
+episode_id
+page_number
+original_text
+image_url
+```
+
+确认：
+
+1. 是否有10页
+2. page_number 是否为1–10
+3. original_text 是否存在
+4. image_url 是否存在
+5. 是否存在空值
+6. image_url 是否仍然指向正确的 Cloudflare R2 图片
+
+不要只告诉我“数据存在”。
+
+请列出每页：
+
+```text
+Page 1:
+original_text: YES/NO
+image_url: YES/NO
+
+Page 2:
+...
+
+Page 10:
+...
+```
+
+如果有缺失，请明确是哪一页。
+
+---
+
+# 五、检查 Cloudflare R2 图片
+
+当前 EP001 Master Image 的公开 R2 基础路径为：
+
+`https://pub-3599ff1cf335404cb7a5cd62bb8222b5.r2.dev/books-huiben/Journey%20to%20the%20west/EP%20001/`
+
+图片：
+
+```text
+P01.png
+P02.png
+P03.png
+P04.png
+P05.png
+P06.png
+P07.png
+P08.png
+P09.png
+P10.png
+```
+
+请检查：
+
+1. `book_episode_pages.image_url` 是否正确保存
+2. URL 是否对应正确页码
+3. 是否存在编码问题
+4. Review 页面是否因为 URL 字段名称或数据结构不同而读取失败
+
+只做诊断，不要修改 URL。
+
+---
+
+# 六、检查 rewrite_id=9 的 pages_json
+
+读取：
+
+`book_rewrite_versions`
+
+其中：
+
+```text
+id = 9
+```
+
+检查至少：
+
+```text
+id
+episode_id
+target_level
+pages_json
+frontier_targets
+status
+generation_params
+validation_result
+version
+retry_count
+failure_reason
+child_id
+```
+
+重点检查：
+
+### pages_json 中每一页到底保存了什么？
+
+例如：
+
+```json
+{
+  "page": 1,
+  "text": "..."
+}
+```
+
+还是：
+
+```json
+{
+  "page": 1,
+  "text": "...",
+  "original_text": "...",
+  "image_url": "..."
+}
+```
+
+请明确说明：
+
+> rewrite_id=9 的 pages_json 是否包含 Master Text？
+
+以及：
+
+> rewrite_id=9 的 pages_json 是否包含 Master Image？
+
+---
+
+# 七、重点：确认 Review API 的数据来源
+
+请找到 Admin Review 页面对应的 API。
+
+重点调查：
+
+```text
+Admin Review Page
+      ↓
+哪个 API？
+      ↓
+哪个数据库表？
+      ↓
+如何取得 Master Text？
+      ↓
+如何取得 Master Image？
+```
+
+请明确指出：
+
+1. Review 页面调用哪个 API
+2. API 的具体文件路径
+3. API 查询了哪些表
+4. API 是否查询 `book_episode_pages`
+5. API 是否只查询 `book_rewrite_versions`
+6. API 是否正确通过 `episode_id` 关联：
+   `book_episode_pages`
+7. API 返回的数据结构是什么
+8. 前端页面期待的数据结构是什么
+
+特别检查是否出现以下问题之一：
+
+### 情况A
+
+Master 数据存在：
+
+```text
+book_episode_pages
+    ↓
+original_text / image_url
+```
+
+但 Review API 没有读取。
+
+### 情况B
+
+Review API 读取了 Master 数据，但字段名称不匹配。
+
+例如：
+
+```text
+API:
+original_text
+image_url
+
+Frontend:
+originalText
+imageUrl
+```
+
+或者相反。
+
+### 情况C
+
+Review API 正确返回了 Master 数据，但 Review Page 没有正确渲染。
+
+### 情况D
+
+rewrite_id=9 的生成流程本身没有正确关联 episode_id / page_number，导致 Review 无法关联 Master Page。
+
+### 情况E
+
+其他原因。
+
+必须明确是哪一种。
+
+---
+
+# 八、检查 Generation API
+
+找到本次 rewrite_id=9 实际使用的生成 API：
+
+例如：
+
+```text
+/api/books/rewrite
+```
+
+或者实际使用的 API。
+
+检查生成时：
+
+1. 是否读取了 `episode_id=2`
+2. 是否读取了 `book_episode_pages`
+3. 是否读取了每页 original_text
+4. 是否读取了每页 image_url
+5. LLM 输入中是否包含 Master Story
+6. LLM 输出是否保留 page number
+7. 是否保存了 page number
+8. 是否只保存 rewritten text
+
+特别确认：
+
+> 本次 AI 实际生成时是否真正读取了 EP001 的 Master Story？
+
+这非常重要。
+
+因为现在虽然我们看到了生成结果与 Master Story 高度一致，但必须从代码/数据链路确认，而不是猜测。
+
+---
+
+# 九、检查 Validation 为什么能够 PASS
+
+目前 rewrite_id=9 的 validation：
+
+```text
+Reading Volume: PASS
+Language Difficulty: WARN
+Frontier: PASS
+Master Story: PASS
+Image/Text Consistency: PASS
+Overall: PASS
+```
+
+但 Review UI 却显示：
+
+```text
+Master Text: 无原文
+Image: 无图片
+```
+
+这是一个需要解释的矛盾。
+
+请检查：
+
+## 1. Master Story validation 的数据来源
+
+它到底比较：
+
+```text
+book_episode_pages.original_text
+```
+
+还是：
+
+```text
+rewrite_pages
+```
+
+还是：
+
+```text
+generation stage memory/object
+```
+
+还是其他数据？
+
+## 2. Image/Text consistency validation 的数据来源
+
+它是否真的检查了：
+
+```text
+Master image
++
+Master text
++
+AI rewritten text
+```
+
+还是只是检查：
+
+```text
+AI page number
++
+AI text
+```
+
+请明确。
+
+---
+
+# 十、重点判断：Validation PASS 是否存在“假通过”
+
+如果 Review 页面没有 Master Text 和 Master Image，但 validation 却显示：
+
+> Master Story PASS
+> Image/Text Consistency PASS
+
+请判断：
+
+> validation 是否使用了生成阶段暂存的数据，而 Review 页面使用了另一个数据来源？
+
+如果是，请明确说明。
+
+例如：
+
+```text
+Generation:
+Master Story → correctly loaded
+
+Validation:
+uses generation-stage Master Story → PASS
+
+Review:
+does not load book_episode_pages → displays empty
+```
+
+如果实际情况是这样，请明确写出来。
+
+---
+
+# 十一、不要把这次问题误判成“需要重新生成”
+
+目前 AI Rewritten Text 已经存在：
+
+```text
+rewrite_id = 9
+```
+
+而且生成结果：
+
+* 10 pages
+* 473 chars
+* Frontier存在
+* Story preservation通过
+* overall_pass=true
+
+所以本次任务不是：
+
+> “重新生成一本书”
+
+而是：
+
+> **让已有的 rewrite_id=9 正确显示它对应的 Master Text 和 Master Image。**
+
+---
+
+# 十二、第二阶段：完成诊断后，只做最小必要修复
+
+完成第一阶段诊断后，如果确认：
+
+> Master Text / Master Image 实际已经存在，只是 Review 页面没有正确读取
+
+那么允许进行**最小修复**。
+
+修复目标只有：
+
+### Review 页面正确显示
+
+每页：
+
+```text
+Master Image
+Master Text
+AI Rewritten Text
+Frontier
+```
+
+并保持：
+
+```text
+rewrite_id=9
+```
+
+不变。
+
+**不要重新生成。**
+
+**不要修改 AI Rewritten Text。**
+
+**不要修改 Master Text。**
+
+**不要修改 Master Image。**
+
+**不要修改 Frontier。**
+
+**不要修改 confirmed_level。**
+
+**不要修改孩子测试数据。**
+
+---
+
+# 十三、Review 页面正确的数据关系
+
+推荐使用：
+
+```text
+book_rewrite_versions
+        ↓
+episode_id
+        ↓
+book_episode_pages
+        ↓
+page_number
+        ↓
+Master Text + Master Image
+```
+
+AI改写：
+
+```text
+book_rewrite_versions.pages_json
+        ↓
+page number
+        ↓
+AI Rewritten Text
+```
+
+最终页面应该通过：
+
+```text
+episode_id + page_number
+```
+
+把两边合并。
+
+逻辑关系：
+
+```text
+Episode 2
+│
+├── Master Page 1
+│     ├── original_text
+│     └── image_url
+│
+├── Master Page 2
+│     ├── original_text
+│     └── image_url
+│
+...
+│
+└── Master Page 10
+      ├── original_text
+      └── image_url
+
++
+
+rewrite_id=9
+│
+├── AI Page 1
+├── AI Page 2
+...
+└── AI Page 10
+```
+
+不要复制 Master Asset 到 AI 数据中作为唯一来源。
+
+**Master Asset 的 Single Source of Truth 应继续是 `book_episode_pages`。**
+
+如果为了前端返回方便而在 API response 中 merge，可以。
+
+但不要产生第二份可编辑的 Master 数据。
+
+---
+
+# 十四、同时检查 page_number 映射
+
+确保：
+
+```text
+Master Page 1 ↔ AI Page 1
+Master Page 2 ↔ AI Page 2
+...
+Master Page 10 ↔ AI Page 10
+```
+
+不能依赖数组 index 作为唯一关联。
+
+优先使用：
+
+```text
+page_number
+```
+
+进行明确关联。
+
+如果 pages_json 中使用的是：
+
+```text
+page
+```
+
+而 Master 使用：
+
+```text
+page_number
+```
+
+请在 API 层明确映射，不要让前端猜测。
+
+---
+
+# 十五、不要在本次修复中扩大范围
+
+以下问题暂时不要处理：
+
+1. N1 animation warning
+2. Growth Map 的历史数据展示差异
+3. custom_books 与 book_rewrite_versions 两套系统同步
+4. Personal Known Character Baseline
+5. Frontier算法重新设计
+6. `只小猴子` 的算法修正
+7. 年龄版本
+8. pinyin
+9. audio
+10. AI图片生成
+11. 自动 Finalize
+12. 复杂 adaptive algorithm
+13. 多Agent
+14. 多阶段LLM
+15. 新增Story Outline API
+
+这些全部留到后续。
+
+---
+
+# 十六、修复完成后的验证
+
+修复完成后：
+
+### 不要重新生成 rewrite_id=9。
+
+直接重新打开：
+
+```text
+Admin
+→ 绘本工坊
+→ 西游记 EP001
+→ AI 改写版本
+→ Emma
+→ SRC300 v1
+→ rewrite_id=9
+```
+
+检查10页。
+
+每页必须能够看到：
+
+```text
+[Master Image]
+
+Master Text:
+原始故事文字
+
+AI Rewritten Text:
+Emma的SRC300改写
+
+Frontier:
+如有则显示
+```
+
+---
+
+# 十七、最终必须进行的10项检查
+
+请逐项报告：
+
+### 1.
+
+Master Text 是否正确显示？
+
+### 2.
+
+Master Image 是否正确显示？
+
+### 3.
+
+是否仍显示“无原文”？
+
+### 4.
+
+是否仍显示“无图片”？
+
+### 5.
+
+10个页面是否全部正确对应？
+
+### 6.
+
+AI Rewritten Text 是否完全保持原样？
+
+### 7.
+
+rewrite_id 是否仍然为9？
+
+### 8.
+
+Frontier 是否仍然为：
+
+```text
+只小猴子
+孙悟空
+看看
+```
+
+### 9.
+
+是否修改了数据库中的 Master Story？
+
+答案必须是：
+
+```text
+NO
+```
+
+### 10.
+
+是否重新生成了 AI Rewrite？
+
+答案必须是：
+
+```text
+NO
+```
+
+---
+
+# 十八、最终报告格式
+
+请最终按下面结构返回：
+
+## A. Root Cause
+
+用一句话明确说明：
+
+> 为什么 Review 页面显示“无原文、无图片”。
+
+---
+
+## B. Master Data
+
+```text
+book_episode_pages:
+Page 1: original_text YES / image_url YES
+...
+Page 10: ...
+```
+
+---
+
+## C. rewrite_id=9 Data
+
+说明：
+
+* pages_json 是否有 Master Text
+* pages_json 是否有 Master Image
+* 是否只有 AI rewritten text
+
+---
+
+## D. API Chain
+
+```text
+Review Page
+↓
+API
+↓
+Database
+↓
+Master Pages
+↓
+AI Rewrite
+```
+
+明确指出断点。
+
+---
+
+## E. Validation Chain
+
+说明：
+
+* Master Story validation 使用什么数据
+* Image/Text consistency validation 使用什么数据
+* 为什么 validation PASS 而 Review UI 显示为空
+
+---
+
+## F. Fix
+
+如果进行了修复：
+
+* 修改了哪些文件
+* 修改了什么
+* 为什么这是最小修复
+
+---
+
+## G. Regression Check
+
+确认：
+
+```text
+rewrite_id=9: unchanged
+Master Text: unchanged
+Master Image: unchanged
+AI Rewritten Text: unchanged
+Frontier: unchanged
+Emma test data: unchanged
+confirmed_level: unchanged
+```
+
+---
+
+# 十九、最重要的执行原则
+
+本次任务的优先级：
+
+> **先诊断 → 再最小修复 → 再人工Review**
+
+而不是：
+
+> 发现显示问题 → 重新生成 → 继续生成 → 修改算法。
+
+我们现在已经有一个成功生成的 Emma POC。
+
+**不要破坏这个样本。**
+
+这个 rewrite_id=9 是我们后面判断 SRC i+1 系统是否真正有效的重要基准样本。
+
+因此：
+
+> **任何涉及重新生成、修改Master Story、修改孩子测试数据、修改Frontier算法的操作，本次都禁止。**
+
+完成 Review 页面修复后停止，等待人工逐页审核。

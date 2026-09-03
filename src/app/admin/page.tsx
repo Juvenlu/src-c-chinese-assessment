@@ -1077,7 +1077,7 @@ function AdminContent() {
                           <div className="text-sm text-gray-500">{ep.episode_title} · {ep.page_count}页 · {ep.status}</div>
                         </div>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             setSelectedEpisode(ep);
                             setEpisodePages([]);
                             setRewriteVersions([]);
@@ -1085,6 +1085,18 @@ function AdminContent() {
                             setSelectedRewriteId('');
                             setEditMode(false);
                             loadRewriteVersions(ep.id);
+                            // 同时加载该 episode 的 Master Pages，供 AI Rewrite Review 使用
+                            try {
+                              const pagesRes = await adminFetch(`/api/books/episodes/${ep.id}/pages`);
+                              const pagesData = await pagesRes.json();
+                              if (pagesData.data) {
+                                setEpisodePages(pagesData.data);
+                              } else if (Array.isArray(pagesData)) {
+                                setEpisodePages(pagesData);
+                              }
+                            } catch (err) {
+                              console.error('加载绘本页失败:', err);
+                            }
                           }}
                           className="text-[var(--color-src-primary)] hover:underline"
                         >
@@ -1491,6 +1503,9 @@ function AdminContent() {
                         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
                           {editedPages.map((page: any, idx: number) => {
                             const original = episodePages.find((ep) => ep.page_number === page.page);
+                            // fallback: 如果 episodePages 未加载，使用 pages_json 中保存的 Master 数据
+                            const masterImage = original?.image_url || page.image_url;
+                            const masterText = original?.original_text || page.original_text;
                             return (
                               <div key={idx} className="border rounded-xl overflow-hidden">
                                 <div className="bg-gray-100 px-4 py-2 flex items-center justify-between">
@@ -1504,9 +1519,9 @@ function AdminContent() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
                                   {/* 左：图片 */}
                                   <div className="bg-gray-50 p-3 flex items-center justify-center">
-                                    {original?.image_url ? (
+                                    {masterImage ? (
                                       <img
-                                        src={original.image_url}
+                                        src={masterImage}
                                         alt={`第 ${page.page} 页`}
                                         className="max-w-full max-h-48 object-contain rounded"
                                       />
@@ -1521,8 +1536,8 @@ function AdminContent() {
                                       <div className="text-xs text-gray-500 font-medium mb-1">
                                         📜 原文 (Master Text)
                                       </div>
-                                      <div className="text-sm text-gray-600 leading-relaxed">
-                                        {original?.original_text || '（无原文）'}
+                                      <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                                        {masterText || '（无原文）'}
                                       </div>
                                     </div>
                                     {/* 改写文 */}
