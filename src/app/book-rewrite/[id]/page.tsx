@@ -2,22 +2,36 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 /**
  * 绘本改写版本阅读页（孩子端）
  * 路径：/book-rewrite/[id]
  * 用于阅读 AI 改写的 i+1 定制版本
+ * 权限：必须登录，且只能阅读属于当前孩子的绘本
  */
 export default function BookRewriteReaderPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [book, setBook] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
     fetch(`/api/books/rewrite/${params.id}/public`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/login");
+          return null;
+        }
+        return r.json();
+      })
       .then((res) => {
         // public API 直接返回 rewrite 对象（无 data 字段包裹）
         if (res && res.id) {
@@ -25,9 +39,9 @@ export default function BookRewriteReaderPage() {
         }
         setLoading(false);
       });
-  }, [params.id]);
+  }, [params.id, user, authLoading, router]);
 
-  if (loading) return <div className="p-8 text-center">加载中...</div>;
+  if (authLoading || loading) return <div className="p-8 text-center">加载中...</div>;
   if (!book) return <div className="p-8 text-center">绘本不存在</div>;
 
   const pages = book.pages || [];

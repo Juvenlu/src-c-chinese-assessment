@@ -1,25 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listFinalRewritesByChild } from "@/lib/book-rewrite/rewrite-store";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { getCurrentUser } from "@/lib/auth-utils";
 
 /**
- * GET /api/books/rewrites?child_id={childId}&status=final
+ * GET /api/books/rewrites?child_id={childId}
  *
- * 返回孩子的 Final Rewrite 列表（孩子端「AI 定制绘本」区域使用）
- * 严格按 child_id 过滤，默认只返回 final 状态
+ * 返回当前登录孩子的 Final Rewrite 列表（孩子端「AI 定制绘本」区域使用）
+ * 需要登录，且 child_id 必须属于当前登录家长的孩子
+ * 默认只返回 final 状态
  * 附带 episode 信息（series_name / episode_number / episode_title）
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const childId = searchParams.get("child_id");
-    const status = searchParams.get("status") || "final";
 
     if (!childId) {
       return NextResponse.json(
         { error: "child_id is required" },
         { status: 400 }
       );
+    }
+
+    // 1. 验证登录
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // 2. 验证孩子归属：child_id 必须属于当前登录家长
+    const client = getSupabaseClient();
+    const { data: child, error: childError } = await client
+      .from("children")
+      .select("id, parent_id")
+      .eq("id", childId)
+      .single();
+
+    if (childError || !child || child.parent_id !== user.id) {
+      return NextResponse.json({ rewrites: [] }, { status: 200 });
     }
 
     const rewrites = await listFinalRewritesByChild(childId);

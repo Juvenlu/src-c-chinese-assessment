@@ -1,17 +1,24 @@
 import { NextResponse } from 'next/server'
 import { getRewriteById } from '@/lib/book-rewrite/rewrite-store'
 import { getSupabaseClient } from '@/storage/database/supabase-client'
+import { getCurrentUser } from '@/lib/auth-utils'
 
 /**
- * 公开读取 Final 版本的改写绘本
- * 不需要 admin 密码，但只返回 final 状态
+ * 孩子端读取自己的 Final AI 定制绘本
+ * 需要登录，且只能读取属于当前 activeChild 的绘本
  */
 export async function GET(
-  _: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
+
+    // 1. 验证登录
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     const record = await getRewriteById(id)
     if (!record) {
@@ -19,7 +26,24 @@ export async function GET(
     }
 
     if (record.status !== 'final') {
-      return NextResponse.json({ error: 'This book is not published yet' }, { status: 403 })
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
+    // 2. 验证孩子归属：rewrite 的 child_id 必须属于当前登录家长的某个孩子
+    if (record.child_id) {
+      const client = getSupabaseClient()
+      const { data: child } = await client
+        .from('children')
+        .select('id, parent_id')
+        .eq('id', record.child_id)
+        .single()
+      
+      if (!child || child.parent_id !== user.id) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+    } else {
+      // 没有 child_id 的通用版本，不提供给孩子端阅读
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     // 查询 episode 信息（用于显示标题）
