@@ -1,0 +1,1037 @@
+# SRC绘本统一统计引擎（SRC Language Audit Engine）
+
+## 第一阶段：只读审计、统计口径统一与算法设计
+
+### 严禁修改Emma Golden Sample
+
+你现在不要修改任何现有代码、数据库数据或绘本内容。
+
+本任务是对SRC定制绘本系统建立一个统一的、确定性的“SRC Language Audit Engine（SRC绘本语言统计与i+1审计引擎）”进行第一阶段审计。
+
+本阶段的唯一目标：
+
+> **彻底查清目前SRC绘本统计数据为什么存在偏差，并建立一套未来可以统一使用的、可复核、可版本化的统计规则。**
+
+当前重点审计对象：
+
+* Emma
+* age 8
+* Grade 3
+* confirmed_level = SRC300
+* 《西游记·趣味中文》第1集
+* rewrite_id = 9
+* 当前状态 = final
+* 10页
+
+当前已知数据包括：
+
+* 总字符数（含标点）：533
+* 中文汉字数（不含标点）：473
+* 标点：60
+* SRC300外的唯一字符：49
+* SRC300外字符实际出现次数：目前曾出现52和55两个不同统计结果
+* 当前Agent报告语言单位：74个
+* 当前Agent报告语言单位总出现次数：146
+* 当前四级分类曾出现：
+
+  * I = 41
+  * I+1A = 16
+  * I+1B = 7
+  * High-load = 10
+* 但报告内部已经发现：
+
+  * “中国”应该从High-load调整为I+1B
+  * 因此理论上应该是：
+
+    * I = 41
+    * I+1A = 16
+    * I+1B = 8
+    * High-load = 9
+* 当前I+1A报告的明细数量与表格中的16也存在不一致，需要重新核实。
+
+这些数据全部视为“待审计数据”，不能直接视为正确答案。
+
+---
+
+# 一、绝对禁止事项
+
+本任务是READ-ONLY AUDIT。
+
+严禁：
+
+1. 修改Emma的任何绘本文本。
+2. 修改rewrite_id=9。
+3. 重新生成Emma绘本。
+4. 修改Master Story。
+5. 修改Master Image。
+6. 修改数据库中的Emma数据。
+7. 修改现有SRC词库。
+8. 修改现有SRC字库。
+9. 修改AI生成Prompt。
+10. 修改i+1生成算法。
+11. 修改Frontier生成算法。
+12. 修改前端页面。
+13. 修改现有业务逻辑。
+14. 自动修复任何发现的问题。
+15. 为了让数字“看起来合理”而调整统计结果。
+16. 添加任何新的硬性i+1阈值。
+17. 将当前Emma结果直接定义为正式SRC标准。
+
+如果发现代码问题，只报告，不修改。
+
+如果发现数据库字段或数据问题，只报告，不修改。
+
+如果发现统计算法问题，只报告，并提出建议方案。
+
+---
+
+# 二、首先读取真实数据，不允许根据历史报告猜测
+
+请首先准确读取：
+
+### 1. SRC300字符库
+
+读取：
+
+`src/lib/questions.ts`
+
+找到当前实际使用的：
+
+* SRC300_CHARS
+* SRC300_WORDS
+
+请报告：
+
+* SRC300_CHARS实际数量
+* SRC300_WORDS实际数量
+* 数据来源
+* 是否存在重复
+* 是否存在格式问题
+
+不要只引用以前报告中的“317”和“346”，必须重新从当前代码读取并统计。
+
+---
+
+### 2. Emma rewrite_id=9
+
+准确读取数据库中：
+
+`book_rewrite_versions`
+
+其中：
+
+`rewrite_id = 9`
+
+读取：
+
+* target_level
+* status
+* pages_json
+* generation_params
+* validation_result
+* version
+* child_id
+* episode_id
+
+必须使用当前数据库真实最终文本。
+
+不要使用历史聊天记录中的文本作为统计输入。
+
+---
+
+# 三、建立“字符统计”的唯一标准
+
+首先解决最基础的问题：
+
+> 473个汉字到底是怎么计算出来的？
+
+必须明确制定确定性规则。
+
+至少分别统计：
+
+### A. 原始文本字符
+
+* 全部字符数
+* 汉字数
+* 标点数
+* 数字数
+* 英文字母数
+* 空格
+* 换行
+* 其他字符
+
+### B. 中文汉字统计
+
+必须明确：
+
+什么Unicode范围被认为是“汉字”。
+
+例如：
+
+* 中文汉字是否包括扩展汉字？
+* 是否只统计CJK Unified Ideographs？
+* 是否排除标点？
+* 是否排除数字？
+* 是否排除emoji？
+
+不要使用模糊的“看起来像汉字”的方法。
+
+---
+
+# 四、必须解决“473字”的统计一致性
+
+重新计算Emma rewrite_id=9：
+
+1. 总字符数
+2. 中文汉字数
+3. 标点数量
+4. 每页中文汉字数
+5. 每页总字符数
+6. 10页合计
+
+然后与目前已知：
+
+> 533 / 473 / 60
+
+进行逐项对照。
+
+如果完全一致：
+
+明确报告：
+
+> 当前字符统计结果与Golden Sample人工基准一致。
+
+如果不一致：
+
+必须明确指出：
+
+* Agent当前算法得到什么
+* 手工统计得到什么
+* 差异来自什么字符
+* 哪一种统计口径更合理
+* 建议以后采用哪一种口径
+
+不要直接修改代码。
+
+---
+
+# 五、建立“唯一SRC外字符”统计规则
+
+这是本次审计最重要的部分之一。
+
+对于Emma全文：
+
+逐个汉字检查：
+
+> 是否存在于当前SRC300_CHARS？
+
+必须得到：
+
+### 1. SRC300内字符唯一数量
+
+### 2. SRC300外字符唯一数量
+
+### 3. SRC300外字符实际出现次数
+
+### 4. 每个SRC300外字符出现次数
+
+最终必须生成类似：
+
+| 字符 | 是否SRC300内 | 出现次数 |
+| -- | --------: | ---: |
+| 勇  |         否 |    1 |
+| 敢  |         否 |    1 |
+| 特  |         否 |    1 |
+| …… |        …… |   …… |
+
+并计算：
+
+> 唯一SRC300外字符总数
+
+> SRC300外字符实际出现次数
+
+---
+
+# 六、必须解释“49”和“55/52”的差异
+
+当前历史数据：
+
+* 唯一超纲字符 = 49
+* 超纲字符出现次数曾统计为52
+* 最新Agent又统计为55
+
+请不要简单选择一个数字。
+
+必须追踪：
+
+1. 统计代码在哪里。
+2. 使用了什么数据。
+3. 是否包含标点。
+4. 是否存在重复计数。
+5. 是否按页面统计后再次合计导致重复。
+6. 是否对词汇进行二次扫描导致重复。
+7. 是否把同一个字符在不同分类中重复计算。
+8. 是否存在Unicode/全角半角问题。
+9. 是否存在文本预处理差异。
+10. 是否使用了不同版本的SRC300字库。
+
+最终必须回答：
+
+> **为什么52和55会同时出现？**
+
+并给出一个唯一、可重复执行的正确计算方法。
+
+---
+
+# 七、特别注意：不要把“唯一超纲字符数”与“超纲字符比例”混为一谈
+
+必须分别输出：
+
+### 指标A
+
+唯一SRC300外字符数量
+
+例如：
+
+49
+
+### 指标B
+
+SRC300外字符实际出现次数
+
+例如：
+
+55
+
+### 指标C
+
+SRC300外字符实际出现率
+
+计算：
+
+`SRC300外字符出现次数 ÷ 中文汉字总数`
+
+例如如果最终确定为55：
+
+`55 ÷ 473 = 11.63%`
+
+### 指标D
+
+唯一SRC300外字符占全部不同汉字的比例
+
+这个指标可以计算，但必须明确：
+
+> 它不是阅读难度指标，不得作为主要i+1指标。
+
+不要把：
+
+`49 / 200 = 24.5%`
+
+直接称为“i+1比例”。
+
+---
+
+# 八、建立“词汇层”和“字符层”的严格区分
+
+这是目前统计系统存在的核心概念问题之一。
+
+以后必须严格区分：
+
+## Layer 1：Character
+
+单个汉字是否属于SRC300。
+
+例如：
+
+特别
+
+* 特：SRC300外
+* 别：SRC300内
+
+因此：
+
+> “特别”包含1个SRC300外字符。
+
+---
+
+## Layer 2：Vocabulary
+
+“特别”这个完整词是否存在于SRC300_WORDS。
+
+这个问题与字符是否SRC300内是两个不同维度。
+
+例如：
+
+> 看看
+
+可能：
+
+* 看：SRC300内
+* 看：SRC300内
+* “看看”：不在SRC300_WORDS
+
+那么：
+
+> 它可以是新的词汇单位，但没有新的汉字负担。
+
+---
+
+## Layer 3：Learning Unit / i+1
+
+是否应该把这个语言单位作为孩子真正需要学习的新内容。
+
+不能简单使用：
+
+> “不在SRC300_WORDS = i+1”
+
+这个规则。
+
+---
+
+# 九、禁止使用简单的“连续字符串=词语”算法
+
+必须检查当前Agent是否存在以下问题：
+
+例如可能错误识别：
+
+* 只小
+* 只小猴子
+* 的冬
+* 得特别
+
+这些连续字符串不能因为连续出现就自动定义为一个词。
+
+建议统计引擎采用：
+
+### 第一层：官方SRC词库Longest Match
+
+优先匹配当前SRC词库中的合法词汇。
+
+### 第二层：自然语言词汇识别
+
+对于未命中的文本，再进行中文自然语言单位识别。
+
+### 第三层：候选结果人工审计
+
+对于不确定单位，标记：
+
+`candidate`
+
+而不是直接判定为正式词汇。
+
+必须报告当前系统到底采用哪一种方法。
+
+---
+
+# 十、建立四级i+1分类，但本阶段只定义“分类逻辑”，不要制定硬阈值
+
+请按照以下逻辑重新审计：
+
+## Level 1 — I
+
+孩子已有的、SRC层级内的常规语言。
+
+---
+
+## Level 2 — I+1A
+
+完整语言单位可能不在SRC300词库，但：
+
+> 所有组成汉字均在SRC300字符库内。
+
+例如：
+
+> 看看
+
+这是非常重要的：
+
+> Known Characters → New Vocabulary
+
+属于低识字负担的i+1。
+
+---
+
+## Level 3 — I+1B
+
+语言单位中：
+
+> 恰好有1个SRC300外字符。
+
+例如：
+
+> 特别
+
+如果当前“特”在SRC300外，而“别”在SRC300内：
+
+> 特别 = I+1B
+
+---
+
+## Level 4 — High-load +1
+
+语言单位中：
+
+> ≥2个SRC300外字符
+
+例如：
+
+> 勇敢
+
+如果：
+
+* 勇 = 外
+* 敢 = 外
+
+则：
+
+> 勇敢 = High-load
+
+---
+
+# 十一、特别审计以下三个案例
+
+必须逐项验证：
+
+### 1. 看看
+
+应该判断：
+
+* 是否SRC300_WORDS
+* 是否所有字符SRC300内
+* 是否属于I+1A
+* 出现次数
+
+---
+
+### 2. 特别
+
+必须拆分：
+
+* 特
+* 别
+
+确认：
+
+* 特是否SRC300外
+* 别是否SRC300内
+
+如果结果如此：
+
+> 特别 = 1个SRC300外字符 = I+1B
+
+不得因为“特别”不在SRC300词库就把它归为High-load。
+
+---
+
+### 3. 勇敢
+
+拆分：
+
+* 勇
+* 敢
+
+如果两个都SRC300外：
+
+> 勇敢 = 2个SRC300外字符 = High-load
+
+---
+
+# 十二、必须重新核对“中国”
+
+当前历史Agent报告中：
+
+> 中国
+
+曾被归入High-load。
+
+这是错误风险点。
+
+必须逐字检查：
+
+* 中是否SRC300内
+* 国是否SRC300外
+
+如果只有“国”在SRC300外：
+
+> 中国必须属于I+1B，而不是High-load。
+
+不得把整个词是否在SRC300_WORDS作为High-load判断依据。
+
+---
+
+# 十三、必须解决I+1A数量矛盾
+
+历史报告：
+
+> I+1A = 16
+
+但报告展示的I+1A明细看起来超过16项。
+
+请重新计算。
+
+要求：
+
+* 不允许手工填写数字
+* 分类数量必须由明细自动汇总
+* 明细数量 = 汇总数量
+* 总数量必须满足：
+
+`I + I+1A + I+1B + High-load = Total Language Units`
+
+不能出现：
+
+> 表格16个，明细18个
+
+这种情况。
+
+---
+
+# 十四、必须明确“语言单位”到底是什么
+
+当前Agent报告：
+
+> 74个语言单位
+> 146次出现
+
+请彻底追踪：
+
+### 74到底是什么？
+
+它是：
+
+* 74个不同词？
+* 74个词语？
+* 74个词汇类型？
+* 74个语言片段？
+* 74个AI候选Frontier？
+* 74个经过分词的token？
+* 还是其他定义？
+
+必须给出精确定义。
+
+同时解释：
+
+> 146次出现是如何计算的？
+
+必须能够做到：
+
+> 每一个语言单位都有明细 + 出现次数
+
+例如：
+
+| Language Unit | Type      | Level      | Occurrences |
+| ------------- | --------- | ---------- | ----------: |
+| 看看            | I+1A      | vocabulary |           2 |
+| 特别            | I+1B      | vocabulary |           1 |
+| 勇敢            | High-load | vocabulary |           1 |
+
+最终：
+
+> 明细Occurrences总和 = 146
+
+如果无法做到，说明当前“74/146”统计逻辑不能作为正式统计指标。
+
+---
+
+# 十五、必须把“语言难度”和“故事属性”分成两个维度
+
+不要让分类互相覆盖。
+
+例如：
+
+> 孙悟空
+
+可以同时拥有：
+
+### Language Difficulty
+
+SRC300内 / 低语言负担
+
+以及：
+
+### Story Attribute
+
+Story Core Term / Character Name
+
+这两个属性不是互斥的。
+
+建议未来数据结构：
+
+```text
+language_unit
+difficulty_class
+out_char_count
+src_vocab_status
+story_attribute
+is_proper_name
+is_story_core
+is_frontier
+```
+
+不要强迫一个词只能属于一个类别。
+
+---
+
+# 十六、必须重新审计Frontier
+
+当前历史报告发现：
+
+* 孙悟空 → invalid Frontier
+* 看看 → valid Frontier
+* 只小猴子 → false Frontier
+
+请重新检查。
+
+重点判断：
+
+### Invalid Frontier
+
+已经存在于SRC300词库/基准体系中的语言单位。
+
+### False Frontier
+
+不是自然中文语言单位。
+
+例如：
+
+> 只小猴子
+
+如果不是自然语言单位，不能作为Frontier。
+
+### Valid Frontier
+
+真实存在、自然、具有学习价值，并且确实属于孩子当前水平的“+1”。
+
+---
+
+# 十七、必须把“统计引擎”和“生成引擎”完全分离
+
+本阶段只设计Audit Engine。
+
+统计引擎：
+
+> 负责测量
+
+不负责：
+
+> 修改文本
+
+不负责：
+
+> 重新生成
+
+不负责：
+
+> 自动降低超纲率
+
+不负责：
+
+> 自动补充Frontier
+
+不负责：
+
+> 自动修改AI结果
+
+最终架构应当能够做到：
+
+```text
+AI Rewrite
+     ↓
+SRC Language Audit Engine
+     ↓
+Objective Statistics
+     ↓
+Quality Report
+```
+
+而不是：
+
+```text
+AI Rewrite
+     ↓
+AI自己判断
+     ↓
+AI自己修改
+     ↓
+AI自己说合格
+```
+
+---
+
+# 十八、统计引擎必须具有Version概念
+
+请不要现在直接实现复杂系统，但请在设计报告中提出版本化方案。
+
+例如：
+
+```text
+SRC Language Audit Engine v1.0
+```
+
+同时记录：
+
+```text
+Audit Engine Version
+SRC Character Library Version
+SRC Vocabulary Library Version
+```
+
+未来可以：
+
+```text
+v1.0
+v1.1
+v1.2
+v2.0
+```
+
+但历史报告必须保留当时使用的版本。
+
+例如：
+
+Emma：
+
+```text
+Audit Engine: v1.0
+SRC300 Character Library: vX.X
+SRC300 Vocabulary Library: vX.X
+```
+
+以后即使算法升级，也不能让Emma历史数据“悄悄改变”。
+
+---
+
+# 十九、输出最终“统一统计口径规范”
+
+本次审计最后必须形成一个明确文档/报告，至少包括：
+
+## A. Character Metrics
+
+1. total_characters
+2. chinese_character_count
+3. punctuation_count
+4. src_in_unique_char_count
+5. src_out_unique_char_count
+6. src_out_occurrence_count
+7. src_out_occurrence_rate
+8. per_character_frequency
+
+---
+
+## B. Vocabulary Metrics
+
+9. src_vocab_in_count
+10. src_vocab_out_count
+11. benign_i_plus_1_count
+12. single_unknown_char_count
+13. high_load_count
+
+---
+
+## C. I+1 Metrics
+
+14. I count
+15. I+1A count
+16. I+1B count
+17. High-load count
+18. each category occurrence count
+19. each category unique-unit count
+20. each unit occurrence count
+21. one-time Frontier count
+22. repeated Frontier count
+
+---
+
+## D. Page Load
+
+每页：
+
+* Chinese characters
+* SRC-out character occurrences
+* SRC-out rate
+* I+1A
+* I+1B
+* High-load
+* language-unit count
+* Frontier count
+
+必须保证：
+
+> 每页数据加总 = 全书数据
+
+---
+
+# 二十、必须输出“Emma Golden Sample基准表”
+
+最终请重新计算并输出：
+
+| 指标            | 当前历史值 | 本次重新计算值 | 是否一致 | 差异原因 |
+| ------------- | ----: | ------: | ---- | ---- |
+| 总字符           |   533 |         |      |      |
+| 中文汉字          |   473 |         |      |      |
+| 标点            |    60 |         |      |      |
+| 唯一SRC300外字符   |    49 |         |      |      |
+| SRC300外字符出现次数 | 52/55 |         |      |      |
+| 语言单位          |    74 |         |      |      |
+| 语言单位出现次数      |   146 |         |      |      |
+| I             |    41 |         |      |      |
+| I+1A          |    16 |         |      |      |
+| I+1B          |   7/8 |         |      |      |
+| High-load     |  10/9 |         |      |      |
+
+注意：
+
+历史值只是用于对照，不代表正确值。
+
+---
+
+# 二十一、最终报告必须给出三个结论
+
+## 结论A：统计基础是否可靠
+
+回答：
+
+> 当前字符统计是否已经可靠？
+
+---
+
+## 结论B：当前i+1统计是否可靠
+
+回答：
+
+> 当前74/146以及四级i+1统计是否可以作为正式数据？
+
+如果不能，必须明确指出不能的原因。
+
+---
+
+## 结论C：是否已经具备建立Audit Engine v1.0的条件
+
+给出：
+
+### A — 可以建立v1.0
+
+或
+
+### B — 基础规则还需要修正
+
+或
+
+### C — 当前统计体系需要重新设计
+
+不要为了给出“A”而人为调整结果。
+
+---
+
+# 二十二、重要：不要建立正式阈值
+
+当前不要规定：
+
+* 超纲必须≤5%
+* High-load必须≤2%
+* I必须≥75%
+* I+1A必须15%
+* 每页必须≤X
+
+这些都暂时不要硬编码。
+
+原因：
+
+> Emma只是第一本真实Golden Sample。
+
+我们需要至少经过多个：
+
+* 孩子
+* SRC等级
+* 故事
+
+之后，再根据真实阅读行为建立经验范围。
+
+当前阶段只建立：
+
+> **准确测量能力**
+
+而不是建立：
+
+> **最终合格标准**
+
+---
+
+# 二十三、最终输出格式
+
+请按照以下结构输出：
+
+# SRC Language Audit Engine — Phase 1 Audit
+
+## 1. Data Sources
+
+## 2. Current Character Statistics
+
+## 3. Character Counting Rule
+
+## 4. SRC300 Character Matching Rule
+
+## 5. 49 / 52 / 55 Discrepancy Analysis
+
+## 6. Vocabulary Segmentation Rule
+
+## 7. Language Unit Definition
+
+## 8. I / I+1A / I+1B / High-load Classification
+
+## 9. 中国 / 特别 / 勇敢 / 看看 Case Audit
+
+## 10. 74 / 146 Audit
+
+## 11. Frontier Audit
+
+## 12. Page-by-Page Statistics
+
+## 13. Emma Golden Sample Reconciliation Table
+
+## 14. Proposed SRC Language Audit Engine v1.0 Architecture
+
+## 15. Rules That Should Be Deterministic
+
+## 16. Rules That May Require AI/Human Judgment
+
+## 17. Rules That Must NOT Yet Become Hard Thresholds
+
+## 18. Identified Bugs / Inconsistencies
+
+## 19. Recommended Fixes — READ ONLY, NO IMPLEMENTATION
+
+## 20. Final Conclusion
+
+---
+
+# 最重要要求
+
+再次强调：
+
+> **本任务不是修改Emma。**
+
+> **本任务不是优化AI生成。**
+
+> **本任务不是降低超纲比例。**
+
+> **本任务不是建立最终i+1标准。**
+
+本任务只是：
+
+> **建立一把可靠、统一、可重复、可版本化的“尺子”。**
+
+在完成本审计之前：
+
+* 不修改rewrite_id=9
+* 不重新生成Emma
+* 不修改Master Story
+* 不修改Master Image
+* 不修改AI Prompt
+* 不修改生成算法
+* 不修改数据库
+* 不自动修复问题
+
+完成审计报告后停止，等待进一步指令。
+
+不要自行进入代码修改阶段。
