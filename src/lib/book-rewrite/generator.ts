@@ -84,7 +84,11 @@ export interface ChildReadingProfile {
   /** 孩子昵称，用于日志追踪 */
   child_nickname?: string;
   /** 生成模式标识 */
-  generation_mode?: 'generic' | 'child_specific';
+  generation_mode?: 'generic' | 'child_specific' | 'experimental';
+  /** 实验性 Profile 标记（非真实儿童数据） */
+  experimental_profile?: boolean;
+  /** 实验 Profile 标签（如 "exp-A", "exp-B"） */
+  experimental_label?: string;
 }
 
 /**
@@ -179,7 +183,7 @@ export interface GenerateResult {
   rewrite_notes?: string;
   volume_validation: VolumeValidation;
   profile_snapshot?: ChildReadingProfile;
-  generation_mode: 'generic' | 'child_specific';
+  generation_mode: 'generic' | 'child_specific' | 'experimental';
 }
 
 /** 统计中文汉字数量 */
@@ -267,8 +271,10 @@ export async function generateRewrite(
   if (totalChars < rule.targetReadingMin) volume_status = 'fail_under_limit';
   else if (totalChars > rule.targetReadingMax) volume_status = 'fail_over_limit';
 
-  const generationMode: 'generic' | 'child_specific' =
-    childProfile?.generation_mode === 'generic' ? 'generic' : 'child_specific';
+  const generationMode: 'generic' | 'child_specific' | 'experimental' =
+    childProfile?.generation_mode === 'generic' ? 'generic'
+    : childProfile?.generation_mode === 'experimental' ? 'experimental'
+    : 'child_specific';
 
   return {
     pages,

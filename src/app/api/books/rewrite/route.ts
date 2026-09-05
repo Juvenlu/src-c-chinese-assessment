@@ -15,7 +15,8 @@ export async function POST(request: Request) {
       target_level,
       child_id,
       custom_frontiers,
-      generation_mode, // 'child_specific' | 'generic' — 可选，默认 child_specific（有 child_id 时）
+      generation_mode, // 'child_specific' | 'generic' | 'experimental'
+      experimental_profile, // 实验性 Profile（直接传入，不查数据库）
     } = body
 
     // 简易鉴权（与 admin API 保持一致）
@@ -56,6 +57,45 @@ export async function POST(request: Request) {
     }
 
     let childProfile: import('@/lib/book-rewrite/generator').ChildReadingProfile | undefined = undefined
+
+    // 如果提供了 experimental_profile，直接使用（不查数据库）
+    // 注意：实验性 Profile 只用于验证个性化链路，不代表真实儿童数据
+    if (experimental_profile && target_level && isValidLevel(target_level)) {
+      const knownCharsArr = Array.isArray(experimental_profile.known_characters)
+        ? experimental_profile.known_characters
+        : []
+      const knownWordsArr = Array.isArray(experimental_profile.known_vocabulary)
+        ? experimental_profile.known_vocabulary
+        : []
+      const weakCharsArr = Array.isArray(experimental_profile.weak_char_signals)
+        ? experimental_profile.weak_char_signals
+        : []
+      const weakWordsArr = Array.isArray(experimental_profile.weak_word_signals)
+        ? experimental_profile.weak_word_signals
+        : []
+
+      // 将 known_characters/words 同步写入局部 Set（用于 Frontier 选择）
+      for (const ch of knownCharsArr) knownChars.add(ch)
+      for (const w of knownWordsArr) knownWords.add(w)
+      for (const ch of weakCharsArr) weakCharSignals.add(ch)
+      for (const w of weakWordsArr) weakWordSignals.add(w)
+
+      childProfile = {
+        observed_known_chars: knownCharsArr.length,
+        stable_char_count: experimental_profile.stable_char_count || knownCharsArr.length,
+        stable_vocab_count: experimental_profile.stable_vocab_count || knownWordsArr.length,
+        character_mastery_rate: experimental_profile.character_mastery_rate || 85,
+        vocab_mastery_rate: experimental_profile.vocab_mastery_rate || 80,
+        known_characters: knownCharsArr,
+        known_vocabulary: knownWordsArr,
+        weak_char_signals: weakCharsArr,
+        weak_word_signals: weakWordsArr,
+        child_nickname: experimental_profile.label || 'experimental',
+        generation_mode: 'experimental',
+        experimental_profile: true,
+        experimental_label: experimental_profile.label || undefined,
+      }
+    }
 
     // 如果提供了 child_id，从 test_results 计算 confirmed_level 和 known_characters
     // 注意：test_results 表没有 status/completed_at 字段，使用 test_mode + created_at
@@ -191,8 +231,10 @@ export async function POST(request: Request) {
       : selectFrontiers(masterText, knownCharsArr, 5)
 
     // 决定 generation_mode
-    const mode: 'generic' | 'child_specific' =
-      generation_mode === 'generic' ? 'generic' : child_id ? 'child_specific' : 'generic'
+    const mode: 'generic' | 'child_specific' | 'experimental' =
+      generation_mode === 'generic' ? 'generic'
+      : generation_mode === 'experimental' || childProfile?.generation_mode === 'experimental' ? 'experimental'
+      : child_id ? 'child_specific' : 'generic'
 
     // 如果是 generic 模式，清除 childProfile
     if (mode === 'generic' && childProfile) {
@@ -204,6 +246,8 @@ export async function POST(request: Request) {
         weak_char_signals: [],
         weak_word_signals: [],
         child_nickname: undefined,
+        experimental_profile: false,
+        experimental_label: undefined,
       }
     }
 
@@ -235,6 +279,8 @@ export async function POST(request: Request) {
           stable_char_count: childProfile.stable_char_count || 0,
           character_mastery_rate: childProfile.character_mastery_rate || 0,
           profile_version: 'v1.0',
+          experimental_profile: childProfile.experimental_profile || false,
+          experimental_label: childProfile.experimental_label || null,
         }
       : null
 

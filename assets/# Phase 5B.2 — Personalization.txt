@@ -1,0 +1,912 @@
+# Phase 5B.2 — Personalization Signal Validation
+
+## 目标：验证儿童数据是否能够产生可解释、可审计的个性化语言差异
+
+你现在继续开发 SRC 趣味中文平台的 i+1 定制绘本系统。
+
+本阶段必须遵守一个核心原则：
+
+> **统计必须严谨，生成允许一定不完美，人工负责最终复核。**
+
+当前目标不是让 AI 自动生成“完美绘本”，也不是建立复杂自适应算法，而是验证：
+
+> **Child Reading Profile 中的儿童语言数据，是否能够使 AI 在明确的语言选择上产生稳定、可解释、可审计的差异。**
+
+---
+
+# 一、当前阶段的产品原则
+
+必须严格区分以下三个层次：
+
+### 1. Audit / Statistics
+
+要求：
+
+> **严谨、确定、可复现、可追踪。**
+
+任何统计数据不能因为 AI 生成存在不完美而放宽要求。
+
+必须准确记录：
+
+* Chinese character count
+* External character count / rate
+* I / I+1A / I+1B / High-load
+* Language Unit count
+* +1 repetition
+* Page-level load
+* Frontier
+* Child Profile
+* audit engine version
+* SRC library versions
+* rewrite_id
+* child_id
+* target_level
+
+相同文本 + 相同版本的 Audit Engine，必须得到相同结果。
+
+---
+
+### 2. AI Generation
+
+当前阶段允许：
+
+* 个别词选择不是最优
+* 某些句子需要人工润色
+* 两次生成出现不同措辞
+* 个性化效果暂时不明显
+* 某些 i+1 目标没有自然出现
+* 个别页面需要人工调整
+
+但是不能出现明显违反底线的问题：
+
+* 改变 Master Story
+* 改变人物关系
+* 改变核心事件
+* 改变事件顺序
+* 改变结局
+* 虚构 Master Story 中没有的核心情节
+* 明显超过目标 SRC level 的语言负荷
+* 破坏固定人物名/地名
+* 产生明显不自然中文
+
+AI 输出当前定位：
+
+> **可供人工复核的高质量初稿，而不是自动发布稿。**
+
+---
+
+### 3. Human Review
+
+当前正式产品流程仍然是：
+
+**Master Story / Master Image
+→ AI Rewrite
+→ Audit
+→ Human Review
+→ Final**
+
+不要建设：
+
+**AI → 自动审计 → 自动修改 → 自动 Final**
+
+当前阶段不需要自动闭环。
+
+---
+
+# 二、重要保护规则
+
+在开始修改代码前，先检查当前代码和数据库状态。
+
+必须先执行：
+
+1. git status
+2. git diff
+3. 当前 build / type-check
+4. 当前测试
+5. Audit Engine 当前版本
+6. 当前数据库中的 rewrite / audit 实验记录
+
+不要在不了解当前代码状态的情况下大规模重写已有代码。
+
+特别注意：
+
+> **不得修改 Emma Golden Sample。**
+
+Emma：
+
+* child_id = `93bf1578-7751-4234-83c3-e70932c6dd21`
+* confirmed_level = SRC300
+* Golden Sample rewrite_id = 9
+
+rewrite_id=9 必须保持冻结。
+
+不得重新生成、覆盖、修改其最终文本。
+
+---
+
+# 三、先完成数据完整性检查
+
+Phase 5B.1 曾出现 Hellenna：
+
+* 当前 confirmed_level = SRC800
+* 虽然历史参加过 SRC300 测试
+* 但不能作为当前 SRC300 child
+
+因此本阶段必须明确：
+
+> **实验分组只使用 confirmed_level。**
+
+历史 test session ≠ 当前 confirmed_level。
+
+先检查：
+
+### Emma
+
+确认：
+
+* confirmed_level
+* estimated_level
+* stable_char_count
+* known_characters
+* known_vocabulary
+* weak_char_signals
+* weak_word_signals
+
+### Hellenna
+
+确认：
+
+* confirmed_level = SRC800
+* 不得作为 SRC300 同等级真实儿童样本
+
+如果数据库中还有其他儿童：
+
+* 只有 confirmed_level = SRC300 才能进入真实 SRC300 对照实验
+* 只有 sampling test 而没有 confirmed_level 的儿童，不得作为正式 confirmed-level 实验样本
+
+如果没有第二个真实 SRC300 child：
+
+> 不要伪造真实儿童实验。
+
+---
+
+# 四、本阶段实验目标
+
+本阶段只验证两个问题。
+
+## Experiment A — Controlled Profile Contrast
+
+使用**实验性 Child Profile**，验证：
+
+> 当儿童 Profile 明显不同的时候，AI 是否会按照 Profile 进行合理语言选择。
+
+注意：
+
+这些 Profile 只能用于实验。
+
+不得写入真实儿童正式成长数据。
+
+必须明显标记：
+
+```text
+experimental_profile = true
+```
+
+不得伪装成真实儿童。
+
+---
+
+## Experiment B — Same-Level Real Child Comparison
+
+如果数据库中已经存在第二个：
+
+```text
+confirmed_level = SRC300
+```
+
+的真实儿童，则使用：
+
+> Emma vs 第二名真实 SRC300 child
+
+在：
+
+* 同一个 Master Story
+* 同一个 target level
+* 同一个生成规则
+
+下进行比较。
+
+如果没有第二个真实 SRC300 child：
+
+> 跳过 Experiment B，不得创造假数据。
+
+---
+
+# 五、Experiment A：Controlled Profile Contrast
+
+使用同一个 Master Story：
+
+> 西游记·趣味中文 第1集
+
+target_level：
+
+```text
+SRC300
+```
+
+保持：
+
+* Master Story 不变
+* Master Images 不变
+* target level 不变
+* generation parameters 尽可能一致
+
+只改变 Child Reading Profile。
+
+---
+
+## Profile A：Strong Known-Character Profile
+
+构造一个实验 Profile：
+
+```text
+confirmed_level: SRC300
+known_characters: [一组明确的SRC300字符]
+known_vocabulary: [一组明确的已知词]
+weak_char_signals: []
+weak_word_signals: []
+generation_mode: experimental
+experimental_profile: true
+```
+
+选择若干适合测试的已知字，使 AI 有机会形成：
+
+> 已知字 → 新词
+
+例如：
+
+孩子已经知道：
+
+```text
+看
+```
+
+AI 可以自然使用：
+
+```text
+看看
+```
+
+这里重点验证：
+
+> Known Character → New Vocabulary
+
+也就是 I+1A。
+
+---
+
+# 六、Profile B：Contrast Profile
+
+构造与 Profile A 明显不同的实验 Profile。
+
+例如：
+
+* 某些字符明确设置为已知
+* 某些词设置为 weak_word_signals
+* 某些字符设置为 weak_char_signals
+
+但必须保证这些数据：
+
+> 符合真实测评数据的结构和语义。
+
+不要为了制造巨大差异而使用不合理的儿童数据。
+
+---
+
+# 七、重点观察的个性化信号
+
+本阶段不要追求“所有页面都不同”。
+
+真正需要观察的是：
+
+### Signal 1
+
+已知字符是否更容易形成：
+
+> I+1A 新词
+
+例如：
+
+```text
+看 → 看看
+小 → 小猴子
+跳 → 跳出来
+```
+
+---
+
+### Signal 2
+
+明确 weak word 是否会被合理回避、替换或降低使用频率。
+
+例如：
+
+如果某个词被标记为：
+
+```text
+weak_word_signal
+```
+
+观察 AI 是否：
+
+* 减少使用
+* 使用更熟悉表达替代
+* 在故事语义允许的情况下换成其他表达
+
+注意：
+
+> 不要求 100% 回避。
+
+因为故事上下文可能决定某个词必须出现。
+
+---
+
+### Signal 3
+
+不要强行制造差异。
+
+如果两个 Profile 在当前故事中没有自然产生不同表达：
+
+> **允许文本相同。**
+
+“不同”本身不是目标。
+
+目标是：
+
+> **有教育意义的不同。**
+
+---
+
+# 八、必须区分两种 Variation
+
+实验报告必须明确区分：
+
+## A. Generation Variation
+
+同一个孩子：
+
+> Emma A1 vs Emma A2
+
+由于 LLM 随机性造成：
+
+* 同义表达不同
+* 句式不同
+* 个别词不同
+
+这属于：
+
+> Generation Variation
+
+不能当作 personalization。
+
+---
+
+## B. Personalization Signal
+
+由于：
+
+> Child Profile 不同
+
+而产生：
+
+* 已知字 → 新词
+* weak word 回避
+* 不同词汇选择
+* 不同 i+1 结构
+
+这种才属于：
+
+> Personalization Signal
+
+本阶段真正要验证的是 B。
+
+---
+
+# 九、实验必须使用 Audit Engine
+
+每个实验生成版本都必须：
+
+1. 保存 rewrite
+2. 保存 Child Profile Snapshot
+3. 运行 Audit Engine
+4. 保存 audit result
+5. 保存 engine version
+6. 保存 SRC library version
+
+实验生成必须：
+
+```text
+status = ai_draft
+```
+
+或者：
+
+```text
+status = review
+```
+
+不得：
+
+```text
+final
+```
+
+---
+
+# 十、必须保存 Profile Snapshot
+
+generation_params 中必须完整保存本次实际使用的 Profile，例如：
+
+```json
+{
+  "profile_snapshot": {
+    "confirmed_level": "SRC300",
+    "known_characters": [],
+    "known_vocabulary": [],
+    "weak_char_signals": [],
+    "weak_word_signals": [],
+    "generation_mode": "experimental",
+    "experimental_profile": true
+  }
+}
+```
+
+要求：
+
+> 以后即使儿童 Profile 发生变化，也能够知道当时 AI 实际依据什么数据生成。
+
+---
+
+# 十一、统计必须保持确定性
+
+Audit Engine 不允许因为生成层存在不完美而降低要求。
+
+特别检查：
+
+### Character Layer
+
+必须准确：
+
+```text
+total Chinese chars
+SRC-in occurrences
+SRC-out occurrences
+external rate
+unique external chars
+```
+
+---
+
+### Language Unit Layer
+
+必须使用当前已经确定的规则：
+
+```text
+candidate construction
+→ eligibility filter
+→ longest match
+→ classification
+```
+
+不得重新定义 Language Unit。
+
+不得改变：
+
+* 最少2个汉字
+* natural word / fixed lexical unit
+* longest match
+* no overlap / no nesting
+
+---
+
+### Four Categories
+
+继续使用：
+
+```text
+I
+I+1A
+I+1B
+High-load
+```
+
+不要修改现有分类逻辑。
+
+不要因为本实验而重新定义 i+1。
+
+---
+
+# 十二、不要建立正式阈值
+
+本阶段禁止根据实验结果制定：
+
+例如：
+
+```text
+I+1A必须达到25%
+High-load不得超过12%
+External Rate必须低于10%
+```
+
+这些都暂时不要定为正式标准。
+
+原因：
+
+> 当前真实样本仍然太少。
+
+本阶段只能观察：
+
+* 方向
+* 稳定性
+* 可解释性
+* 是否存在明显信号
+
+不能建立正式 pedagogical threshold。
+
+---
+
+# 十三、生成质量的最低要求
+
+AI生成结果不需要完美。
+
+但是必须检查：
+
+### 必须通过
+
+* Master Story一致
+* Master Image对应页面一致
+* 人物一致
+* 事件一致
+* 页面顺序一致
+* 结局一致
+* Proper Name完整
+* 中文自然到可以进入人工复核
+* 没有明显失控语言
+* Audit可以正常运行
+
+### 可以接受
+
+* 个别措辞不够理想
+* 同义词不同
+* 句子需要人工润色
+* i+1没有完全达到最佳状态
+* 两个 Profile 的部分页面相同
+
+---
+
+# 十四、阅读量问题
+
+当前技术验证范围：
+
+```text
+SRC300：300–560 Chinese characters
+```
+
+这是：
+
+> 当前生成技术验证范围
+
+不是最终 pedagogical optimal range。
+
+如果生成：
+
+```text
+>560
+```
+
+必须被 deterministic validation 捕获。
+
+但不要为了满足字数：
+
+* 强行增加句子
+* 重复内容
+* 改变故事
+* 加入无意义语言
+
+---
+
+# 十五、Proper Name保护
+
+继续保护：
+
+```text
+孙悟空
+花果山
+西游记
+```
+
+不得产生：
+
+```text
+孙悟
+悟空
+花果
+```
+
+这种被错误拆开的故事核心名称作为 frontier。
+
+尤其检查：
+
+> frontier 中不能出现 proper-name fragment。
+
+---
+
+# 十六、实验比较方式
+
+每组至少记录：
+
+### Generation
+
+* rewrite_id
+* child/profile
+* target_level
+* generation parameters
+* profile snapshot
+
+### Character
+
+* Chinese chars
+* external chars
+* external rate
+
+### Language Unit
+
+* I
+* I+1A
+* I+1B
+* High-load
+
+### +1
+
+* unique +1
+* total +1 occurrences
+* repeated +1
+* one-time +1
+* 2-time
+* 3-time
+* 4+
+
+### Page
+
+* page-level load
+* highest page load
+
+---
+
+# 十七、必须增加“语义案例分析”
+
+单纯比较数字不够。
+
+从实验文本中找出：
+
+> 3–5个最清晰的 Profile-driven language differences。
+
+每个案例必须回答：
+
+1. Profile A是什么数据？
+2. Profile B是什么数据？
+3. A使用了什么？
+4. B使用了什么？
+5. 这种差异是否由 Profile 合理解释？
+6. 是否属于真正的 personalization signal？
+7. 还是普通 LLM wording variation？
+
+例如：
+
+```text
+Known character:
+看
+
+Profile A:
+看为known
+
+Generated:
+看看
+
+Classification:
+I+1A
+
+Conclusion:
+Potential personalization signal
+```
+
+---
+
+# 十八、不要把“10页全部不同”作为成功指标
+
+以下结论都是错误的：
+
+> 两个版本10页全部不同，所以个性化成功。
+
+或者：
+
+> 两个版本非常相似，所以个性化失败。
+
+必须判断：
+
+> **差异是否由儿童 Profile 驱动。**
+
+---
+
+# 十九、最终判断标准
+
+实验最终只能输出：
+
+## PASS
+
+如果：
+
+* Profile 数据能够产生明确、合理的语言选择差异
+* 差异可以被 Audit 客观识别
+* 至少有若干清晰案例
+* 同时没有破坏故事
+* 统计结果稳定
+
+---
+
+## CONDITIONAL PASS
+
+如果：
+
+* 技术链完整
+* Profile 确实进入生成
+* 可以观察到部分方向正确的 personalization signal
+* 但效果仍然较弱
+* 或真实样本不足
+
+这很可能是当前最合理结果。
+
+---
+
+## FAIL
+
+如果：
+
+* Profile 没有真正进入生成
+* Profile 改变但输出完全没有任何可解释差异
+* Audit无法稳定统计
+* 生成破坏 Master Story
+* Proper Name持续错误
+* 实验数据无法追踪
+
+---
+
+# 二十、本阶段明确禁止
+
+不要做：
+
+* 不修改 Golden Sample
+* 不修改 Master Story
+* 不修改 Master Image
+* 不修改四级 i+1分类核心规则
+* 不重新定义 Language Unit
+* 不建立正式阈值
+* 不增加多Agent
+* 不增加复杂自适应算法
+* 不增加自动生成→自动修改循环
+* 不自动 Final
+* 不伪造真实儿童数据
+* 不把实验 Profile 写入真实儿童成长数据
+* 不把 Hellenna 当作 SRC300真实对照
+* 不把 LLM wording variation 当作 personalization
+* 不因为个性化效果弱就大规模重构系统
+
+---
+
+# 二十一、最终报告格式
+
+完成后只报告以下内容：
+
+## 1. 数据完整性
+
+* Emma confirmed_level
+* Hellenna confirmed_level
+* 可用真实 SRC300 children 数量
+* 实验数据是否与真实儿童数据隔离
+
+## 2. Code / Regression
+
+* build
+* type-check
+* tests
+* Audit Engine regression
+
+## 3. Experiment A
+
+* Profile A
+* Profile B
+* rewrite IDs
+* audit IDs
+* 核心统计
+* 3–5个最清晰 personalization signal
+
+## 4. Experiment B
+
+如果没有第二个真实 SRC300 child：
+
+```text
+NOT RUN — insufficient confirmed SRC300 participants
+```
+
+不要创建假数据。
+
+## 5. Generation Variation vs Personalization Signal
+
+明确区分。
+
+## 6. Audit Reliability
+
+确认统计是否：
+
+* deterministic
+* reproducible
+* versioned
+* traceable
+
+## 7. Remaining Problems
+
+只列真正存在的问题。
+
+## 8. Final Verdict
+
+只能：
+
+```text
+PASS
+CONDITIONAL PASS
+FAIL
+```
+
+并用不超过5条说明原因。
+
+---
+
+# 二十二、本阶段最终目标
+
+记住：
+
+> **我们现在不是要证明AI已经能够完美生成个性化绘本。**
+
+我们只需要证明：
+
+> **SRC已经建立了一条可靠的技术链：**
+
+```text
+Child Data
+↓
+Child Reading Profile
+↓
+AI Language Adaptation
+↓
+Generated Draft
+↓
+Deterministic Audit
+↓
+Human Review
+↓
+Final Book
+```
+
+其中：
+
+> **统计层必须严谨。**
+
+而：
+
+> **生成层当前允许不完美。**
+
+只要生成结果已经达到“可以人工复核和修改”的产品水平，并且儿童数据能够在部分语言选择上产生真实、可解释的差异，本阶段就已经达到目的。
+
+不要为了追求理论上的完美个性化而过度工程化。
+
+完成后停止，不要自行进入 Phase 5C。
