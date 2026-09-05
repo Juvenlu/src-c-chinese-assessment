@@ -93,53 +93,43 @@ export async function saveAuditResult(
   rewriteId: number,
   result: AuditResult,
 ): Promise<number> {
-  const client = await getPgClient();
-  try {
-    const res = await client.query(
-      `
-      INSERT INTO book_rewrite_audits
-        (rewrite_id, child_id, target_level, audit_engine_version,
-         src_char_library_version, src_vocab_library_version, audit_result)
-      VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-      RETURNING id
-      `,
-      [
-        rewriteId,
-        result.child_id,
-        result.target_level,
-        result.engine_version,
-        result.src_char_library_version,
-        result.src_vocab_library_version,
-        JSON.stringify(result),
-      ],
-    );
-    return res.rows[0].id;
-  } finally {
-    client.release();
-  }
+  const rows = await query(
+    `
+    INSERT INTO book_rewrite_audits
+      (rewrite_id, child_id, target_level, audit_engine_version,
+       src_char_library_version, src_vocab_library_version, audit_result)
+    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+    RETURNING id
+    `,
+    [
+      rewriteId,
+      result.child_id,
+      result.target_level,
+      result.engine_version,
+      result.src_char_library_version,
+      result.src_vocab_library_version,
+      JSON.stringify(result),
+    ],
+  );
+  return (rows as any)[0].id;
 }
 
 /**
  * 查询某个 rewrite 的所有审计记录。
  */
 export async function listAuditsByRewriteId(rewriteId: number) {
-  const client = await getPgClient();
-  try {
-    const res = await client.query(
-      `
-      SELECT id, rewrite_id, child_id, target_level,
-             audit_engine_version, src_char_library_version,
-             src_vocab_library_version, audit_result, created_at
-      FROM book_rewrite_audits
-      WHERE rewrite_id = $1
-      ORDER BY created_at DESC
-      `,
-      [rewriteId],
-    );
-    return res.rows;
-  } finally {
-    client.release();
-  }
+  const rows = await query(
+    `
+    SELECT id, rewrite_id, child_id, target_level,
+           audit_engine_version, src_char_library_version,
+           src_vocab_library_version, audit_result, created_at
+    FROM book_rewrite_audits
+    WHERE rewrite_id = $1
+    ORDER BY created_at DESC
+    `,
+    [rewriteId],
+  );
+  return rows;
 }
 
 

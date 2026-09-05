@@ -40,23 +40,30 @@ export async function POST(request: Request) {
     let targetLevel: Level | null = null
     const knownChars = new Set<string>()
     const knownWords = new Set<string>()
+    const weakCharSignals = new Set<string>()
+    const weakWordSignals = new Set<string>()
+    let childNickname: string | undefined = undefined
 
     // 如果提供了 target_level，直接使用
     if (target_level && isValidLevel(target_level)) {
       targetLevel = target_level as Level
     }
 
-    let childProfile: {
-      observed_known_chars: number;
-      stable_char_count: number;
-      stable_vocab_count: number;
-      character_mastery_rate: number;
-      vocab_mastery_rate: number;
-    } | undefined = undefined
+    let childProfile: import('@/lib/book-rewrite/generator').ChildReadingProfile | undefined = undefined
 
     // 如果提供了 child_id，从 test_results 计算 confirmed_level 和 known_characters
     // 注意：test_results 表没有 status/completed_at 字段，使用 test_mode + created_at
     if (child_id) {
+      // 获取孩子基本信息
+      const { data: childData, error: childError } = await supabase
+        .from('children')
+        .select('nickname')
+        .eq('id', child_id)
+        .single()
+      if (!childError && childData) {
+        childNickname = childData.nickname
+      }
+
       const { data: allResults, error: allError } = await supabase
         .from('test_results')
         .select('*')
@@ -76,8 +83,27 @@ export async function POST(request: Request) {
           if (!targetLevel && confirmed) {
             targetLevel = confirmed
           }
-          // 合并所有正式测试的 known_characters
-          for (const r of formalResults) {
+
+          // 合并该等级及以下所有正式测试的 known_characters（累积已知字）
+          // 例：target_level=SRC300 → 合并 SRC100 + SRC300 的 known_characters
+          const LEVEL_ORDER = ['SRC100', 'SRC300', 'SRC500', 'SRC800']
+          const targetIdx = targetLevel ? LEVEL_ORDER.indexOf(targetLevel) : -1
+          const targetLevelResults = targetIdx >= 0
+            ? formalResults.filter((r: any) => {
+                const idx = LEVEL_ORDER.indexOf(r.level)
+                return idx >= 0 && idx <= targetIdx
+              })
+            : formalResults
+
+          // 取每个等级最新一次测试结果的 known_characters
+          const perLevelLatest = new Map<string, any>()
+          for (const r of targetLevelResults) {
+            if (!perLevelLatest.has(r.level)) {
+              perLevelLatest.set(r.level, r)
+            }
+          }
+
+          for (const r of perLevelLatest.values()) {
             if (r.known_characters && Array.isArray(r.known_characters)) {
               for (const ch of r.known_characters) knownChars.add(ch)
             }
@@ -85,13 +111,56 @@ export async function POST(request: Request) {
               for (const w of r.known_vocabulary) knownWords.add(w)
             }
           }
+
+          // 收集 Weakness Signals：从 test_answers 中找错误答案（只看本等级会话）
+          try {
+            const { data: sessionsData } = await supabase
+              .from('test_sessions')
+              .select('id')
+              .eq('child_id', child_id)
+              .eq('level', targetLevel)
+
+            if (sessionsData && sessionsData.length > 0) {
+              const sessionIds = sessionsData.map((s: any) => s.id)
+              const { data: wrongAnswers } = await supabase
+                .from('test_answers')
+                .select('question_id')
+                .eq('is_correct', false)
+                .in('session_id', sessionIds)
+
+              if (wrongAnswers && wrongAnswers.length > 0) {
+                const questionIds = [...new Set(wrongAnswers.map((a: any) => a.question_id))]
+                const { data: wrongQuestions } = await supabase
+                  .from('question_bank')
+                  .select('character, word')
+                  .in('id', questionIds)
+                if (wrongQuestions) {
+                  for (const q of wrongQuestions) {
+                    if (q.character) weakCharSignals.add(q.character)
+                    if (q.word) weakWordSignals.add(q.word)
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // silence: weak signals are supplementary
+          }
+
+          // 取目标等级对应的最新结果作为 stable_char_count 等主指标
+          const targetLevelLatest = perLevelLatest.get(targetLevel || '') || latest
           // 组装孩子阅读画像（用于 i+1 个性化生成）
           childProfile = {
             observed_known_chars: knownChars.size,
-            stable_char_count: latest.stable_char_count || 0,
-            stable_vocab_count: latest.stable_vocab_count || 0,
-            character_mastery_rate: latest.character_mastery_rate || 0,
-            vocab_mastery_rate: latest.vocab_mastery_rate || 0,
+            stable_char_count: targetLevelLatest.stable_char_count || 0,
+            stable_vocab_count: targetLevelLatest.stable_vocab_count || 0,
+            character_mastery_rate: targetLevelLatest.character_mastery_rate || 0,
+            vocab_mastery_rate: targetLevelLatest.vocab_mastery_rate || 0,
+            known_characters: Array.from(knownChars),
+            known_vocabulary: Array.from(knownWords),
+            weak_char_signals: Array.from(weakCharSignals),
+            weak_word_signals: Array.from(weakWordSignals),
+            child_nickname: childNickname,
+            generation_mode: 'child_specific',
           }
         }
       }

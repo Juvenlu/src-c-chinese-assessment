@@ -1,0 +1,1232 @@
+# SRC Phase 5B — Child-specific Generation Validation
+
+## 一、任务目标
+
+现在正式进入 SRC「i+1 定制绘本」Phase 5B。
+
+目标不是继续设计理论，也不是修改 Audit Engine V1，而是验证：
+
+> **同一个 Master Story + 同一个 SRC 等级 + 不同孩子 → 是否能够生成具有真实、合理、可审计差异的个性化语言版本。**
+
+核心验证：
+
+```text
+同一 Master Story
+        ↓
+同一 confirmed_level
+        ↓
+不同 Child Profile
+        ↓
+Child-specific i+1
+        ↓
+生成语言版本
+        ↓
+Audit Engine V1
+        ↓
+横向比较
+```
+
+---
+
+# 二、必须遵守的核心原则
+
+## 1. 不改变 Master Story
+
+Master Story 是唯一故事源。
+
+禁止：
+
+* 增加故事事件
+* 删除核心事件
+* 修改人物
+* 修改人物关系
+* 修改事件顺序
+* 修改因果关系
+* 修改结局
+* 为了孩子语言水平改变故事内容
+
+只能改变：
+
+> **语言表达难度。**
+
+---
+
+## 2. 不改变 Master Image
+
+每一页继续绑定原有 Master Image。
+
+禁止：
+
+* 重新生成图片
+* 更换图片
+* 修改图片
+* 为语言版本选择不同图片
+
+验证的是：
+
+> Same Story + Same Image + Different Language
+
+---
+
+# 三、当前测试对象
+
+优先使用已经存在的：
+
+### Story
+
+西游记·趣味中文 第1集
+
+### Target Level
+
+SRC300
+
+### Master Story
+
+使用数据库中已有 Master Story。
+
+### Master Image
+
+使用数据库中已有 Master Image。
+
+### 现有 Emma Golden Sample
+
+不要修改：
+
+```text
+child_id:
+93bf1578-7751-4234-83c3-e70932c6dd21
+
+rewrite_id:
+9
+```
+
+Emma rewrite_id=9 是历史 Golden Sample。
+
+**禁止重新生成、覆盖、删除或修改。**
+
+---
+
+# 四、Audit Engine V1
+
+当前已经正式存在：
+
+```text
+src/lib/book-rewrite/audit/
+├── types.ts
+├── level-data.ts
+├── character-audit.ts
+├── language-unit.ts
+├── level-classification.ts
+├── page-audit.ts
+├── audit-engine.ts
+└── index.ts
+```
+
+已经存在：
+
+```text
+runAudit()
+pagesFromTexts()
+auditRewriteById()
+saveAuditResult()
+listAuditsByRewriteId()
+```
+
+数据库：
+
+```text
+book_rewrite_audits
+```
+
+版本：
+
+```text
+Audit Engine: 1.0.0
+SRC Character Library: v1.2
+SRC Vocabulary Library: v1.2
+```
+
+## 本阶段原则
+
+**不要重新实现 Audit Engine。**
+
+不要：
+
+* 修改四级分类规则
+* 修改 Language Unit 定义
+* 修改字符统计逻辑
+* 修改 High-load 定义
+* 修改 i+1A / i+1B 定义
+* 修改 Master Story
+* 修改现有生成逻辑，除非为了让 Phase 5B 能调用现有生成接口
+* 修改 Emma rewrite_id=9
+
+Audit Engine 的职责仍然只是：
+
+> Measure / Classify / Compare
+
+不负责：
+
+> Rewrite / Auto-fix / Auto-finalize
+
+---
+
+# 五、i+1正式定义
+
+## I
+
+当前 SRC 等级基础语言。
+
+即：
+
+> 当前 SRC 等级中已经掌握/允许作为基础的字符和词汇。
+
+---
+
+## I+1A
+
+最高优先级。
+
+定义：
+
+> 所有汉字均属于当前 SRC 字符基础，但组成的自然词/固定语言单位不属于当前 SRC 词汇基础。
+
+典型：
+
+```text
+看 → 看看
+小 + 猴子 → 小猴子
+猴子 + 们 → 猴子们
+跳 + 出来 → 跳出来
+越来越 + 喜欢 → 越来越喜欢
+```
+
+---
+
+## I+1B
+
+第二优先级。
+
+定义：
+
+> 一个 SRC 外字符 + 其他已知字符组成自然词/语言单位。
+
+---
+
+## High-load
+
+严格控制。
+
+定义：
+
+> 一个自然语言单位中包含 ≥2 个当前 SRC 外字符。
+
+High-load：
+
+* 不是普通 I+1
+* 不应大量使用
+* 不因“增加学习量”而主动堆积
+
+必须区分：
+
+```text
+Story-required
+Valuable
+Non-essential
+```
+
+---
+
+# 六、个性化原则
+
+正式采用：
+
+```text
+Confirmed Level
+      ↓
+Level Baseline
+      ↓
+Individual Weakness Signals
+      ↓
+Child Reading Profile
+      ↓
+Personalized i+1
+```
+
+## 非常重要
+
+不要把：
+
+```text
+stable_char_count
+```
+
+当成孩子完整的已知字表。
+
+不要假设：
+
+```text
+confirmed_level = SRC300
+```
+
+就代表系统知道孩子精确掌握 SRC300 的每一个字符。
+
+目前测试数据中的：
+
+```text
+knownCharacters
+```
+
+可能只是抽样测试结果。
+
+因此 Phase 5B 必须优先使用：
+
+```text
+confirmed_level
++
+weakness signals
+```
+
+进行个性化。
+
+---
+
+# 七、Weakness Signal定义
+
+不要把：
+
+```text
+wrong answer
+```
+
+永久定义为：
+
+```text
+unknown
+```
+
+正式称为：
+
+> Weakness Signal
+
+含义：
+
+> 测试中出现错误，说明该字/词存在掌握不足或稳定性不足的信号。
+
+因此：
+
+```text
+weak_character_signals
+weak_word_signals
+```
+
+只能作为个性化的重要参考。
+
+不能因此改变孩子的 confirmed_level。
+
+---
+
+# 八、Phase 5B测试设计
+
+## 实验A：同等级 × 同故事 × 不同孩子
+
+至少使用现有两个 SRC300 孩子：
+
+```text
+Emma
+Hellenna
+```
+
+如果数据库中已经存在其他 confirmed SRC300 孩子，可以加入。
+
+第一阶段：
+
+> Emma + Hellenna
+
+即可。
+
+---
+
+# 九、必须生成真正的个性化版本
+
+不能只进行理论计算。
+
+必须实际调用现有生成系统，为每个孩子生成：
+
+```text
+西游记·趣味中文 第1集
+SRC300
+Child A
+```
+
+以及：
+
+```text
+西游记·趣味中文 第1集
+SRC300
+Child B
+```
+
+要求：
+
+* Master Story 相同
+* Master Image 相同
+* 页数相同
+* 故事事件相同
+* target_level 相同
+* 语言可以不同
+
+---
+
+# 十、个性化生成输入
+
+生成时至少传入：
+
+```text
+targetLevel
+confirmed_level
+childId
+knownCharacters
+weakCharacterSignals
+knownWords
+weakWordSignals
+Master Story
+Master Page
+Frontier
+SRC level rules
+```
+
+如果现有生成接口暂时不支持全部字段：
+
+> 优先最小修改，让它能够接收 Child-specific Profile。
+
+不要重新设计整套生成架构。
+
+---
+
+# 十一、生成策略
+
+对于每个孩子：
+
+## Step 1
+
+确定：
+
+```text
+confirmed_level = SRC300
+```
+
+建立 SRC300 baseline。
+
+## Step 2
+
+读取孩子：
+
+```text
+knownCharacters
+weakCharacterSignals
+knownWords
+weakWordSignals
+```
+
+## Step 3
+
+从 Master Story 中寻找适合个性化处理的 Language Units。
+
+优先顺序：
+
+```text
+1. Known Character → New Vocabulary
+2. 高频、实用词
+3. 故事相关词
+4. 常见搭配
+5. 常见句式
+6. 单个新字符
+```
+
+## Step 4
+
+优先使用：
+
+```text
+I+1A
+```
+
+其次：
+
+```text
+I+1B
+```
+
+严格控制：
+
+```text
+High-load
+```
+
+## Step 5
+
+如果某个孩子存在明确 Weakness Signal：
+
+例如：
+
+```text
+某词/字 = weakness signal
+```
+
+则在该词/语言单位适合当前 Master Story 的情况下：
+
+* 可以降低难度
+* 可以换成更熟悉表达
+* 可以减少该单位的使用
+* 可以使用已知字符构成的 I+1A 替代表达
+
+但：
+
+> 不得为了制造差异而强行修改自然语言。
+
+---
+
+# 十二、非常重要：不要强行个性化
+
+如果：
+
+```text
+Child A
+Child B
+```
+
+虽然数据不同，但：
+
+* 两人的弱项与本故事无关
+* 当前故事没有适合个性化的语言单位
+* 最佳语言表达相同
+
+那么：
+
+> 两个孩子生成相同文本是允许的。
+
+不能为了证明“个性化有效”而人为制造差异。
+
+---
+
+# 十三、生成完成后必须立即运行 Audit Engine V1
+
+每个生成版本必须执行：
+
+```typescript
+runAudit()
+```
+
+或：
+
+```typescript
+auditRewriteById()
+```
+
+并保存：
+
+```text
+book_rewrite_audits
+```
+
+---
+
+# 十四、必须记录的指标
+
+每个孩子至少记录：
+
+## Character
+
+```text
+Chinese Characters
+SRC-in occurrences
+SRC-out occurrences
+External Character Occurrence Rate
+Unique SRC-out characters
+```
+
+---
+
+## Language Unit
+
+```text
+Total LU occurrences
+I occurrences
+I+1A occurrences
+I+1B occurrences
+High-load occurrences
+```
+
+---
+
+## Repetition
+
+```text
++1 one-time
++1 twice
++1 three times
++1 four+
+Repeated +1
+```
+
+---
+
+## Page
+
+```text
+Per-page Chinese chars
+Per-page external chars
+Per-page external rate
+Per-page I
+Per-page I+1A
+Per-page I+1B
+Per-page High-load
+Maximum page load
+```
+
+---
+
+## Frontier
+
+记录：
+
+```text
+Frontier total
+Valid Frontier
+Invalid Frontier
+I+1A Frontier
+I+1B Frontier
+High-load Frontier
+Frontier repetition
+```
+
+---
+
+# 十五、Child-specific Audit
+
+必须检查：
+
+```text
+Child A
+Child B
+```
+
+是否出现：
+
+```text
+child-specific language units
+```
+
+并记录：
+
+```text
+child-specific +1
+child-specific High-load
+weakness-related units
+```
+
+重点回答：
+
+> 生成结果中的差异，是否能够由两个孩子的真实 Weakness Signals / Reading Profile 解释？
+
+---
+
+# 十六、必须做横向比较
+
+生成完成后建立：
+
+```text
+Child A vs Child B
+```
+
+比较表。
+
+至少包括：
+
+| 指标                 | Child A | Child B | Difference |
+| ------------------ | ------: | ------: | ---------: |
+| Chinese chars      |         |         |            |
+| External char rate |         |         |            |
+| I                  |         |         |            |
+| I+1A               |         |         |            |
+| I+1B               |         |         |            |
+| High-load          |         |         |            |
+| Repeated +1        |         |         |            |
+| Page peak          |         |         |            |
+| Valid Frontier     |         |         |            |
+
+---
+
+# 十七、必须进行“差异解释”
+
+不能只报告数字。
+
+必须列出：
+
+### Child A 特有的语言处理
+
+例如：
+
+```text
+A版本：
+“特别”
+```
+
+原因：
+
+```text
+Child A 对其他表达掌握较好，
+“特别”属于当前适合的 I+1B。
+```
+
+### Child B 特有的语言处理
+
+例如：
+
+```text
+B版本：
+“慢慢”
+```
+
+原因：
+
+```text
+B的已知字符组合能够自然形成“慢慢”，
+属于 I+1A。
+```
+
+---
+
+# 十八、必须进行反向检查
+
+对于每一个真正产生差异的语言单位，检查：
+
+```text
+1. 是否来自 Master Story？
+2. 是否改变故事事实？
+3. 是否符合当前 SRC level？
+4. 是否属于合法 Language Unit？
+5. 是否符合 I / I+1A / I+1B / High-load 分类？
+6. 是否与孩子 Weakness Signal 有合理关系？
+7. 是否自然？
+8. 是否有必要？
+```
+
+任何一项明显不成立，都标记：
+
+```text
+Invalid Personalization
+```
+
+---
+
+# 十九、禁止使用“差异越大越好”
+
+Phase 5B 的目标不是：
+
+> 最大化两个孩子之间的文本差异。
+
+正确目标：
+
+> **最大化“有教育意义、可解释、自然”的个性化差异。**
+
+因此：
+
+```text
+High difference ≠ Good personalization
+```
+
+而是：
+
+```text
+Relevant difference
++
+Natural language
++
+i+1 suitability
++
+Story consistency
+=
+Good personalization
+```
+
+---
+
+# 二十、不要建立正式阈值
+
+Phase 5B 暂时不要规定：
+
+```text
+I 必须 ≥ X%
+I+1A 必须 X–Y%
+High-load 必须 < X%
+```
+
+当前阶段只有：
+
+> 测量 + 比较 + 发现规律。
+
+正式阈值等收集更多样本后再确定。
+
+---
+
+# 二十一、Phase 5B至少完成两个实验
+
+## Experiment 1
+
+```text
+Emma
+vs
+Hellenna
+
+同一故事
+同一 SRC300
+```
+
+验证：
+
+> 不同孩子是否产生合理个性化差异。
+
+---
+
+## Experiment 2
+
+如果现有数据库存在第三个 confirmed SRC300 孩子：
+
+```text
+Emma
+Hellenna
+Child C
+```
+
+同样运行。
+
+验证：
+
+> 个性化机制是否不是偶然只对两个孩子成立。
+
+如果没有第三个真实孩子：
+
+> 不要伪造孩子数据。
+
+只完成 Experiment 1。
+
+---
+
+# 二十二、不要使用Emma rewrite_id=9作为新的生成版本
+
+Emma：
+
+```text
+rewrite_id=9
+```
+
+是历史 Golden Sample。
+
+可以：
+
+```text
+auditRewriteById(9)
+```
+
+用于基线比较。
+
+但禁止：
+
+```text
+overwrite
+regenerate
+modify
+finalize
+```
+
+应该生成新的 rewrite/version。
+
+---
+
+# 二十三、数据库要求
+
+如果当前生成流程已经能够保存：
+
+```text
+child_id
+episode_id
+target_level
+pages_json
+```
+
+则直接复用。
+
+如果必须新增字段才能区分：
+
+```text
+generic
+personalized
+```
+
+可以最小修改。
+
+推荐：
+
+```text
+generation_mode:
+generic | child_specific
+```
+
+如果现有数据库已经存在等价字段，不要重复增加。
+
+Audit结果继续写入：
+
+```text
+book_rewrite_audits
+```
+
+不要写入：
+
+```text
+book_rewrite_versions.validation_result
+```
+
+作为正式 Audit 数据。
+
+---
+
+# 二十四、生成版本命名
+
+建议：
+
+```text
+SRC300-Episode1-Emma-P5B
+SRC300-Episode1-Hellenna-P5B
+```
+
+实际 ID 以数据库为准。
+
+不要覆盖已有版本。
+
+---
+
+# 二十五、必须检查一个关键问题
+
+Phase 5B 必须回答：
+
+> 当前生成器是否真的读取并使用了 Child-specific information？
+
+不能只把：
+
+```text
+childId
+knownCharacters
+weakSignals
+```
+
+传进去，然后最终完全没有参与生成。
+
+必须通过代码追踪确认：
+
+```text
+Child Data
+↓
+Generation Prompt / Generation Parameters
+↓
+LLM
+↓
+Generated Text
+```
+
+这个链路确实存在。
+
+---
+
+# 二十六、必须检查第二个关键问题
+
+确认：
+
+```text
+confirmed_level
+```
+
+才是主要语言难度基线。
+
+禁止使用：
+
+```text
+estimated_level
+```
+
+作为 Phase 5B 的最终语言等级。
+
+如果发现现有生成流程仍使用：
+
+```text
+estimated_level
+```
+
+必须报告。
+
+除非这是当前代码中已经明确设计为临时推荐逻辑，否则不要擅自修改整个 Growth Map 系统。
+
+---
+
+# 二十七、必须检查第三个关键问题
+
+确认：
+
+```text
+knownCharacters
+```
+
+只是实际测试得到的已知字集合。
+
+不能自动扩展成：
+
+```text
+整个 SRC300 字库
+```
+
+也不能把：
+
+```text
+未测试
+```
+
+当成：
+
+```text
+unknown
+```
+
+---
+
+# 二十八、输出最终 Phase 5B 报告
+
+Agent完成后，只输出以下结构：
+
+# Phase 5B Child-specific Generation Validation Report
+
+## 1. Implementation Status
+
+```text
+PASS / PARTIAL PASS / FAIL
+```
+
+---
+
+## 2. Test Subjects
+
+列出：
+
+```text
+Child
+Age
+Confirmed Level
+Test data availability
+Weakness signals
+```
+
+不要泄露不必要的个人信息。
+
+---
+
+## 3. Generation Results
+
+每个孩子：
+
+```text
+rewrite_id
+target_level
+generation_mode
+pages
+```
+
+---
+
+## 4. Audit Comparison
+
+提供：
+
+```text
+Character
+Language Unit
+Repetition
+Page
+Frontier
+```
+
+横向比较。
+
+---
+
+## 5. Personalization Differences
+
+明确列出：
+
+```text
+Child A 特有处理
+Child B 特有处理
+```
+
+并解释：
+
+```text
+Difference
+→
+Child data
+→
+Generation decision
+```
+
+---
+
+## 6. Invalid Personalization
+
+如果发现：
+
+```text
+人为制造差异
+不自然表达
+与孩子数据无关
+违反i+1
+违反Master Story
+High-load异常增加
+```
+
+必须明确列出。
+
+如果没有：
+
+```text
+None
+```
+
+---
+
+## 7. Key Findings
+
+只回答以下问题：
+
+### Q1
+
+不同孩子是否生成了不同文本？
+
+### Q2
+
+如果不同，差异是否具有教育意义？
+
+### Q3
+
+差异是否可以由孩子数据解释？
+
+### Q4
+
+如果没有差异，是否因为两个孩子在当前故事上的有效个性化空间相同？
+
+### Q5
+
+当前生成器是否真正实现了 Child-specific Generation？
+
+---
+
+## 8. Current Limitations
+
+只列真实存在的问题。
+
+例如：
+
+```text
+knownCharacters数据仍为抽样
+真实孩子样本不足
+某些词无法形成个性化差异
+```
+
+不要为了“完整”而人为增加问题。
+
+---
+
+## 9. Phase 5B Conclusion
+
+只能使用以下三个结论之一：
+
+### PASS
+
+如果：
+
+> 至少两个真实孩子产生了自然、可解释、符合i+1的个性化差异，并且Audit Engine能够识别和追踪这些差异。
+
+### PARTIAL PASS
+
+如果：
+
+> 个性化机制可以运行，但样本不足、差异有限，或者只有部分差异可以被验证。
+
+### FAIL
+
+如果：
+
+> Child-specific数据没有进入生成过程，或者生成结果与孩子数据没有实际关系，或者产生明显违反Master Story / i+1的个性化。
+
+---
+
+# 三十、执行纪律
+
+本任务：
+
+> **先验证，不重新设计。**
+
+禁止：
+
+* 不重新设计 i+1 理论
+* 不修改 Master Story
+* 不修改 Master Image
+* 不修改 Emma rewrite_id=9
+* 不删除历史数据
+* 不为了通过测试修改测试标准
+* 不为了制造差异修改孩子数据
+* 不伪造孩子
+* 不建立正式阈值
+* 不增加多Agent
+* 不增加复杂自适应算法
+* 不加入AI自动终审
+* 不加入自动修复循环
+* 不加入与Phase 5B无关的新功能
+
+如果发现代码问题：
+
+> 最小修改 → 重新测试 → 记录修改。
+
+如果发现理论问题：
+
+> 停止实现 → 报告问题 → 等待确认。
+
+---
+
+# 最终核心判断标准
+
+Phase 5B不是验证：
+
+> “AI能不能给两个孩子写出不同的故事。”
+
+而是验证：
+
+> **在同一个故事、同一个SRC等级、同一套图片下，系统能否根据不同孩子的真实中文基础和Weakness Signals，自然地调整语言难度，使每个孩子获得适合自己的i+1阅读版本。**
+
+最终产品目标：
+
+```text
+Same Story
++
+Same Image
++
+Same SRC Level
++
+Different Child Profile
+↓
+Different but Natural Language
+↓
+Auditable i+1
+↓
+Personalized Reading
+```
+
+**现在开始执行。先检查现有生成链路和数据库，再进行最小修改。完成后只提交 Phase 5B Validation Report，不要继续进入 Phase 5C。**

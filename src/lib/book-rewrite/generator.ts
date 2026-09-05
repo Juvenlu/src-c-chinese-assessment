@@ -52,6 +52,32 @@ JSON 结构：
 
 页数必须与输入完全一致。`;
 
+/** 孩子详细阅读画像（用于个性化改写） */
+export interface ChildReadingProfile {
+  /** 观测到的已知汉字数量（正式测试中答对的字） */
+  observed_known_chars: number;
+  /** 稳定识字量估算 */
+  stable_char_count: number;
+  /** 稳定词汇量估算 */
+  stable_vocab_count: number;
+  /** 单字掌握率 (%) */
+  character_mastery_rate: number;
+  /** 词汇掌握率 (%) */
+  vocab_mastery_rate: number;
+  /** 已掌握的汉字列表（抽样测试结果，可能不全） */
+  known_characters?: string[];
+  /** 已掌握的词汇列表（抽样测试结果，可能不全） */
+  known_vocabulary?: string[];
+  /** 弱字信号（正式测试中答错或不稳的字） */
+  weak_char_signals?: string[];
+  /** 弱词信号（正式测试中答错或不稳的词） */
+  weak_word_signals?: string[];
+  /** 孩子昵称，用于日志追踪 */
+  child_nickname?: string;
+  /** 生成模式标识 */
+  generation_mode?: 'generic' | 'child_specific';
+}
+
 /**
  * 构建用户 prompt
  */
@@ -59,13 +85,7 @@ function buildUserPrompt(
   masterPages: { page: number; text: string; image_url?: string }[],
   level: Level,
   frontiers: string[],
-  childProfile?: {
-    observed_known_chars: number;
-    stable_char_count: number;
-    stable_vocab_count: number;
-    character_mastery_rate: number;
-    vocab_mastery_rate: number;
-  },
+  childProfile?: ChildReadingProfile,
 ): string {
   const pagesText = masterPages
     .map((p) => `【第${p.page}页】\n${p.text}`)
@@ -77,22 +97,41 @@ function buildUserPrompt(
 
   let childSection = '';
   if (childProfile) {
+    const knownCharsSample = (childProfile.known_characters || []).slice(0, 60).join('、');
+    const weakChars = (childProfile.weak_char_signals || []).slice(0, 30).join('、');
+    const weakWords = (childProfile.weak_word_signals || []).slice(0, 20).join('、');
+    const nickname = childProfile.child_nickname ? `（${childProfile.child_nickname}）` : '';
+
+    const charListNote = childProfile.known_characters && childProfile.known_characters.length > 0
+      ? `\n- 孩子已掌握的汉字（抽样实测，约${childProfile.known_characters.length}字，例如：${knownCharsSample}）`
+      : '';
+
+    const weakCharNote = childProfile.weak_char_signals && childProfile.weak_char_signals.length > 0
+      ? `\n- 需要降低负荷的汉字（掌握不稳或答错，共${childProfile.weak_char_signals.length}个：${weakChars}）`
+      : '';
+
+    const weakWordNote = childProfile.weak_word_signals && childProfile.weak_word_signals.length > 0
+      ? `\n- 需要降低负荷的词汇（掌握不稳，共${childProfile.weak_word_signals.length}个：${weakWords}）`
+      : '';
+
     childSection = `
-【孩子阅读画像（个性化参考）】
+【孩子阅读画像（个性化参考）】${nickname}
 以下是这个孩子的实测数据，用于实现 i+1 个性化：
 - 已确认等级：${level}
 - 稳定识字量估算：约 ${childProfile.stable_char_count} 字
 - 稳定词汇量估算：约 ${childProfile.stable_vocab_count} 词
 - 抽样观测已知汉字：${childProfile.observed_known_chars} 个（正式测试中实际答对的字）
 - 单字掌握率：${childProfile.character_mastery_rate}%
-- 词汇掌握率：${childProfile.vocab_mastery_rate}%
+- 词汇掌握率：${childProfile.vocab_mastery_rate}%${charListNote}${weakCharNote}${weakWordNote}
 
 个性化改写要求：
 1. 以 ${level} 等级作为主要难度锚点，确保大部分语言在孩子可理解范围内
 2. 在自然的前提下，优先使用孩子已经见过/认识的字和表达
-3. Frontier 是 i+1 的重点，通过上下文帮助孩子理解新词
-4. 不要因为孩子抽样已知字较少就过度简化，保持故事的完整性和语言的自然度
-5. 整体难度以目标等级为准，个人数据用于微调用词偏好
+3. 对于"需要降低负荷"的字和词，可以用更简单的同义表达替代，或减少出现频次
+4. Frontier 是 i+1 的重点，通过上下文帮助孩子理解新词
+5. 不要因为孩子抽样已知字较少就过度简化，保持故事的完整性和语言的自然度
+6. 整体难度以目标等级为准，个人数据用于微调用词偏好和负荷分布
+7. 不要为了制造差异而强行修改自然语言表达
 `;
   }
 
@@ -130,13 +169,7 @@ export async function generateRewrite(
   masterPages: { page: number; text: string; image_url?: string }[],
   level: Level,
   frontiers: string[],
-  childProfile?: {
-    observed_known_chars: number;
-    stable_char_count: number;
-    stable_vocab_count: number;
-    character_mastery_rate: number;
-    vocab_mastery_rate: number;
-  },
+  childProfile?: ChildReadingProfile,
   headers?: Headers,
 ): Promise<{ pages: RewritePage[]; rewrite_notes?: string }> {
   const config = new Config();
