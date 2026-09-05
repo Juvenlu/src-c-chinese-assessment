@@ -10,6 +10,7 @@ import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 import type { Level } from '../types';
 import type { RewritePage } from './types';
 import { getLevelRulesPrompt } from './level-rules';
+import { LEVEL_LANGUAGE_RULES } from './level-rules';
 
 const SYSTEM_PROMPT = `你是一位专业的中文分级阅读改写专家。
 
@@ -35,6 +36,14 @@ Frontier 是希望孩子在阅读中自然学到的新词或新表达。
 - 每个 Frontier 尽量在不同语境中至少出现 2 次
 - 如果某个 Frontier 无法自然进入当前故事，宁可放弃也不要硬加
 - 不要为了 Frontier 改变剧情
+
+【专有名词保护规则】
+以下专有名词必须作为完整词使用，绝对不能拆分、不能截断：
+- 人名：孙悟空、美猴王
+- 地名：花果山、水帘洞
+- 作品名：西游记
+- 宝物/法术：金箍棒、筋斗云、七十二变
+例如：可以写"孙悟空会飞"，但绝对不能写"孙悟会飞"或"悟空会飞"（除非"悟空"本身就是完整称谓）。
 
 【输出格式】
 必须输出严格的 JSON，不要有任何额外文字或 markdown 标记。
@@ -156,6 +165,29 @@ ${frontierText}
 `.trim();
 }
 
+/** 阅读量验证结果 */
+export interface VolumeValidation {
+  target_min: number;
+  target_max: number;
+  actual_count: number;
+  volume_status: 'pass' | 'fail_under_limit' | 'fail_over_limit';
+}
+
+/** 生成改写结果（含验证信息） */
+export interface GenerateResult {
+  pages: RewritePage[];
+  rewrite_notes?: string;
+  volume_validation: VolumeValidation;
+  profile_snapshot?: ChildReadingProfile;
+  generation_mode: 'generic' | 'child_specific';
+}
+
+/** 统计中文汉字数量 */
+function countChinese(text: string): number {
+  const m = text.match(/[\u4e00-\u9fa5]/g);
+  return m ? m.length : 0;
+}
+
 /**
  * 调用 LLM 生成改写版本
  * @param masterPages 原始页面
@@ -163,7 +195,7 @@ ${frontierText}
  * @param frontiers 目标 Frontier 列表
  * @param childProfile 孩子阅读画像（可选，用于 i+1 个性化）
  * @param headers 请求头（用于转发追踪）
- * @returns 改写后的页面列表
+ * @returns 改写后的页面 + 验证信息
  */
 export async function generateRewrite(
   masterPages: { page: number; text: string; image_url?: string }[],
@@ -171,7 +203,7 @@ export async function generateRewrite(
   frontiers: string[],
   childProfile?: ChildReadingProfile,
   headers?: Headers,
-): Promise<{ pages: RewritePage[]; rewrite_notes?: string }> {
+): Promise<GenerateResult> {
   const config = new Config();
 
   const customHeaders = headers
@@ -228,8 +260,26 @@ export async function generateRewrite(
     original_text: masterPages[idx]?.text,
   }));
 
+  // 阅读量确定性验证
+  const rule = LEVEL_LANGUAGE_RULES[level];
+  const totalChars = pages.reduce((s, p) => s + countChinese(p.text), 0);
+  let volume_status: VolumeValidation['volume_status'] = 'pass';
+  if (totalChars < rule.targetReadingMin) volume_status = 'fail_under_limit';
+  else if (totalChars > rule.targetReadingMax) volume_status = 'fail_over_limit';
+
+  const generationMode: 'generic' | 'child_specific' =
+    childProfile?.generation_mode === 'generic' ? 'generic' : 'child_specific';
+
   return {
     pages,
     rewrite_notes: parsed.rewrite_notes,
+    volume_validation: {
+      target_min: rule.targetReadingMin,
+      target_max: rule.targetReadingMax,
+      actual_count: totalChars,
+      volume_status,
+    },
+    profile_snapshot: childProfile,
+    generation_mode: generationMode,
   };
 }

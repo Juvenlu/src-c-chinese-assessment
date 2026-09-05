@@ -1,135 +1,127 @@
-/**
- * Audit Engine 公共入口
- *
- * 主要导出：
- * - runAudit:          执行完整审计
- * - auditRewriteById:  对指定 rewrite_id 执行审计（可选持久化）
- * - saveAuditResult:   将审计结果写入数据库
- */
+// ============================================================
+// SRC Audit Engine V1 - Public API
+// ============================================================
 
 export {
   runAudit,
   pagesFromTexts,
-  AUDIT_ENGINE_VERSION,
-  SRC_CHAR_LIBRARY_VERSION,
-  SRC_VOCAB_LIBRARY_VERSION,
   auditCharacters,
   auditPages,
   buildCandidateUnits,
   longestMatch,
   classifyLevel,
-  countExternalChars,
-  inferAttributes,
   isCJK,
-} from './audit-engine';
+  AUDIT_ENGINE_VERSION,
+  SRC_CHAR_LIBRARY_VERSION,
+  SRC_VOCAB_LIBRARY_VERSION,
+} from "./audit-engine";
+
+export { isProperNameFragment, getLevelData } from "./level-data";
 
 export type {
   AuditInput,
   AuditResult,
-  CharacterAuditResult,
-  LanguageUnitAuditResult,
-  RepetitionAuditResult,
+  AuditSummary,
+  CharacterAudit,
+  LanguageUnitItem,
+  LanguageUnitAudit,
+  RepetitionAudit,
+  PageAuditItem,
   PageAuditResult,
+  FrontierAuditItem,
   FrontierAuditResult,
   ChildAuditResult,
-  AuditSummary,
-  UnitInfo,
+  UnitAttribute,
+  LevelClass,
   TargetLevel,
-  Level,
-  LUAttribute,
-} from './types';
+} from "./types";
 
-import { getRewriteById } from '../rewrite-store';
-import { runAudit, AUDIT_ENGINE_VERSION, SRC_CHAR_LIBRARY_VERSION, SRC_VOCAB_LIBRARY_VERSION } from './audit-engine';
-import type { AuditInput, AuditResult, TargetLevel } from './types';
+import { runAudit } from "./audit-engine";
+import type { AuditResult } from "./types";
+import type { RewritePage } from "../types";
+import { query as pgQuery } from "@/storage/database/pg-client";
 
-import { query } from '../../../storage/database/pg-client';
+// ------------------------------------------------------------
+// Database helpers
+// ------------------------------------------------------------
+
+// ------------------------------------------------------------
+// Audit by rewrite_id
+// ------------------------------------------------------------
 
 /**
- * 对指定 rewrite_id 执行 Audit。
- *
- * 自动从数据库读取 pages_json、target_level、frontier_targets 等。
+ * Load rewrite from database and run audit
  */
 export async function auditRewriteById(
   rewriteId: number,
-  options: {
-    persist?: boolean;
-    knownCharacters?: Set<string>;
-    knownWords?: Set<string>;
-    childId?: string;
-  } = {},
+  options?: {
+    known_characters?: Set<string>;
+    weak_char_signals?: Set<string>;
+    known_vocabulary?: Set<string>;
+    child_id?: string;
+  }
 ): Promise<AuditResult> {
-  const rewrite = await getRewriteById(rewriteId);
-  if (!rewrite) {
-    throw new Error(`Rewrite #${rewriteId} not found`);
+  const result = await pgQuery(
+    `SELECT id, episode_id, target_level, pages_json, frontier_targets, child_id, status
+     FROM book_rewrite_versions WHERE id = $1`,
+    [rewriteId]
+  );
+
+  if (result.length === 0) {
+    throw new Error(`Rewrite ${rewriteId} not found`);
   }
 
-  const pages = rewrite.pages_json;
-  const targetLevel = (rewrite.target_level as TargetLevel) ?? 'SRC300';
-  const frontiers = rewrite.frontier_targets ?? undefined;
+  const row = result[0];
+  const pages = (row.pages_json as RewritePage[]) || [];
+  const frontiers = (row.frontier_targets as string[]) || undefined;
 
-  const input: AuditInput = {
+  const auditResult = runAudit({
     pages,
-    targetLevel,
+    target_level: row.target_level as AuditResult["target_level"],
     frontiers,
-    knownCharacters: options.knownCharacters,
-    knownWords: options.knownWords,
-    childId: options.childId,
-  };
+    known_characters: options?.known_characters,
+    weak_char_signals: options?.weak_char_signals,
+    known_vocabulary: options?.known_vocabulary,
+    child_id: options?.child_id ?? row.child_id ?? undefined,
+    rewrite_id: rewriteId,
+  });
 
-  const result = runAudit(input);
-
-  if (options.persist) {
-    await saveAuditResult(rewriteId, result);
-  }
-
-  return result;
+  return auditResult;
 }
 
 /**
- * 将审计结果保存到 book_rewrite_audits 表。
+ * Save audit result to book_rewrite_audits table
  */
-export async function saveAuditResult(
-  rewriteId: number,
-  result: AuditResult,
-): Promise<number> {
-  const rows = await query(
-    `
-    INSERT INTO book_rewrite_audits
-      (rewrite_id, child_id, target_level, audit_engine_version,
-       src_char_library_version, src_vocab_library_version, audit_result)
-    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
-    RETURNING id
-    `,
+export async function saveAuditResult(result: AuditResult): Promise<number> {
+  const res = await pgQuery(
+    `INSERT INTO book_rewrite_audits
+     (rewrite_id, child_id, target_level, audit_engine_version,
+      src_char_library_version, src_vocab_library_version, audit_result)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id`,
     [
-      rewriteId,
-      result.child_id,
+      result.rewrite_id ?? null,
+      result.child_id ?? null,
       result.target_level,
       result.engine_version,
       result.src_char_library_version,
       result.src_vocab_library_version,
       JSON.stringify(result),
-    ],
+    ]
   );
-  return (rows as any)[0].id;
+  return (res as any).rows[0].id;
 }
 
 /**
- * 查询某个 rewrite 的所有审计记录。
+ * List all audit records for a rewrite
  */
-export async function listAuditsByRewriteId(rewriteId: number) {
-  const rows = await query(
-    `
-    SELECT id, rewrite_id, child_id, target_level,
-           audit_engine_version, src_char_library_version,
-           src_vocab_library_version, audit_result, created_at
-    FROM book_rewrite_audits
-    WHERE rewrite_id = $1
-    ORDER BY created_at DESC
-    `,
-    [rewriteId],
+export async function listAuditsByRewriteId(
+  rewriteId: number
+): Promise<AuditResult[]> {
+  const res = await pgQuery(
+    `SELECT audit_result FROM book_rewrite_audits
+     WHERE rewrite_id = $1 ORDER BY created_at DESC`,
+    [rewriteId]
   );
-  return rows;
+  return (res as any).rows.map((r: { audit_result: unknown }) => r.audit_result as AuditResult);
 }
-
-

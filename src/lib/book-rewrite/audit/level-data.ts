@@ -43,6 +43,48 @@ export const SRC_WORDS_BY_LEVEL: Record<TargetLevel, Set<string>> = {
 };
 
 /**
+ * 故事核心专有名词集（Proper Names）。
+ *
+ * 这些是绝对不能拆分的专有名词：
+ * - 人名（孙悟空、美猴王）
+ * - 地名（花果山、水帘洞）
+ * - 作品名（西游记）
+ * - 核心宝物名（金箍棒、筋斗云）
+ *
+ * 用途：
+ * 1. Generator Prompt 中告诉 LLM 不要拆分这些词
+ * 2. Audit Engine 中检测专名碎片（如"孙悟"）并标记为 invalid
+ * 3. Frontier 验证中排除专名碎片
+ */
+export const STORY_CORE_PROPER_NAMES: Set<string> = new Set([
+  '孙悟空',
+  '美猴王',
+  '花果山',
+  '水帘洞',
+  '西游记',
+  '金箍棒',
+  '筋斗云',
+  '七十二变',
+]);
+
+/**
+ * 检测一个词是否是任意专名的前缀碎片（如"孙悟"是"孙悟空"的碎片）。
+ * 用于 Audit Engine 过滤非法 LU 和无效 Frontier。
+ *
+ * 规则：长度≥2，且是某个更长专名的前缀，但本身不是完整专名。
+ */
+export function isProperNameFragment(word: string, properNames: Set<string> = STORY_CORE_PROPER_NAMES): boolean {
+  if (word.length < 2) return false;
+  if (properNames.has(word)) return false; // 完整专名不算碎片
+  for (const name of properNames) {
+    if (name.length > word.length && name.startsWith(word)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * 通用 Language Unit 白名单。
  *
  * 这些是不在 SRC 词库中、但符合 Language Unit v0.1-final 定义的常见自然词/固定表达。
@@ -82,3 +124,24 @@ export const COMMON_LANGUAGE_UNITS: Set<string> = new Set([
   '什么', '兵器库', '眼睛亮了', '听说', '传来', '适合', '找到', '坐下',
   '冷冷', '悄悄',
 ]);
+
+export interface LevelData {
+  srcChars: Set<string>;
+  srcWords: Set<string>;
+  commonUnits: Set<string>;
+  properNames: Set<string>;
+}
+
+const levelDataCache: Partial<Record<TargetLevel, LevelData>> = {};
+
+export function getLevelData(level: TargetLevel): LevelData {
+  if (levelDataCache[level]) return levelDataCache[level]!;
+  const data: LevelData = {
+    srcChars: SRC_CHARS_BY_LEVEL[level],
+    srcWords: SRC_WORDS_BY_LEVEL[level],
+    commonUnits: COMMON_LANGUAGE_UNITS,
+    properNames: STORY_CORE_PROPER_NAMES,
+  };
+  levelDataCache[level] = data;
+  return data;
+}

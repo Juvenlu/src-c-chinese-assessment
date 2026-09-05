@@ -1,0 +1,1169 @@
+# Phase 5B.1 — Personalization Causality Validation
+
+## 一、任务目标
+
+在现有 Phase 5B 基础上，验证：
+
+> **同一 Master Story + 同一 SRC Level + 不同孩子 → 是否产生真正由 Child Reading Profile 驱动的、有教育意义的个性化语言差异。**
+
+本阶段重点不是追求“文本不同”，而是验证：
+
+**Child Data → Child Reading Profile → Prompt → Generation → Audit**
+
+这条链路是否真正产生可解释、可重复、可审计的个性化结果。
+
+---
+
+# 二、严格限制
+
+本阶段：
+
+1. 不修改 Master Story。
+2. 不修改 Master Image。
+3. 不修改 Emma 已冻结的 Golden Sample：
+
+   * rewrite_id = 9
+4. 不修改 Audit Engine V1 核心判定规则，只允许修复明确的 bug。
+5. 不重新设计 i+1 四级体系。
+6. 不制定新的正式 High-load / I+1A / repetition 阈值。
+7. 不引入 Multi-Agent。
+8. 不引入复杂 Adaptive Algorithm。
+9. 不引入 AI 自动 Finalization。
+10. 不改变 `confirmed_level` / `estimated_level` 的语义。
+11. 不把 `stable_char_count` 当作孩子实际认识的全部汉字。
+12. 不因为测试失败而人为修改数据，使结果“通过”。
+13. 所有实验必须保留原始生成文本和 Audit 结果。
+14. 本阶段输出是“验证报告”，不是重新定义产品标准。
+
+---
+
+# 三、Phase 5B.1 必须完成的四项实验
+
+## Experiment 0 — Hellenna 数据完整性确认
+
+在进行任何正式比较之前，首先从数据库读取 Hellenna 的真实数据。
+
+必须确认：
+
+* child_id
+* 当前正式测试记录
+* `confirmed_level`
+* `estimated_level`
+* test session
+* target level
+* stable_char_count
+* stable_vocab_count
+* known_characters
+* known_vocabulary
+
+特别检查此前出现的冲突：
+
+> Agent 执行日志曾显示 Hellenna 是 SRC800 participant，但最终 Phase 5B 报告又将 Hellenna 作为 SRC300 participant。
+
+必须找到数据库中的真实来源，并明确：
+
+```text
+Hellenna confirmed_level = ?
+Hellenna estimated_level = ?
+Hellenna target_level = ?
+```
+
+### 判定规则
+
+只有当 Hellenna 的正式：
+
+```text
+confirmed_level = SRC300
+```
+
+得到数据库明确支持时，Hellenna 才可以进入：
+
+> “Same Level × Different Children”
+
+实验。
+
+如果 Hellenna 实际不是 SRC300：
+
+* 不得继续把她作为 SRC300 对照儿童；
+* 不得修改数据库记录来适配实验；
+* 必须在最终报告中明确说明；
+* 如果数据库中存在多个正式结果，必须说明当前系统选择哪一条作为 source of truth，以及原因。
+
+---
+
+# 四、Experiment 1 — Same Child Repeated Generation
+
+## 目的
+
+验证：
+
+> 同一个孩子、同一个故事、同一个 SRC Level、完全相同 Child Reading Profile，在没有改变输入数据的情况下，LLM 自身随机性会造成多大文本差异。
+
+这是后续判断“不同孩子之间的差异是否真正来自 Child Profile”的基准。
+
+---
+
+## 测试对象
+
+优先使用 Emma：
+
+```text
+child_id = 93bf1578-7751-4234-83c3-e70932c6dd21
+confirmed_level = SRC300
+```
+
+故事：
+
+```text
+西游记 第1集
+```
+
+使用同一个 Master Story。
+
+不要使用 Emma 的 frozen rewrite_id=9 作为新的生成版本。
+
+---
+
+## 生成
+
+使用完全相同的：
+
+* Master Story
+* target_level = SRC300
+* Child Reading Profile
+* known_characters
+* known_vocabulary
+* weak_char_signals
+* weak_word_signals
+* generation_mode
+* generation parameters
+
+生成：
+
+```text
+Emma-A1
+Emma-A2
+```
+
+两次生成必须独立产生 rewrite record。
+
+---
+
+## 必须记录
+
+分别运行 Audit Engine。
+
+比较：
+
+### Character Layer
+
+* Chinese character count
+* external character count
+* external character rate
+* unique external characters
+
+### Language Unit Layer
+
+* I occurrence rate
+* I+1A occurrence rate
+* I+1B occurrence rate
+* High-load occurrence rate
+* LU count
+
+### Repetition
+
+* +1 unique
+* +1 occurrences
+* one-time
+* 2-time
+* 3-time
+* 4+
+
+### Page Layer
+
+* 每页 character count
+* 每页 external rate
+* 每页 language-unit distribution
+* page peak load
+
+### Text Layer
+
+逐页比较：
+
+```text
+A1 vs A2
+```
+
+并区分：
+
+1. 纯语言随机变化
+2. 有教育意义的变化
+3. Child Profile 不可能解释的变化
+
+---
+
+## Experiment 1 判定
+
+本实验不要求 A1/A2 相同。
+
+目的只是建立：
+
+> **Same Child Random Variation Baseline**
+
+最终报告必须回答：
+
+```text
+同一个孩子，在完全相同输入下，
+LLM 自然会产生多大程度的语言差异？
+```
+
+不要自行制定“超过 X% 就失败”的正式阈值。
+
+---
+
+# 五、Experiment 2 — Generic Ablation
+
+## 目的
+
+验证：
+
+> Child Reading Profile 是否真的影响生成结果。
+
+这是本阶段最重要的因果验证之一。
+
+---
+
+## 同一孩子
+
+仍然使用 Emma。
+
+保持：
+
+```text
+confirmed_level = SRC300
+Master Story = 相同
+```
+
+---
+
+## Version A — Generic
+
+生成：
+
+```text
+Emma-Generic
+```
+
+Prompt 中：
+
+* 可以使用 Master Story
+* 可以使用 SRC300 level rules
+* 可以使用 i+1 rules
+* 可以使用 Audit constraints
+
+但是：
+
+> **不得提供 Emma 的 Child Reading Profile。**
+
+不得提供：
+
+* known_characters
+* known_vocabulary
+* weak_char_signals
+* weak_word_signals
+* child-specific learning history
+
+也就是说：
+
+```text
+Generic SRC300
+```
+
+---
+
+## Version B — Personalized
+
+生成：
+
+```text
+Emma-Personalized
+```
+
+使用当前真实 Emma Child Reading Profile。
+
+---
+
+## 严格保持一致
+
+Generic 与 Personalized 必须保持：
+
+* Master Story
+* Master Image
+* target_level
+* page_count
+* volume target
+* i+1 framework
+* language-unit rules
+* generation mode
+* generation model/settings
+
+尽可能完全一致。
+
+唯一核心变量：
+
+```text
+Child Reading Profile
+```
+
+---
+
+## 必须比较
+
+### 1. Audit 差异
+
+比较：
+
+* external character rate
+* I rate
+* I+1A rate
+* I+1B rate
+* High-load rate
+* repetition
+* page peak
+* language-unit distribution
+
+### 2. 文本差异
+
+逐页比较：
+
+```text
+Generic
+vs
+Personalized
+```
+
+必须判断每个主要差异属于：
+
+* random wording variation
+* meaningful personalization
+* unnecessary variation
+
+---
+
+## 重点检查
+
+例如：
+
+如果：
+
+```text
+Generic：
+猴子们一起看。
+
+Personalized：
+猴子们一起看看。
+```
+
+并且 `看看` 是针对孩子已掌握字符形成的 I+1A，
+
+则属于：
+
+> meaningful personalization
+
+而如果：
+
+```text
+Generic：
+我们现在开始。
+
+Personalized：
+我们这就开始。
+```
+
+没有明显 Child Profile 依据，则属于：
+
+> wording randomness
+
+---
+
+## Experiment 2 判定
+
+必须回答：
+
+> Child Profile 是否对最终文本产生了可观察、可解释的影响？
+
+如果 Generic 与 Personalized 几乎完全一样：
+
+不要强行宣称“个性化成功”。
+
+必须如实报告：
+
+> 当前 Child Profile 虽然已经进入生成链路，但尚未证明其对语言选择具有稳定的因果影响。
+
+---
+
+# 六、Experiment 3 — Same Level × Different Children
+
+只有在 Experiment 0 确认 Hellenna：
+
+```text
+confirmed_level = SRC300
+```
+
+之后才能执行。
+
+---
+
+## 对象
+
+至少：
+
+```text
+Emma
+Hellenna
+```
+
+条件：
+
+```text
+同一 Master Story
+同一 target_level = SRC300
+不同 Child Profile
+```
+
+---
+
+## 生成
+
+分别生成：
+
+```text
+Emma-Personalized
+Hellenna-Personalized
+```
+
+不要使用此前有问题的 rewrite_id 10 / 13 作为最终实验版本。
+
+可以重新生成新的 experiment rewrite records。
+
+---
+
+## 必须比较
+
+### Character Layer
+
+* Chinese character count
+* external character count
+* external rate
+* unique external characters
+
+### Language Unit
+
+* I
+* I+1A
+* I+1B
+* High-load
+
+同时比较：
+
+* unique
+* occurrence
+
+### Repetition
+
+比较：
+
+* +1 unique
+* +1 occurrences
+* one-time
+* repeated
+* 2+
+* 3+
+* 4+
+
+### Page
+
+比较：
+
+* page character count
+* page external rate
+* page load
+* page peak
+
+### Text
+
+逐页比较：
+
+```text
+Emma
+vs
+Hellenna
+```
+
+---
+
+# 七、最重要的因果判断
+
+Experiment 3 不能简单使用：
+
+> “10页全部不同”
+
+作为成功标准。
+
+必须判断：
+
+### A. Difference
+
+文本是否不同。
+
+### B. Meaningful Difference
+
+不同是否具有教育意义。
+
+### C. Child-Causal Difference
+
+差异是否可以由两个孩子真实的 Child Reading Profile 解释。
+
+最终重点不是：
+
+```text
+Difference = TRUE
+```
+
+而是：
+
+```text
+Difference
++
+Meaningful
++
+Child-Causal
+```
+
+---
+
+# 八、必须修复的问题 1：567 字超限
+
+此前 Hellenna 版本：
+
+```text
+567 Chinese characters
+```
+
+而当前 SRC300 设计参考范围：
+
+```text
+300–380
+```
+
+同时此前实际 POC 曾出现：
+
+```text
+约300–560
+```
+
+因此目前首先不要自行改变正式标准。
+
+但是必须修复：
+
+> **生成器允许明显超过当前目标上限后仍然进入 final/review。**
+
+---
+
+## 要求
+
+检查当前 generator 是否：
+
+1. 明确接收 volume target；
+2. Prompt 是否明确要求控制总字数；
+3. 生成后是否进行 deterministic character-count validation；
+4. 超限后是否被标记为 validation failure；
+5. Audit 是否能够明确显示 volume failure。
+
+---
+
+## 本阶段最低要求
+
+如果目标范围为：
+
+```text
+300–380
+```
+
+则实验生成必须明确记录：
+
+```text
+target_min
+target_max
+actual_count
+volume_status
+```
+
+例如：
+
+```json
+{
+  "target_min": 300,
+  "target_max": 380,
+  "actual_count": 367,
+  "volume_status": "pass"
+}
+```
+
+或：
+
+```json
+{
+  "target_min": 300,
+  "target_max": 380,
+  "actual_count": 392,
+  "volume_status": "fail_over_limit"
+}
+```
+
+---
+
+## 注意
+
+不要为了让文本进入范围：
+
+* 删除 Master Story 核心事件
+* 删除必要信息
+* 强行压缩成不自然中文
+* 修改故事因果关系
+
+Volume control 必须服从：
+
+```text
+Story Integrity
+>
+Natural Chinese
+>
+i+1 quality
+>
+Volume target
+```
+
+如果无法同时满足：
+
+必须报告失败原因。
+
+---
+
+# 九、必须修复的问题 2：孙悟空专名保护
+
+此前出现：
+
+```text
+孙悟会飞
+```
+
+原因：
+
+```text
+孙悟空
+```
+
+被错误拆分成：
+
+```text
+孙悟 + 空
+```
+
+这是严重的 Language Unit / Proper Name 问题。
+
+---
+
+## 必须增加专名保护
+
+至少保护：
+
+```text
+孙悟空
+花果山
+西游记
+美猴王
+```
+
+以及当前 Master Story 中已经明确存在的：
+
+* 人名
+* 地名
+* 作品名
+* 核心角色名
+* 核心专有名词
+
+---
+
+## 规则
+
+如果一个 Proper Name 被识别为完整合法词汇：
+
+> 不得拆分。
+
+例如：
+
+```text
+孙悟空
+```
+
+必须作为：
+
+```text
+孙悟空
+```
+
+而不能生成：
+
+```text
+孙悟
+孙悟 空
+孙悟会
+```
+
+---
+
+## Audit Engine 要求
+
+检查：
+
+* proper-name candidate
+* longest match
+* no partial proper-name fragmentation
+
+如果：
+
+```text
+孙悟空
+```
+
+是 SRC vocabulary / story-core proper name，
+
+必须完整处理。
+
+---
+
+# 十、必须修复的问题 3：Frontier 不得出现非法专名碎片
+
+此前出现：
+
+```text
+孙悟
+```
+
+被错误记录为 Frontier。
+
+这是无效 Frontier。
+
+---
+
+## Frontier validation
+
+Frontier 必须满足：
+
+1. 是完整合法 Language Unit；
+2. 不是 pseudo-word；
+3. 不是临时自由短语；
+4. 不是完整句子；
+5. 不是专名碎片；
+6. 不得破坏 Proper Name；
+7. 必须可以由 Audit Engine 独立识别。
+
+因此：
+
+```text
+孙悟
+```
+
+必须：
+
+```text
+invalid
+```
+
+并且不能作为有效学习 Frontier。
+
+---
+
+# 十一、必须修复的问题 4：Child Profile 因果链可追踪
+
+当前问题：
+
+> Child Profile 虽然已经进入单次 LLM Prompt，但无法证明具体语言选择是由 Child Profile 导致的。
+
+本阶段不要设计复杂 Adaptive Algorithm。
+
+只增加最小可审计信息。
+
+---
+
+## 每次生成必须保存
+
+```text
+generation_mode
+target_level
+child_id
+profile_snapshot
+profile_version
+```
+
+其中：
+
+### Generic
+
+```text
+generation_mode = generic
+child_id = null
+profile_snapshot = null
+```
+
+### Personalized
+
+```text
+generation_mode = personalized
+child_id = actual child id
+profile_snapshot = actual profile used
+```
+
+---
+
+## 建议 profile snapshot 至少记录
+
+```json
+{
+  "confirmed_level": "SRC300",
+  "known_characters_count": 94,
+  "known_vocabulary_count": 40,
+  "weak_char_signals_count": 0,
+  "weak_word_signals_count": 0
+}
+```
+
+如存在具体列表，则保存用于生成的实际 snapshot。
+
+目的：
+
+> 后续可以回答“这次生成到底使用了什么 Child Profile”。
+
+---
+
+# 十二、必须修复的问题 5：生成结果不得自动 Final
+
+本阶段所有新实验生成版本：
+
+```text
+status = ai_draft
+```
+
+或者：
+
+```text
+status = review
+```
+
+不得自动：
+
+```text
+final
+```
+
+因为本阶段是实验验证。
+
+---
+
+# 十三、实验数据命名
+
+建议：
+
+```text
+Phase5B1_Emma_A1
+Phase5B1_Emma_A2
+
+Phase5B1_Emma_Generic
+Phase5B1_Emma_Personalized
+
+Phase5B1_Hellenna_Personalized
+```
+
+不要覆盖已有：
+
+```text
+rewrite_id=9
+```
+
+以及此前已经生成的实验记录。
+
+---
+
+# 十四、最终必须运行 Audit Engine
+
+每一个实验版本都必须执行：
+
+```text
+Audit Engine V1
+```
+
+并保存：
+
+```text
+book_rewrite_audits
+```
+
+必须记录：
+
+```text
+audit_engine_version
+src_char_library_version
+src_vocab_library_version
+rewrite_id
+child_id
+target_level
+generation_mode
+```
+
+---
+
+# 十五、最终报告结构
+
+执行完成后，只输出以下结构。
+
+# Phase 5B.1 Validation Report
+
+## 1. Data Integrity
+
+### Emma
+
+```text
+confirmed_level:
+estimated_level:
+target_level:
+profile:
+```
+
+### Hellenna
+
+```text
+confirmed_level:
+estimated_level:
+target_level:
+profile:
+```
+
+明确说明：
+
+```text
+Hellenna 是否真正符合 SRC300 同等级实验条件
+```
+
+---
+
+## 2. Experiment 1 — Same Child Repeat
+
+| Metric         | Emma A1 | Emma A2 | Difference |
+| -------------- | ------: | ------: | ---------: |
+| Chinese chars  |         |         |            |
+| External rate  |         |         |            |
+| I              |         |         |            |
+| I+1A           |         |         |            |
+| I+1B           |         |         |            |
+| High-load      |         |         |            |
+| +1 occurrences |         |         |            |
+
+然后给出：
+
+```text
+Random Variation Finding:
+```
+
+---
+
+## 3. Experiment 2 — Generic Ablation
+
+| Metric        | Generic | Personalized | Difference |
+| ------------- | ------: | -----------: | ---------: |
+| Chinese chars |         |              |            |
+| External rate |         |              |            |
+| I             |         |              |            |
+| I+1A          |         |              |            |
+| I+1B          |         |              |            |
+| High-load     |         |              |            |
+| +1 repetition |         |              |            |
+
+然后列出：
+
+```text
+Meaningful Personalization Examples:
+```
+
+最多列 5 个最有代表性的案例。
+
+每个案例说明：
+
+```text
+Generic:
+Personalized:
+Child Profile reason:
+Educational meaning:
+```
+
+---
+
+## 4. Experiment 3 — Same Level × Different Children
+
+如果 Hellenna 符合 SRC300：
+
+| Metric        | Emma | Hellenna | Difference |
+| ------------- | ---: | -------: | ---------: |
+| Chinese chars |      |          |            |
+| External rate |      |          |            |
+| I             |      |          |            |
+| I+1A          |      |          |            |
+| I+1B          |      |          |            |
+| High-load     |      |          |            |
+| +1 repetition |      |          |            |
+
+然后列出：
+
+```text
+Meaningful Child-Specific Differences:
+```
+
+---
+
+# 十六、最终必须回答的 6 个问题
+
+### Q1
+
+Hellenna 的 `confirmed_level` 到底是什么？
+
+### Q2
+
+同一个孩子重复生成，两次文本差异有多大？
+
+### Q3
+
+Generic 与 Personalized 是否产生了真实的 Child Profile-driven difference？
+
+### Q4
+
+Emma 与 Hellenna 的差异是否超过单纯 LLM 随机变化可以解释的范围？
+
+注意：
+
+不要自行建立统计显著性阈值。
+
+只做定性 + 当前 Audit 指标比较。
+
+### Q5
+
+567 字超限问题是否已经被检测并阻止？
+
+### Q6
+
+`孙悟空` 是否已经得到完整 Proper Name Protection？
+
+---
+
+# 十七、最终结论只能使用以下三种之一
+
+## PASS
+
+只有在：
+
+* 数据完整；
+* Hellenna 等级无歧义；
+* Generic Ablation 显示 Child Profile 确实产生有意义影响；
+* 同孩子随机生成差异与跨孩子差异可以清楚区分；
+* Volume validation 正常；
+* Proper Name Protection 正常；
+* Frontier validation 正常；
+
+才可以：
+
+```text
+Phase 5B.1 = PASS
+```
+
+并建议进入 Phase 5C。
+
+---
+
+## CONDITIONAL PASS
+
+如果：
+
+* 技术链路正常；
+* 已经存在一定 Child Profile 影响；
+* 但因样本少、Weakness Signal 太弱、随机性较大等原因，还不能证明稳定因果关系；
+
+则：
+
+```text
+Phase 5B.1 = CONDITIONAL PASS
+```
+
+不得进入复杂个性化算法开发。
+
+应继续增加真实样本。
+
+---
+
+## FAIL
+
+如果：
+
+* Child Profile 实际没有进入生成；
+* Generic 与 Personalized 无法区分；
+* Hellenna 数据仍存在等级冲突；
+* Proper Name 仍会被拆分；
+* 超限文本仍可直接进入 final；
+* Frontier 仍出现非法词；
+* 或 Master Story 被生成器修改；
+
+则：
+
+```text
+Phase 5B.1 = FAIL
+```
+
+必须先修复。
+
+---
+
+# 十八、最终原则
+
+本阶段最重要的不是：
+
+> “两个孩子生成出来的书必须不同。”
+
+而是：
+
+> **只有当孩子的数据不同，并且这种数据差异能够合理解释语言选择差异时，才算真正的个性化。**
+
+因此最终验证逻辑：
+
+```text
+Same Child
+   ↓
+Random Variation Baseline
+   ↓
+Generic vs Personalized
+   ↓
+证明 Child Profile 是否产生影响
+   ↓
+Different Children Same Level
+   ↓
+验证 Child-specific Difference
+```
+
+最终目标：
+
+```text
+不是“AI会改写”
+而是
+“AI会根据孩子的数据进行可解释的语言适配”
+```
+
+完成后不要自行进入 Phase 5C。
+
+先提交完整 Phase 5B.1 Validation Report。

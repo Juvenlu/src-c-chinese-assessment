@@ -10,7 +10,13 @@ import type { Level } from '@/lib/types'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { episode_id, target_level, child_id, custom_frontiers } = body
+    const {
+      episode_id,
+      target_level,
+      child_id,
+      custom_frontiers,
+      generation_mode, // 'child_specific' | 'generic' — 可选，默认 child_specific（有 child_id 时）
+    } = body
 
     // 简易鉴权（与 admin API 保持一致）
     const ADMIN_PASSWORD = 'srcc2026'
@@ -184,6 +190,23 @@ export async function POST(request: Request) {
       ? custom_frontiers
       : selectFrontiers(masterText, knownCharsArr, 5)
 
+    // 决定 generation_mode
+    const mode: 'generic' | 'child_specific' =
+      generation_mode === 'generic' ? 'generic' : child_id ? 'child_specific' : 'generic'
+
+    // 如果是 generic 模式，清除 childProfile
+    if (mode === 'generic' && childProfile) {
+      childProfile = {
+        ...childProfile,
+        generation_mode: 'generic',
+        known_characters: [],
+        known_vocabulary: [],
+        weak_char_signals: [],
+        weak_word_signals: [],
+        child_nickname: undefined,
+      }
+    }
+
     // 生成改写
     const result = await generateRewrite(masterPages, targetLevel, frontiers, childProfile)
 
@@ -196,9 +219,25 @@ export async function POST(request: Request) {
       frontiers,
     )
 
-    const success = validation.overall_pass
-
     // 保存到数据库
+    // 阅读量超限也标记为失败
+    const volumePass = result.volume_validation.volume_status === 'pass'
+    const success = validation.overall_pass && volumePass
+
+    // 构造 profile snapshot（只存元数据摘要，保护隐私）
+    const profileSnapshot = childProfile
+      ? {
+          confirmed_level: targetLevel,
+          known_characters_count: childProfile.known_characters?.length || 0,
+          known_vocabulary_count: childProfile.known_vocabulary?.length || 0,
+          weak_char_signals_count: childProfile.weak_char_signals?.length || 0,
+          weak_word_signals_count: childProfile.weak_word_signals?.length || 0,
+          stable_char_count: childProfile.stable_char_count || 0,
+          character_mastery_rate: childProfile.character_mastery_rate || 0,
+          profile_version: 'v1.0',
+        }
+      : null
+
     const record = await insertRewrite({
       episodeId: episode_id,
       targetLevel,
@@ -206,16 +245,22 @@ export async function POST(request: Request) {
       frontierTargets: frontiers,
       generationParams: {
         model: 'doubao-seed-2-0-pro-260215',
-        prompt_version: 'v1.1',
+        prompt_version: 'v1.2',
+        generation_mode: mode,
         child_id: child_id || null,
-        child_profile: childProfile || null,
+        profile_snapshot: profileSnapshot,
         custom_frontiers: custom_frontiers || null,
         rewrite_notes: result.rewrite_notes || null,
+        volume_validation: result.volume_validation,
       } as any,
       validationResult: validation,
       status: success ? 'ai_draft' : 'failed',
       childId: child_id,
-      failureReason: success ? undefined : validation.summary,
+      failureReason: success
+        ? undefined
+        : !volumePass
+          ? `volume_${result.volume_validation.volume_status}: ${result.volume_validation.actual_count}/${result.volume_validation.target_min}-${result.volume_validation.target_max}`
+          : validation.summary,
     })
 
     return NextResponse.json({

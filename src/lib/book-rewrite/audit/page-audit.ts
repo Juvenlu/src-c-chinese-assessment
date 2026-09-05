@@ -1,128 +1,83 @@
-/**
- * Page-level 审计
- *
- * 对每一页分别计算：
- * - 字符统计（中文字数、外字出现次数、外字率）
- * - Language Unit 统计（总数 + 四级分布）
- * - 峰值统计（最高外字率页、最高 High-load 页等）
- */
-
-import type {
-  PageAudit,
-  PageAuditResult,
-  TargetLevel,
-} from './types';
-import { auditCharacters } from './character-audit';
-import { buildCandidateUnits, longestMatch, inferAttributes } from './language-unit';
-import { classifyLevel } from './level-classification';
-import type { RewritePage } from '../types';
+import { PageAuditItem, PageAuditResult, TargetLevel } from "./types";
+import { getLevelData } from "./level-data";
+import { auditCharacters } from "./character-audit";
+import { longestMatch } from "./language-unit";
+import { classifyLevel } from "./level-classification";
+import type { RewritePage } from "../types";
 
 /**
- * 对单页文本进行审计。
+ * 单页审计
  */
-function auditSinglePage(
-  pageNumber: number,
-  text: string,
-  targetLevel: TargetLevel,
-  candidates: Set<string>,
-  customKnownChars?: Set<string>,
-  customKnownWords?: Set<string>,
-): PageAudit {
-  const charAudit = auditCharacters(text, targetLevel);
-  const matches = longestMatch(text, candidates);
+export function auditSinglePage(
+  page: RewritePage,
+  targetLevel: TargetLevel
+): PageAuditItem {
+  const levelData = getLevelData(targetLevel);
+  const charAudit = auditCharacters(page.text, levelData.srcChars);
+  const matches = longestMatch(page.text, levelData.commonUnits);
 
-  const levelCounts: Record<string, number> = {
-    I: 0,
-    'I+1A': 0,
-    'I+1B': 0,
-    'High-load': 0,
-  };
+  let iLu = 0,
+    i1aLu = 0,
+    i1bLu = 0,
+    hlLu = 0;
 
   for (const m of matches) {
-    const level = classifyLevel(m.unit, targetLevel, customKnownChars, customKnownWords);
-    levelCounts[level]++;
+    const level = classifyLevel(m.unit, levelData.srcChars, levelData.srcWords, []);
+    if (level === "I") iLu++;
+    else if (level === "I+1A") i1aLu++;
+    else if (level === "I+1B") i1bLu++;
+    else if (level === "High-load") hlLu++;
   }
 
-  const total = matches.length;
-
   return {
-    page_number: pageNumber,
-    chinese_chars: charAudit.total_characters,
-    src_out_occurrences: charAudit.src_out_occurrences,
-    external_char_rate: charAudit.external_char_rate,
-    language_unit_occurrences: total,
-    I: levelCounts.I,
-    'I+1A': levelCounts['I+1A'],
-    'I+1B': levelCounts['I+1B'],
-    'High-load': levelCounts['High-load'],
+    page_number: page.page,
+    chinese_chars: charAudit.total_chinese_chars,
+    src_in_chars: charAudit.src_in_occurrences,
+    src_out_chars: charAudit.src_out_occurrences,
+    external_char_rate: charAudit.external_char_occurrence_rate,
+    lu_total: matches.length,
+    i_lu: iLu,
+    i_plus_1a_lu: i1aLu,
+    i_plus_1b_lu: i1bLu,
+    high_load_lu: hlLu,
   };
 }
 
 /**
- * 对多页文本执行 page-level 审计。
+ * 多页审计 + 峰值/波动计算
  */
 export function auditPages(
   pages: RewritePage[],
-  targetLevel: TargetLevel,
-  customKnownChars?: Set<string>,
-  customKnownWords?: Set<string>,
+  targetLevel: TargetLevel
 ): PageAuditResult {
-  const candidates = buildCandidateUnits(targetLevel);
+  const pageItems: PageAuditItem[] = [];
+  let totalChars = 0;
+  let maxExtRate = -1;
+  let peakPage = 0;
+  let maxHlPerPage = -1;
+  let hlPeakPage = 0;
 
-  const pageAudits: PageAudit[] = pages.map((p, idx) =>
-    auditSinglePage(idx + 1, p.text ?? '', targetLevel, candidates, customKnownChars, customKnownWords),
-  );
-
-  // 全局汇总（通过各页相加得到，确保与全局审计一致）
-  let sumChars = 0;
-  let sumOutOcc = 0;
-  let sumLU = 0;
-  let sumI = 0, sumI1A = 0, sumI1B = 0, sumHL = 0;
-
-  let maxExtRatePage = 0;
-  let maxExtRate = 0;
-  let maxHLPage = 0;
-  let maxHL = 0;
-
-  pageAudits.forEach((p) => {
-    sumChars += p.chinese_chars;
-    sumOutOcc += p.src_out_occurrences;
-    sumLU += p.language_unit_occurrences;
-    sumI += p.I;
-    sumI1A += p['I+1A'];
-    sumI1B += p['I+1B'];
-    sumHL += p['High-load'];
-
-    if (p.external_char_rate > maxExtRate) {
-      maxExtRate = p.external_char_rate;
-      maxExtRatePage = p.page_number;
+  for (const page of pages) {
+    const item = auditSinglePage(page, targetLevel);
+    pageItems.push(item);
+    totalChars += item.chinese_chars;
+    if (item.external_char_rate > maxExtRate) {
+      maxExtRate = item.external_char_rate;
+      peakPage = item.page_number;
     }
-    if (p['High-load'] > maxHL) {
-      maxHL = p['High-load'];
-      maxHLPage = p.page_number;
+    if (item.high_load_lu > maxHlPerPage) {
+      maxHlPerPage = item.high_load_lu;
+      hlPeakPage = item.page_number;
     }
-  });
+  }
 
   return {
-    pages: pageAudits,
-    total: {
-      chinese_chars: sumChars,
-      src_out_occurrences: sumOutOcc,
-      external_char_rate: sumChars > 0 ? sumOutOcc / sumChars : 0,
-      language_unit_occurrences: sumLU,
-      I: sumI,
-      'I+1A': sumI1A,
-      'I+1B': sumI1B,
-      'High-load': sumHL,
-    },
-    peak: {
-      max_external_rate_page: maxExtRatePage,
-      max_external_rate: maxExtRate,
-      max_high_load_page: maxHLPage,
-      max_high_load_count: maxHL,
-    },
+    pages: pageItems,
+    total_pages: pages.length,
+    avg_chars_per_page: pages.length > 0 ? totalChars / pages.length : 0,
+    max_external_char_rate: maxExtRate > 0 ? maxExtRate : 0,
+    peak_page_number: peakPage,
+    max_high_load_per_page: maxHlPerPage > 0 ? maxHlPerPage : 0,
+    high_load_peak_page: hlPeakPage,
   };
 }
-
-// 导出，便于主模块中使用
-export { inferAttributes };
