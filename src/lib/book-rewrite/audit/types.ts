@@ -20,6 +20,23 @@ export type UnitAttribute =
   | "src_vocabulary"       // SRC 词库收录
   | "story_core";          // 故事核心词
 
+import type { RewritePage } from "../types";
+import type { AuditStatus } from "../standard-v1";
+
+// ------------------------------------------------------------
+// Length Audit (V1.0 标准)
+// ------------------------------------------------------------
+
+export interface LengthAudit {
+  actual: number;              // 实际汉字数（不含标点）
+  target_min: number;          // 目标下限
+  target_max: number;          // 目标上限
+  allowed_max: number;         // 允许上限
+  status: AuditStatus;         // PASS / WARNING / STRONG_WARNING
+  in_target_range: boolean;    // 是否在目标区间
+  in_allowed_range: boolean;   // 是否在允许范围内
+}
+
 // ------------------------------------------------------------
 // Character Audit
 // ------------------------------------------------------------
@@ -84,12 +101,14 @@ export interface PageAuditItem {
   chinese_chars: number;          // 中文字符数
   src_in_chars: number;           // SRC内字
   src_out_chars: number;          // SRC外字
-  external_char_rate: number;     // 外字率
+  external_char_rate: number;     // 外字率（即 page load）
   lu_total: number;               // LU 总个数
   i_lu: number;                   // I 级 LU 数
   i_plus_1a_lu: number;           // I+1A LU 数
   i_plus_1b_lu: number;           // I+1B LU 数
   high_load_lu: number;           // High-load LU 数
+  page_load: number;              // = external_char_rate，同义字段方便阅读
+  page_load_status: AuditStatus;  // PASS / WARNING
 }
 
 export interface PageAuditResult {
@@ -97,9 +116,12 @@ export interface PageAuditResult {
   total_pages: number;            // 总页数
   avg_chars_per_page: number;     // 平均每页字数
   max_external_char_rate: number; // 最高外字率
-  peak_page_number: number;       // 外字率最高页
+  peak_page_number: number;       // 外字率最高页（= peak load page）
   max_high_load_per_page: number; // 单页最高 High-load 数
   high_load_peak_page: number;    // High-load 峰值页
+  max_page_load: number;          // 单页最高负荷（= max_external_char_rate）
+  max_page_number: number;        // 最高负荷页码
+  page_peak_status: AuditStatus;  // 峰值页状态
 }
 
 // ------------------------------------------------------------
@@ -176,6 +198,7 @@ export interface AuditResult {
   target_level: TargetLevel;
   rewrite_id?: number;
   child_id?: string;
+  length_audit: LengthAudit;
   character_audit: CharacterAudit;
   language_unit_audit: LanguageUnitAudit;
   repetition_audit: RepetitionAudit;
@@ -185,5 +208,3 @@ export interface AuditResult {
   summary: AuditSummary;
 }
 
-// 从 book-rewrite/types.ts 引入
-import type { RewritePage } from "../types";

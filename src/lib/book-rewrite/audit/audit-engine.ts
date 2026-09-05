@@ -2,6 +2,7 @@ import {
   AuditInput,
   AuditResult,
   AuditSummary,
+  LengthAudit,
   CharacterAudit,
   LanguageUnitItem,
   LanguageUnitAudit,
@@ -20,6 +21,7 @@ import { buildCandidateUnits, longestMatch } from "./language-unit";
 import { classifyLevel, countExternalChars } from "./level-classification";
 import { auditCharacters, isCJK } from "./character-audit";
 import { auditPages } from "./page-audit";
+import { getStandardV1 } from "../standard-v1";
 import type { RewritePage } from "../types";
 
 export {
@@ -74,6 +76,26 @@ export function runAudit(input: AuditInput): AuditResult {
     fullText,
     levelData.srcChars
   );
+
+  // 2b. Length audit (V1.0 标准)
+  const std = getStandardV1(target_level);
+  const lenAudit: LengthAudit = (() => {
+    const actual = charAudit.total_chinese_chars;
+    const inTarget = actual >= std.length_target_min && actual <= std.length_target_max;
+    const inAllowed = actual >= std.length_target_min && actual <= std.length_allowed_max;
+    let status: LengthAudit["status"] = "PASS";
+    if (!inAllowed) status = "STRONG_WARNING";
+    else if (!inTarget) status = "WARNING";
+    return {
+      actual,
+      target_min: std.length_target_min,
+      target_max: std.length_target_max,
+      allowed_max: std.length_allowed_max,
+      status,
+      in_target_range: inTarget,
+      in_allowed_range: inAllowed,
+    };
+  })();
 
   // 3. Language Unit analysis (global)
   const allMatches = longestMatch(fullText, levelData.commonUnits);
@@ -214,6 +236,7 @@ export function runAudit(input: AuditInput): AuditResult {
     target_level,
     rewrite_id,
     child_id,
+    length_audit: lenAudit,
     character_audit: charAudit,
     language_unit_audit: luAudit,
     repetition_audit: repAudit,

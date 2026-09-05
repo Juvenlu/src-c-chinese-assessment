@@ -3,6 +3,7 @@ import { getLevelData } from "./level-data";
 import { auditCharacters } from "./character-audit";
 import { longestMatch } from "./language-unit";
 import { classifyLevel } from "./level-classification";
+import { getStandardV1 } from "../standard-v1";
 import type { RewritePage } from "../types";
 
 /**
@@ -29,17 +30,21 @@ export function auditSinglePage(
     else if (level === "High-load") hlLu++;
   }
 
+  const std = getStandardV1(targetLevel);
+  const extRate = charAudit.external_char_occurrence_rate;
   return {
     page_number: page.page,
     chinese_chars: charAudit.total_chinese_chars,
     src_in_chars: charAudit.src_in_occurrences,
     src_out_chars: charAudit.src_out_occurrences,
-    external_char_rate: charAudit.external_char_occurrence_rate,
+    external_char_rate: extRate,
     lu_total: matches.length,
     i_lu: iLu,
     i_plus_1a_lu: i1aLu,
     i_plus_1b_lu: i1bLu,
     high_load_lu: hlLu,
+    page_load: extRate,
+    page_load_status: extRate > std.page_peak_load_max ? "WARNING" : "PASS",
   };
 }
 
@@ -79,5 +84,8 @@ export function auditPages(
     peak_page_number: peakPage,
     max_high_load_per_page: maxHlPerPage > 0 ? maxHlPerPage : 0,
     high_load_peak_page: hlPeakPage,
+    max_page_load: maxExtRate > 0 ? maxExtRate : 0,
+    max_page_number: peakPage,
+    page_peak_status: maxExtRate > getStandardV1(targetLevel).page_peak_load_max ? "WARNING" : "PASS",
   };
 }

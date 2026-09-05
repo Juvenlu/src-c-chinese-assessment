@@ -1,0 +1,933 @@
+# SRC i+1 定制绘本 V1.0
+
+## 标准冻结 + Audit Engine + Generation上线实施指令
+
+你现在进入 SRC i+1 定制绘本的 **V1.0 上线阶段**。
+
+本阶段核心原则：
+
+> **尽快上线，提前冻结；统计必须严谨，生成允许迭代，人工负责把关。**
+
+不要继续进行大规模理论重构，不要等待更多真实儿童样本才上线。
+
+---
+
+# 一、V1.0正式冻结标准
+
+以下标准从现在开始作为 **SRC i+1 定制绘本 V1.0 Production Standard**。
+
+注意：
+
+> 这些数字是当前版本的生产控制标准，不代表最终教育学标准。未来根据真实儿童阅读数据升级为 V1.1、V1.2 等。
+
+## 1. 篇幅标准
+
+统一使用：
+
+> **中文字符数 = 汉字数量，不含标点。**
+
+### V1.0
+
+| SRC等级  |        目标篇幅 |        允许范围 | 超范围          |
+| ------ | ----------: | ----------: | ------------ |
+| SRC100 |     150–220 |     150–240 | Warning      |
+| SRC300 | **300–350** | **300–380** | >380 Warning |
+| SRC500 |     400–500 |     380–540 | Warning      |
+| SRC800 |     550–700 |     520–750 | Warning      |
+
+其中：
+
+> **SRC300 的核心目标必须是 300–350 字。**
+
+不要把 300–380 当作新的目标区间。
+
+它只是技术允许区间。
+
+### 篇幅原则
+
+* 不允许为了达到最低字数机械增加句子。
+* 不允许为了达到上限机械删除故事内容。
+* 故事完整性优先。
+* Master Story 不得因为篇幅控制而改变。
+* AI Generation阶段应尽量直接生成目标篇幅，而不是生成超长文本后再压缩。
+
+---
+
+# 二、i+1语言负荷标准
+
+## 2.1 外字率
+
+定义：
+
+> 外字出现次数 ÷ 全部中文字符数
+
+V1.0：
+
+> **≤12%**
+
+状态：
+
+* ≤12%：PASS
+* > 12%：WARNING
+* > 15%：STRONG WARNING / Human Review
+
+必须使用 Occurrence Rate。
+
+不要使用 Unique External Character Rate 作为主要判定指标。
+
+---
+
+# 三、I+1A标准
+
+I+1A定义：
+
+> 当前SRC字符库中的字符可以理解，但组成了当前SRC词汇库之外的自然中文词/语言单位。
+
+V1.0：
+
+> **I+1A Occurrence Rate：20–30%**
+
+状态：
+
+* 20–30%：TARGET
+* <20%：LOW
+* > 30%：HIGH
+
+注意：
+
+> I+1A 是目标区间，不是最低通过线。
+
+不要为了达到20%机械增加I+1A。
+
+自然故事优先。
+
+---
+
+# 四、High-load标准
+
+High-load：
+
+> 一个自然Language Unit中包含 ≥2 个当前SRC之外的字符。
+
+V1.0：
+
+> **High-load Occurrence Rate ≤12%**
+
+状态：
+
+* ≤12%：PASS
+* > 12%：WARNING
+
+> > 12% 不自动判定整本书失败，必须进入人工复核。
+
+故事核心词可以保留。
+
+不得为了降低High-load而改变Master Story。
+
+---
+
+# 五、单页最高负荷
+
+V1.0：
+
+> **单页最高语言负荷 ≤20%**
+
+Page Load用于发现局部阅读难点。
+
+要求：
+
+* 每页独立计算
+* 找出最高负荷页
+* 记录 page number
+* 记录具体负荷指标
+* > 20% → WARNING / Human Review
+
+不要只计算全书平均值。
+
+---
+
+# 六、+1重复标准
+
+核心 +1：
+
+> **原则上至少自然出现2次。**
+
+V1.0：
+
+| 次数 | 状态          |
+| -: | ----------- |
+|  1 | ACCEPTABLE  |
+|  2 | RECOMMENDED |
+|  3 | GOOD        |
+| 4+ | 检查是否机械重复    |
+
+注意：
+
+> 不是所有+1都必须重复。
+
+如果重复会破坏自然叙事，可以出现一次。
+
+不得为了满足Audit机械重复词语。
+
+---
+
+# 七、Language Unit标准继续沿用
+
+不要修改已经确定的Language Unit核心定义。
+
+正式定义：
+
+> Language Unit = 可作为整体理解和学习的自然中文词或固定词汇单位，最少2个汉字。
+
+继续使用：
+
+* candidate construction
+* eligibility filter
+* longest match
+* no overlap / no nesting
+
+继续支持：
+
+* 普通词
+* reduplication
+* suffix derivation
+* 三字自然词
+* proper name
+* idiom/fixed phrase
+* complement structure
+* fixed collocation
+* SRC vocabulary
+
+继续排除：
+
+* 单字
+* pseudo-word
+* 临时自由短语
+* 完整句子
+* 纯句型
+* 跨标点字符串
+* 整体数量+名词短语
+* 整体“得+补语”
+
+不要因为本阶段上线而重新设计Language Unit体系。
+
+---
+
+# 八、Master Story / Master Image必须继续锁定
+
+V1.0严禁修改：
+
+* Master Story
+* Master Text
+* Master Image
+* page sequence
+* core event
+* character relationship
+* ending
+
+AI只能进行：
+
+> **Language Adaptation**
+
+不能进行：
+
+> Story Generation
+
+如果某个i+1无法自然进入故事：
+
+> 放弃该+1，不改变故事。
+
+---
+
+# 九、Generation Engine V1.0
+
+AI Generation目标：
+
+> **I作为基础 → 尽可能自然增加高质量I+1A → 必要时使用I+1B → 严格控制High-load。**
+
+优先级：
+
+1. 已知字 → 新词
+2. 高频实用词
+3. 故事相关词
+4. 常见搭配
+5. 常见句式
+6. 单个新字
+
+禁止为了提高+1比例而大量增加陌生单字。
+
+---
+
+# 十、Child Personalization
+
+继续使用：
+
+```text
+confirmed_level
+↓
+Level Baseline
+↓
+Individual Weakness Signals
+↓
+Child Reading Profile
+↓
+Personalized i+1
+```
+
+必须遵守：
+
+> **confirmed_level 是主要难度基础。**
+
+不得使用 estimated_level 作为正式定制绘本的最终等级。
+
+---
+
+# 十一、Child Profile使用规则
+
+继续支持：
+
+* known_characters
+* known_vocabulary
+* weak_char_signals
+* weak_word_signals
+* child_nickname
+* generation_mode
+
+但是：
+
+> 不得把 stable_char_count 当作孩子具体认识的全部汉字。
+
+不得把一个测试等级的全部字库自动当成孩子已经掌握。
+
+如果只有部分实际测试正确结果：
+
+> 只能把实际观察到的正确结果作为 known_characters。
+
+---
+
+# 十二、个性化原则
+
+个性化不是：
+
+> 两个孩子必须生成完全不同的文章。
+
+正确原则：
+
+> **只有当儿童数据能够自然影响语言选择时，才产生个性化差异。**
+
+例如：
+
+Child A认识：
+
+> 跳、跑
+
+可以自然使用：
+
+> 跳出来、跳一跳、跑一跑
+
+Child B对这些字符存在Weakness Signal：
+
+可以自然降低这些表达的使用。
+
+但是：
+
+> 不得为了制造差异而强行改写。
+
+如果两个孩子的Profile对当前故事没有产生自然影响：
+
+> 生成相同文本完全允许。
+
+---
+
+# 十三、Audit Engine职责
+
+Audit Engine只负责：
+
+> **测量、分类、记录、报告。**
+
+不要让Audit Engine承担：
+
+* 自动改写
+* 自动修复
+* 自动生成
+* 自动最终发布
+
+生产流程必须保持：
+
+```text
+Child Test
+↓
+confirmed_level
+↓
+Child Reading Profile
+↓
+AI Generation
+↓
+Audit Engine
+↓
+Human Review
+↓
+Final
+↓
+Child Reading
+```
+
+---
+
+# 十四、Audit结果必须至少包含
+
+```text
+length
+character_audit
+language_unit_audit
+level_classification
+repetition_audit
+page_audit
+frontier_audit
+child_audit
+summary
+```
+
+核心Production指标：
+
+```text
+Chinese Character Count
+External Character Occurrence Rate
+I Occurrence Rate
+I+1A Occurrence Rate
+I+1B Occurrence Rate
+High-load Occurrence Rate
+Page Peak Load
++1 Repetition Distribution
+```
+
+---
+
+# 十五、Audit结果状态
+
+建议统一：
+
+```text
+PASS
+WARNING
+STRONG_WARNING
+```
+
+不要简单使用一个总分。
+
+尤其：
+
+> I+1A <20% 不等于FAIL。
+
+> High-load >12% 不等于自动FAIL。
+
+> Length > target 不等于自动FAIL。
+
+最终是否发布：
+
+> **Human Review决定。**
+
+---
+
+# 十六、Golden Sample处理
+
+Emma Golden Sample：
+
+> rewrite_id = 9
+
+继续冻结。
+
+不得为了适应新V1.0标准而重写Golden Sample。
+
+Golden Sample用途：
+
+> Regression Test Case
+
+不是：
+
+> Production Standard
+
+因此：
+
+* 允许473中文字符
+* 允许它与V1.0篇幅标准不一致
+* 不需要重新生成
+* 不需要修改历史结果
+* 不需要伪造“符合V1.0”
+
+以后回归测试仍然使用Golden Sample验证：
+
+* 字符统计
+* 外字统计
+* Language Unit
+* I/I+1A/I+1B/High-load
+* repetition
+* page audit
+* proper-name protection
+* versioning
+* deterministic result
+
+---
+
+# 十七、历史Audit结果不得被静默修改
+
+Audit Engine必须保留：
+
+```text
+audit_engine_version
+src_char_library_version
+src_vocab_library_version
+audit_timestamp
+```
+
+历史结果不得因为V1.0规则改变而覆盖。
+
+如果未来修改规则：
+
+> 创建新版本重新Audit。
+
+例如：
+
+```text
+Audit Engine v1.0.0
+Audit Engine v1.1.0
+```
+
+---
+
+# 十八、Generation与Audit必须分离
+
+严禁：
+
+```text
+AI生成
+→ AI自己判断
+→ AI自己修改
+→ AI自己宣布PASS
+```
+
+必须：
+
+```text
+AI生成
+→ deterministic Audit
+→ Human Review
+```
+
+---
+
+# 十九、上线前必须完成的开发任务
+
+请按以下顺序执行。
+
+## Task 1 — 检查现有代码
+
+先检查：
+
+* git status
+* git diff
+* 当前Audit Engine
+* Generation Engine
+* rewrite API
+* 数据库schema
+* 现有实验代码
+* build
+* tests
+
+不要破坏已经完成的功能。
+
+---
+
+## Task 2 — 将V1.0标准集中管理
+
+不要把数字散落在多个文件。
+
+建立唯一配置来源，例如：
+
+```typescript
+SRC_I_PLUS_ONE_STANDARD_V1
+```
+
+至少包含：
+
+```text
+length_target
+length_allowed
+external_char_rate_max
+i1a_rate_target_min
+i1a_rate_target_max
+high_load_rate_max
+page_peak_load_max
+plus_one_repeat_recommended
+```
+
+要求：
+
+> Generation Prompt 和 Audit Engine尽可能读取同一套标准。
+
+避免未来修改数字时出现前后端不一致。
+
+---
+
+## Task 3 — 修改Generation Prompt
+
+让AI生成时明确知道：
+
+### SRC300
+
+```text
+Target Chinese characters: 300–350
+Allowed: 300–380
+External characters: ≤12%
+I+1A target: 20–30%
+High-load: ≤12%
+Page peak load: ≤20%
+Core +1: preferably repeat naturally ≥2 times
+```
+
+其他SRC等级使用对应V1.0篇幅。
+
+注意：
+
+> 这些是Generation Guidance，不要求AI精确计算。
+
+最终统计必须由Audit Engine完成。
+
+---
+
+# 二十、Task 4 — Audit Engine增加Length Audit
+
+必须：
+
+1. 统计中文字符
+2. 排除标点
+3. 按targetLevel取得标准
+4. 返回：
+
+   * actual
+   * target_min
+   * target_max
+   * allowed_max
+   * status
+5. 记录超限情况
+
+例如：
+
+```json
+{
+  "actual": 473,
+  "targetMin": 300,
+  "targetMax": 350,
+  "allowedMax": 380,
+  "status": "STRONG_WARNING"
+}
+```
+
+Golden Sample可以显示Warning，但不得修改历史数据。
+
+---
+
+# 二十一、Task 5 — Page Peak Audit
+
+确保每页都有：
+
+```text
+page_number
+page_load
+```
+
+并返回：
+
+```text
+max_page_load
+max_page_number
+```
+
+超过20%：
+
+```text
+WARNING
+```
+
+---
+
+# 二十二、Task 6 — +1 Repetition Audit
+
+输出：
+
+```text
+plus_one_unique
+plus_one_occurrences
+one_time
+two_time
+three_time
+four_plus
+repeated_unique
+repeated_occurrences
+```
+
+重点观察：
+
+> 核心+1中有多少自然重复≥2次。
+
+不要把“重复不足”直接判FAIL。
+
+---
+
+# 二十三、Task 7 — 保留现有Personalization机制
+
+继续支持：
+
+```text
+Profile
+→ Prompt
+→ Generation
+→ Audit
+```
+
+不要重新设计复杂Adaptive Algorithm。
+
+不要加入：
+
+* multi-agent
+* multi-stage generation
+* automatic retry loop
+* automatic finalization
+* reinforcement learning
+* complex scoring model
+
+本阶段目标是上线，不是研究平台。
+
+---
+
+# 二十四、Task 8 — 重新运行最小回归测试
+
+至少测试：
+
+### A. Golden Sample
+
+验证：
+
+* 中文字符统计
+* 外字率
+* Language Unit
+* 四分类
+* repetition
+* page audit
+* proper names
+* version
+
+### B. Existing Phase 5B experiments
+
+验证：
+
+* Profile能够进入Generation
+* known characters有效
+* weak signals有效
+* audit能够正常保存
+
+### C. SRC300新生成测试
+
+至少生成一个新的SRC300实验版本。
+
+验证：
+
+* 目标篇幅300–350
+* ≤380允许范围
+* 外字率
+* I+1A
+* High-load
+* Page Peak
+* +1 repetition
+* Human Review状态
+
+---
+
+# 二十五、实验版本不得污染真实生产数据
+
+实验生成：
+
+```text
+ai_draft
+review
+```
+
+不得自动：
+
+```text
+final
+```
+
+不得覆盖真实儿童历史数据。
+
+实验Profile必须明显标记：
+
+```text
+experimental
+```
+
+---
+
+# 二十六、不要为了通过Audit而机械修改文本
+
+这是非常重要的规则。
+
+例如：
+
+如果：
+
+```text
+I+1A = 18%
+```
+
+不要为了变成20%而强行加入两个陌生词。
+
+如果：
+
+```text
+High-load = 13%
+```
+
+不要机械删除故事核心词。
+
+如果：
+
+```text
++1只出现一次
+```
+
+不要强行复制一句。
+
+Audit的作用：
+
+> **发现问题。**
+
+Human Review的作用：
+
+> **判断是否需要修改。**
+
+---
+
+# 二十七、最终验收标准
+
+本阶段完成后，输出：
+
+```text
+SRC i+1 V1.0 Implementation Report
+```
+
+必须包含：
+
+## 1. Implementation Status
+
+* PASS / CONDITIONAL PASS / FAIL
+
+## 2. V1.0标准是否全部落地
+
+逐项列出：
+
+* Length
+* External Character Rate
+* I+1A
+* High-load
+* Page Peak
+* +1 Repetition
+
+## 3. Code Changes
+
+列出实际修改文件。
+
+## 4. Database Changes
+
+列出schema变化。
+
+## 5. Regression Tests
+
+列出测试结果。
+
+## 6. Golden Sample
+
+说明：
+
+> Golden Sample remains frozen and is used only as regression baseline.
+
+## 7. New SRC300 Test
+
+提供实际统计结果。
+
+## 8. Remaining Issues
+
+只列真正阻碍上线的问题。
+
+不要因为未来还可以优化而制造新的阻碍。
+
+---
+
+# 二十八、最终上线原则
+
+如果：
+
+* Audit能够稳定统计
+* V1.0标准已经落地
+* Generation能够生成
+* Profile能够进入Generation
+* Human Review能够介入
+* 数据能够保存
+* Build通过
+* Regression通过
+
+那么：
+
+> **允许上线。**
+
+不要因为：
+
+* 样本还少
+* 标准以后可能调整
+* AI还不是100%稳定
+* Golden Sample存在缺陷
+* I+1A比例还需要研究
+
+而阻止上线。
+
+---
+
+# 最终冻结版本
+
+## SRC i+1定制绘本 V1.0
+
+| 指标        |                      V1.0 |
+| --------- | ------------------------: |
+| SRC100    |                  150–220字 |
+| SRC300    | **目标300–350字；允许300–380字** |
+| SRC500    |                  400–500字 |
+| SRC800    |                  550–700字 |
+| 外字率       |                  **≤12%** |
+| I+1A      |                **20–30%** |
+| High-load |                  **≤12%** |
+| 单页最高负荷    |                  **≤20%** |
+| 核心+1重复    |                **原则上≥2次** |
+
+再次强调：
+
+> **以上数字是V1.0生产控制标准，不是最终教育学结论。**
+
+未来真实儿童数据进入后，再通过：
+
+```text
+真实阅读数据
+↓
+Audit数据
+↓
+阅读表现
+↓
+家长/教师反馈
+↓
+V1.1 / V1.2
+```
+
+进行调整。
+
+现在不要继续理论扩张。
+
+**直接实现、测试、人工复核、上线。**

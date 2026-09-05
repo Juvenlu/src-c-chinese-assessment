@@ -18,7 +18,7 @@ import {
 import type { TargetLevel } from './types';
 
 /** Audit Engine 版本号 */
-export const AUDIT_ENGINE_VERSION = '1.0.0';
+export const AUDIT_ENGINE_VERSION = '1.1.0';
 
 /** SRC 字库版本 */
 export const SRC_CHAR_LIBRARY_VERSION = '1.2';

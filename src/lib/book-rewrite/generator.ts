@@ -11,6 +11,8 @@ import type { Level } from '../types';
 import type { RewritePage } from './types';
 import { getLevelRulesPrompt } from './level-rules';
 import { LEVEL_LANGUAGE_RULES } from './level-rules';
+import { getStandardV1 } from './standard-v1';
+import type { TargetLevel } from './audit/types';
 
 const SYSTEM_PROMPT = `你是一位专业的中文分级阅读改写专家。
 
@@ -151,6 +153,7 @@ function buildUserPrompt(
   return `
 ${getLevelRulesPrompt(level)}
 ${childSection}
+${getV1GuidancePrompt(level as TargetLevel)}
 【Master Story（原始故事）】
 共 ${masterPages.length} 页。
 
@@ -167,6 +170,31 @@ ${frontierText}
 4. 保持故事内容、人物、事件顺序不变
 5. 输出严格的 JSON 格式，不要 markdown 标记
 `.trim();
+}
+
+/**
+ * V1.0 生产标准生成指引（给 AI 的目标提示）
+ * 这些是 Generation Guidance，不要求 AI 精确计算。
+ * 最终统计由 Audit Engine 完成。
+ */
+function getV1GuidancePrompt(level: TargetLevel): string {
+  const std = getStandardV1(level);
+  return `
+【V1.0 生成目标指引（供参考，不必精确计算）】
+参考目标（最终由审计系统统计）：
+- 目标中文字符数：${std.length_target_min}–${std.length_target_max}字（允许 ${std.length_allowed_max} 字以内）
+- 目标等级以外的汉字（外字）出现比例：≤${std.external_char_rate_max}%
+- I+1A 新词（用已知字组成的新自然词）比例：${std.i_plus_1a_target_min}–${std.i_plus_1a_target_max}%
+- 高负荷词（含≥2个外字的词）比例：≤${std.high_load_rate_max}%
+- 单页最高外字率：≤${std.page_peak_load_max}%
+- 核心新词最好在故事中自然重复${std.plus_one_repeat_recommended}次以上
+
+注意：
+1. 这些是参考目标，不要为了凑数字而机械增减
+2. 故事完整性和语言自然度优先
+3. 不要改变原始故事的内容和事件顺序
+4. 最终是否合格由人工审核决定
+`;
 }
 
 /** 阅读量验证结果 */

@@ -22,6 +22,7 @@ export type {
   AuditInput,
   AuditResult,
   AuditSummary,
+  LengthAudit,
   CharacterAudit,
   LanguageUnitItem,
   LanguageUnitAudit,
