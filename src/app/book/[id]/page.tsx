@@ -50,10 +50,10 @@ export default function BookReaderPage() {
       {/* Book Page */}
       <div className="max-w-2xl mx-auto p-4">
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-          {/* Image */}
-          <div className="aspect-square bg-gray-100 flex items-center justify-center">
+          {/* Image - 16:9 原始比例，不裁切不拉伸 */}
+          <div className="aspect-video bg-gray-100 flex items-center justify-center overflow-hidden">
             {page?.image_url ? (
-              <img src={page.image_url} alt={`第${page.page_number}页`} className="w-full h-full object-cover" />
+              <img src={page.image_url} alt={`第${page.page_number}页`} className="w-full h-full object-contain" />
             ) : (
               <div className="text-gray-400">暂无图片</div>
             )}
