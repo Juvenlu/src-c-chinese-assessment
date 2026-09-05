@@ -180,20 +180,52 @@ ${frontierText}
 function getV1GuidancePrompt(level: TargetLevel): string {
   const std = getStandardV1(level);
   return `
-【V1.0 生成目标指引（供参考，不必精确计算）】
-参考目标（最终由审计系统统计）：
-- 目标中文字符数：${std.length_target_min}–${std.length_target_max}字（允许 ${std.length_allowed_max} 字以内）
-- 目标等级以外的汉字（外字）出现比例：≤${std.external_char_rate_max}%
-- I+1A 新词（用已知字组成的新自然词）比例：${std.i_plus_1a_target_min}–${std.i_plus_1a_target_max}%
-- 高负荷词（含≥2个外字的词）比例：≤${std.high_load_rate_max}%
-- 单页最高外字率：≤${std.page_peak_load_max}%
-- 核心新词最好在故事中自然重复${std.plus_one_repeat_recommended}次以上
+【V1.0 生成目标指引（生成参考，最终由 Audit Engine 统计）】
 
-注意：
-1. 这些是参考目标，不要为了凑数字而机械增减
-2. 故事完整性和语言自然度优先
-3. 不要改变原始故事的内容和事件顺序
-4. 最终是否合格由人工审核决定
+生成优先级（严格按顺序）：
+1. Story Completeness — 完整保留 Master Story 的人物、事件、因果、顺序、结局。不得为了压缩字数删除核心故事。
+2. Length — 目标 ${std.length_target_min}–${std.length_target_max} 个中文字符，最高不超过 ${std.length_allowed_max} 个。如果预计明显超过 ${std.length_target_max} 字，优先压缩重复叙述、装饰性描述、非核心说明，不要压缩核心事件。每页大约 ${Math.round(std.length_target_min / 10)}–${Math.round(std.length_target_max / 10)} 个中文字符，10 页合计自然形成全书体量。
+3. Language Load — 外字率尽量 ≤${std.external_char_rate_max}%，I+1A 尽量 ${std.i_plus_1a_target_min}–${std.i_plus_1a_target_max}%，高负荷词 ≤${std.high_load_rate_max}%，单页最高负荷尽量 ≤${std.page_peak_load_max}%。
+4. Natural Chinese — 自然中文优先于机械满足指标。
+
+压缩策略：
+- 删除：重复表达、不必要的环境描写、不影响故事的修饰语、重复说明、非必要过渡句、引导语、互动语
+- 合并：短句可以自然合并时进行合并
+- 保留：核心人物、核心事件、因果关系、故事推进、结尾悬念、对儿童有价值的自然 I+1
+- 原则：每页只保留该页最核心的故事内容，不要为了"丰富"增加额外描写
+- 第一页直接进入故事内容，不要加"今天我要给你讲/我们来读/准备好了吗"之类的开场白
+
+I+1A 不是越多越好：
+- 目标是 ${std.i_plus_1a_target_min}–${std.i_plus_1a_target_max}%，不是越多越好
+- 如果自然生成已经在 ${std.i_plus_1a_target_min}% 左右，不要继续主动增加 I+1A
+- 如果已经接近 ${std.i_plus_1a_target_max}%，优先使用 I-level 表达，不再增加新的 I+1A
+- 如果某个 I+1A 不是故事所必需，不要为了学习价值强行加入
+
+High-load 控制：
+- 当一个意思可以自然使用 I 或 I+1A 表达时，优先选择 I 或 I+1A，不要主动选择 High-load
+- 故事核心词、人物名称、关键情节词可以保留
+- 不要为了降低 High-load 破坏 Master Story
+- 如果某页 High-load 明显偏多，可以用更简单的说法重新表达，只要不改变故事内容
+
+Page Peak 控制：
+- 避免将多个陌生词、外字和 High-load 词集中在同一页
+- 尽量让每页语言负荷分布均匀，不要某一页成为明显的难度峰值
+- 不要为了平均每页字数而破坏故事节奏
+
+明确禁止：
+- 为达到字数下限而增加无意义句子
+- 为增加 I+1A 而机械加入新词
+- 为降低 High-load 而删除故事核心词
+- 为达到重复次数而机械重复句子
+- 用大量形容词增加字数
+- 用同义句重复已有信息
+- 添加 Master Story 不存在的新事件、新角色、新场景
+- 添加原文没有的开场白、引导语、互动语、过渡句
+- 每一页开头用"小朋友/准备好/我们来"之类的引导句凑字数
+
+每页直接进入该页故事内容，不要加"我们接着看/下面我们来看"等过渡语。
+
+重要：你只负责生成。外字率、I+1A、High-load、Page Peak 等最终指标全部由 Audit Engine 进行确定性统计，你不需要也不应该在输出中声明自己是否达标。
 `;
 }
 
