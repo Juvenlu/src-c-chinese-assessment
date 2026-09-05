@@ -1,0 +1,975 @@
+# SRC Audit Engine V1 正式搭建
+
+## 一、任务目标
+
+将 Phase 2–4 已经验证过的临时统计/审计逻辑，正式迁移为项目可复用的 **Audit Engine V1**。
+
+目标：
+
+> **AI生成 → Audit Engine量化审计 → 输出可追踪结果**
+
+Audit Engine 只负责：
+
+> **测量、分类、统计、报告**
+
+不负责：
+
+> **改写、优化、自动修复、自动Final**
+
+---
+
+# 二、严格保留现有系统
+
+必须保留：
+
+* `src/lib/book-rewrite/validation.ts`
+* `src/lib/book-rewrite/frontier.ts`
+* `src/lib/book-rewrite/level-rules.ts`
+* `src/lib/book-rewrite/rewrite-store.ts`
+* 现有生成流程
+* 现有 Master Story
+* 现有 Master Image
+* Emma `rewrite_id=9`
+
+禁止：
+
+1. 修改 Emma `rewrite_id=9`
+2. 修改 Master Story
+3. 修改 Master Image
+4. 修改现有生成逻辑
+5. 修改现有 Validation 规则
+6. 修改 Phase 2 Language Unit 定义
+7. 修改 Phase 3/4 已确认统计结果
+8. 自动重新生成绘本
+9. 自动 Final
+10. 自动修改 AI 文本
+11. 引入 Multi-Agent
+12. 引入复杂自适应算法
+
+---
+
+# 三、Audit Engine 与 Validation 必须分离
+
+现有：
+
+```text
+validation.ts
+```
+
+继续负责基础质量检查：
+
+* 阅读量
+* 语言难度启发式
+* Frontier 存在
+* Master Story 保持
+* 图文一致性
+
+新增 Audit Engine 负责：
+
+```text
+Character Statistics
++
+Language Unit Statistics
++
+I / I+1A / I+1B / High-load
++
+Repetition
++
+Page-level Statistics
++
+Frontier Statistics
++
+Child-specific Statistics
+```
+
+不要把完整 Audit Engine 塞进现有 `validation.ts`。
+
+---
+
+# 四、建议文件结构
+
+在：
+
+```text
+src/lib/book-rewrite/
+```
+
+下新增：
+
+```text
+audit/
+├── audit-engine.ts
+├── character-audit.ts
+├── language-unit.ts
+├── level-classification.ts
+├── page-audit.ts
+├── types.ts
+└── index.ts
+```
+
+如果项目已有更合理的目录结构，可以保持项目现有规范，但必须保持功能模块独立。
+
+---
+
+# 五、Language Unit 正式实现
+
+将 Phase 2–3 已确认的 Language Unit 规则，从临时脚本迁移为正式 TypeScript 模块。
+
+核心定义：
+
+> Language Unit = 可作为整体理解和学习的自然中文词或固定词汇单位，最少2个汉字。
+
+必须满足：
+
+* ≥2个汉字
+* 自然中文词或固定词汇单位
+* 语义完整
+* 纯中文字符
+* 不是完整句子
+* 不是临时自由短语
+
+支持：
+
+1. 普通词
+2. AA / VV / V一V 重叠
+3. `-们`
+4. `-子`
+5. `-头`
+6. 三字自然词
+7. 专有名词
+8. 成语/四字固定词
+9. 补语结构，如 `跳出来`
+10. 固定搭配，如 `越来越喜欢`
+11. SRC词库中的完整词
+12. 故事核心专有名词
+
+排除：
+
+1. 单字
+2. 伪词
+3. 临时自由短语
+4. 完整句子
+5. 单纯句型
+6. 跨标点字符串
+7. 整体数量+名词短语
+8. 整体 `得+补语`
+
+---
+
+# 六、Language Unit 匹配规则
+
+必须使用：
+
+> **Candidate Construction → Eligibility Filter → Longest Match → Classification**
+
+规则：
+
+1. 先建立候选 Language Units。
+2. 删除不符合定义的候选。
+3. 采用最长匹配。
+4. 同一文本位置只能属于一个 Language Unit。
+5. 不允许重叠。
+6. 不允许嵌套重复统计。
+
+例如：
+
+```text
+小猴子
+```
+
+不能同时统计：
+
+```text
+小猴
+猴子
+小猴子
+```
+
+最终只保留符合规则的最长有效 Language Unit。
+
+---
+
+# 七、四级分类正式实现
+
+正式使用以下四类：
+
+## I
+
+当前孩子/目标等级下的已掌握语言单位。
+
+---
+
+## I+1A
+
+最高优先级的 +1：
+
+> Language Unit 中所有汉字均属于当前 SRC 字符基础，但该完整词/固定词汇单位不属于当前 SRC 词汇基础。
+
+例如：
+
+```text
+看看
+小猴子
+猴子们
+跳出来
+越来越喜欢
+```
+
+---
+
+## I+1B
+
+第二级 +1：
+
+> Language Unit 中包含1个 SRC-out 字符，其余字符属于已掌握字符基础，并形成自然语言单位。
+
+---
+
+## High-load
+
+高负荷单位：
+
+> Language Unit 中包含≥2个当前 SRC-out 字符。
+
+High-load 是独立类别。
+
+**禁止把 High-load 称为普通 I+1。**
+
+统计时：
+
+```text
+Narrow I+1 = I+1A + I+1B
+
+Non-I = I+1A + I+1B + High-load
+```
+
+---
+
+# 八、分类优先级
+
+必须遵守：
+
+```text
+I
+↓
+I+1A
+↓
+I+1B
+↓
+High-load
+```
+
+这里表示语言负荷层级。
+
+对于真正的 +1：
+
+```text
+I+1A
+>
+I+1B
+>
+High-load
+```
+
+High-load 不属于普通 +1。
+
+---
+
+# 九、Character Audit
+
+正式实现：
+
+```text
+auditCharacters(text, targetLevel)
+```
+
+至少输出：
+
+* total Chinese characters
+* SRC-in character count
+* SRC-out character count
+* SRC-out occurrence count
+* unique SRC-out characters
+* External Character Occurrence Rate
+* SRC-in unique characters
+* SRC-out unique characters
+
+公式：
+
+```text
+External Character Occurrence Rate
+=
+SRC-out Chinese Character Occurrences
+/
+Total Chinese Character Occurrences
+```
+
+注意：
+
+不要把 unique external character rate 当成主要难度指标。
+
+---
+
+# 十、Language Unit Audit
+
+正式实现：
+
+```text
+auditLanguageUnits(text, targetLevel)
+```
+
+输出：
+
+* unique Language Units
+* total Language Unit occurrences
+* average Language Unit length
+* LU density
+* I occurrences
+* I+1A occurrences
+* I+1B occurrences
+* High-load occurrences
+* 各类别 occurrence rate
+* 每个 Unit 的 level
+* 每个 Unit 的 occurrence count
+
+必须支持：
+
+```text
+unit
+level
+occurrence
+page
+attributes
+```
+
+---
+
+# 十一、必须保留 Unit 属性
+
+每个 Language Unit 可以记录：
+
+```text
+attributes:
+- ordinary_word
+- reduplication
+- suffix_derivation
+- three_char_word
+- proper_name
+- idiom
+- complement_structure
+- fixed_collocation
+- src_vocabulary
+- story_core
+```
+
+不要求每个 Unit 必须拥有所有属性。
+
+---
+
+# 十二、重复统计
+
+正式实现：
+
+```text
+auditRepetition(languageUnits)
+```
+
+至少统计：
+
+* 出现1次的 +1
+* 出现2次的 +1
+* 出现3次的 +1
+* 出现4次及以上的 +1
+* repeated +1 unique count
+* one-time +1 unique count
+
+注意：
+
+重复是独立指标。
+
+不要因为重复次数而改变 I / I+1A / I+1B / High-load 分类。
+
+---
+
+# 十三、Page-level Audit
+
+正式实现：
+
+```text
+auditPages(pages, targetLevel)
+```
+
+每页输出：
+
+```text
+page_number
+chinese_chars
+src_out_occurrences
+external_char_rate
+language_unit_occurrences
+I
+I+1A
+I+1B
+High-load
+```
+
+同时计算：
+
+* 最大页面 External Character Rate
+* 最大页面 High-load Rate
+* 页面负荷分布
+
+不要现在制定任何新的阈值。
+
+本阶段只统计，不判断“是否超标”。
+
+---
+
+# 十四、Frontier Audit
+
+正式实现：
+
+```text
+auditFrontier(...)
+```
+
+输出：
+
+* total Frontier
+* valid Frontier
+* invalid Frontier
+* Frontier occurrence
+* Frontier repetition
+* Frontier level
+* Frontier unit
+* Frontier page
+
+同时区分：
+
+```text
+I+1A Frontier
+I+1B Frontier
+High-load Frontier
+```
+
+必须能够识别：
+
+> 系统标记为 Frontier，但实际已经属于当前 SRC vocabulary 的情况。
+
+---
+
+# 十五、Child-specific Audit
+
+V1 正式支持：
+
+```text
+auditForChild({
+  targetLevel,
+  knownCharacters,
+  knownWords,
+  pages
+})
+```
+
+但必须遵守：
+
+### 不得把 `stable_char_count` 当成具体已知字集合。
+
+### 不得把测试中没有出现的字符直接判定为“不认识”。
+
+V1 的 Child-specific Audit 应区分：
+
+```text
+confirmed_level baseline
++
+explicit weakness signals
+```
+
+其中：
+
+* SRC等级提供通用基础
+* 明确答错的字/词作为 Weakness Signal
+* 未测试项目保持等级基线
+* 不推断未测试字符一定未知
+
+建议数据结构：
+
+```text
+weak_character_signals
+weak_word_signals
+```
+
+而不是简单：
+
+```text
+unknown_characters
+```
+
+如果当前数据库还没有这种结构：
+
+> V1 可以接受函数参数形式，不要求本阶段修改完整测评数据结构。
+
+---
+
+# 十六、Audit Engine 主入口
+
+建立统一入口：
+
+```text
+runAudit({
+  pages,
+  targetLevel,
+  knownCharacters?,
+  knownWords?,
+  frontiers?,
+  originalPages?,
+  childId?,
+})
+```
+
+返回：
+
+```text
+{
+  engine_version,
+  target_level,
+  character_audit,
+  language_unit_audit,
+  repetition_audit,
+  page_audit,
+  frontier_audit,
+  child_audit,
+  summary
+}
+```
+
+其中 Child Audit 没有输入时可以为 `null`。
+
+---
+
+# 十七、任意 rewrite_id 支持
+
+Audit Engine 不允许绑定：
+
+```text
+rewrite_id=9
+```
+
+必须能够：
+
+> 对任意 rewrite_id 的 pages_json 运行。
+
+新增一个简单调用入口：
+
+```text
+auditRewriteById(rewriteId)
+```
+
+逻辑：
+
+```text
+rewrite_id
+↓
+读取 rewrite
+↓
+读取 target_level
+↓
+读取 pages_json
+↓
+读取必要 baseline
+↓
+runAudit()
+↓
+返回结果
+```
+
+---
+
+# 十八、数据库设计
+
+不要把完整 Audit 数据塞入现有：
+
+```text
+book_rewrite_versions.validation_result
+```
+
+因为：
+
+> `validation_result` 是基础 Validation 结果，不是完整 Audit 数据。
+
+建议建立：
+
+```text
+book_rewrite_audits
+```
+
+至少包含：
+
+```text
+id
+rewrite_id
+child_id
+target_level
+
+audit_engine_version
+src_char_library_version
+src_vocab_library_version
+
+audit_result
+created_at
+```
+
+其中：
+
+```text
+audit_result JSONB
+```
+
+保存完整统计结果。
+
+---
+
+# 十九、是否需要修改现有数据库
+
+允许：
+
+> 新增 `book_rewrite_audits` 表。
+
+允许：
+
+> 新增必要版本字段。
+
+禁止：
+
+> 修改历史 Emma rewrite_id=9 数据。
+
+禁止：
+
+> 覆盖 `validation_result`。
+
+禁止：
+
+> 改变现有生产数据含义。
+
+---
+
+# 二十、版本管理
+
+V1 固定：
+
+```text
+audit_engine_version = "1.0.0"
+```
+
+SRC字库和词库使用明确版本号。
+
+如果当前项目没有版本号：
+
+先建立：
+
+```text
+SRC300_CHARS_V1
+SRC300_WORDS_V1
+```
+
+或等价常量/配置。
+
+不要改变字库内容。
+
+本阶段只增加版本标识。
+
+---
+
+# 二十一、Emma Golden Sample 验证
+
+完成模块后：
+
+> 只读取 Emma `rewrite_id=9`。
+
+重新运行正式 Audit Engine。
+
+不要修改任何内容。
+
+必须检查正式 Engine 是否能够得到与 Phase 3 最终确认结果一致的核心数据：
+
+```text
+Chinese Characters = 473
+
+External Character Occurrences = 55
+
+External Character Rate = 11.63%
+
+Language Units = 103 occurrences
+
+I = 66 / 64.1%
+
+I+1A = 21 / 20.4%
+
+I+1B = 4 / 3.9%
+
+High-load = 12 / 11.7%
+```
+
+Page 5 必须得到：
+
+```text
+I = 7
+I+1A = 5
+I+1B = 2
+High-load = 1
+Total LU = 15
+```
+
+特别确认：
+
+```text
+跑一跑 = I
+```
+
+因为当前正式 SRC300_WORDS 中存在该词。
+
+如果正式模块结果不同：
+
+> 不要修改 Emma 数据去适配结果。
+
+必须找出代码/规则迁移原因。
+
+---
+
+# 二十二、临时脚本处理
+
+Phase 2–4 使用的：
+
+```text
+/tmp/*.mjs
+```
+
+等临时脚本不再作为正式 Audit Engine。
+
+完成正式迁移并通过 Emma 一致性测试后：
+
+* 可以保留作为历史研究文件
+* 不得作为生产 Audit Engine
+* 不得继续新增功能到临时脚本
+
+不要删除可能有历史参考价值的文件，除非确认不会影响项目。
+
+---
+
+# 二十三、测试要求
+
+至少建立：
+
+### Test 1
+
+普通 I 词。
+
+### Test 2
+
+I+1A：
+
+```text
+看看
+```
+
+### Test 3
+
+I+1A：
+
+```text
+小猴子
+```
+
+### Test 4
+
+I+1B：
+
+```text
+特别
+```
+
+### Test 5
+
+High-load：
+
+```text
+勇敢
+```
+
+### Test 6
+
+Proper Name：
+
+```text
+孙悟空
+```
+
+### Test 7
+
+Story Core：
+
+```text
+西游记
+```
+
+### Test 8
+
+Complement：
+
+```text
+跳出来
+```
+
+### Test 9
+
+Fixed Collocation：
+
+```text
+越来越喜欢
+```
+
+### Test 10
+
+确认：
+
+```text
+跑一跑 = I
+```
+
+---
+
+# 二十四、不要建立正式阈值
+
+本阶段：
+
+**只统计，不建立通过/不通过阈值。**
+
+不要自行规定：
+
+* External Rate ≤ X%
+* I+1A 必须 X%
+* High-load ≤ X%
+* 每页最多 X 个
+* 重复至少 X 次
+
+这些属于后续 Multi-Sample Validation 数据研究。
+
+当前任务只是建立：
+
+> **可靠、稳定、可重复的测量工具。**
+
+---
+
+# 二十五、完成标准
+
+Audit Engine V1 完成必须同时满足：
+
+### A
+
+Language Unit 已从临时脚本迁移到正式 TypeScript 模块。
+
+### B
+
+I / I+1A / I+1B / High-load 已正式实现。
+
+### C
+
+Character Audit 已正式实现。
+
+### D
+
+Repetition Audit 已正式实现。
+
+### E
+
+Page-level Audit 已正式实现。
+
+### F
+
+Frontier Audit 已正式实现。
+
+### G
+
+Child-specific Audit 已有正式函数入口。
+
+### H
+
+可以对任意 rewrite_id 执行。
+
+### I
+
+Audit 结果可以持久化。
+
+### J
+
+Audit Engine、SRC char library、SRC vocab library 都有版本标识。
+
+### K
+
+Emma rewrite_id=9 的核心历史统计结果可以复现。
+
+---
+
+# 二十六、最终报告格式
+
+完成后只报告：
+
+## 1. Implementation Status
+
+哪些已经完成。
+
+## 2. Files Added / Modified
+
+列出实际文件路径。
+
+## 3. Database Changes
+
+列出实际新增/修改内容。
+
+## 4. API / Function Entry
+
+列出实际函数和 endpoint。
+
+## 5. Emma Regression Test
+
+列出正式 Engine 与历史结果的对比。
+
+## 6. Known Limitations
+
+只列当前真实存在的问题。
+
+## 7. Ready for Phase 5B
+
+回答：
+
+> 是否已经可以使用正式 Audit Engine 进入 Child-specific Generation Validation。
+
+---
+
+# 二十七、执行纪律
+
+开始前：
+
+> 先检查现有代码。
+
+然后：
+
+> 最小化开发。
+
+不要重新设计 SRC。
+
+不要重新设计 i+1 理论。
+
+不要修改生成器。
+
+不要增加没有要求的功能。
+
+不要修改生产绘本。
+
+不要修改 Emma。
+
+完成后停止，等待下一步指令。
+
+核心原则：
+
+> **先把已经验证过的统计逻辑正式化，再用它验证个性化生成。**
