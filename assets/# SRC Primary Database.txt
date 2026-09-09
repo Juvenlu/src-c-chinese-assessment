@@ -1,0 +1,1195 @@
+# SRC Primary Database
+
+## D1 Schema V2.1 Final Blueprint
+
+**状态：FINAL / Schema Freeze**
+
+核心原则：
+
+> **SRC Primary Database = SRC 平台唯一业务数据源（Single Source of Truth）。**
+
+V1.0 不新增未来预留业务表，不保存可由原始事实实时计算得到的重复数据。
+
+---
+
+# A. Final D1 Schema V2.1
+
+## 1. parents
+
+```sql
+CREATE TABLE parents (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  email_verified INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER,
+  CHECK (status IN ('active', 'suspended', 'deleted'))
+);
+
+CREATE INDEX idx_parents_email ON parents(email);
+CREATE INDEX idx_parents_status ON parents(status);
+```
+
+**Purpose：** 家长身份凭证与账户核心信息。
+
+---
+
+## 2. children
+
+```sql
+CREATE TABLE children (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT NOT NULL,
+  nickname TEXT NOT NULL,
+  age INTEGER NOT NULL,
+  grade TEXT NOT NULL,
+  country TEXT NOT NULL,
+  home_language TEXT,
+  home_language_other TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+
+  estimated_level TEXT,
+  confirmed_level TEXT,
+  assessment_status TEXT NOT NULL DEFAULT 'not_started',
+
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER,
+
+  FOREIGN KEY (parent_id) REFERENCES parents(id) ON DELETE CASCADE,
+
+  CHECK (
+    assessment_status IN (
+      'not_started',
+      'quick_done',
+      'formal_in_progress',
+      'formal_done'
+    )
+  ),
+
+  CHECK (
+    estimated_level IS NULL OR
+    estimated_level IN ('SRC100', 'SRC300', 'SRC500', 'SRC800')
+  ),
+
+  CHECK (
+    confirmed_level IS NULL OR
+    confirmed_level IN ('SRC100', 'SRC300', 'SRC500', 'SRC800')
+  )
+);
+
+CREATE INDEX idx_children_parent_id ON children(parent_id);
+CREATE INDEX idx_children_confirmed_level ON children(confirmed_level);
+CREATE INDEX idx_children_status ON children(status);
+```
+
+**核心规则：**
+
+* `estimated_level` = Quick Assessment 结果
+* `confirmed_level` = Formal Level Decision Algorithm 的当前正式等级
+* `confirmed_level` 是系统当前正式阅读等级的唯一权威值
+* 前端、Growth Map、Book Generator 不得自行决定等级
+
+---
+
+## 3. question_bank
+
+```sql
+CREATE TABLE question_bank (
+  id TEXT PRIMARY KEY,
+  level TEXT NOT NULL,
+  char_system TEXT NOT NULL DEFAULT 'SRC',
+  difficulty INTEGER NOT NULL DEFAULT 2,
+
+  character TEXT NOT NULL,
+  word TEXT NOT NULL,
+  sentence TEXT NOT NULL,
+
+  meaning_question TEXT NOT NULL,
+  options_json TEXT NOT NULL,
+  answer TEXT NOT NULL,
+
+  story_text TEXT,
+  story_question TEXT,
+  story_options_json TEXT,
+  story_answer TEXT,
+
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER
+);
+
+CREATE INDEX idx_question_level ON question_bank(level);
+CREATE INDEX idx_question_character ON question_bank(character);
+CREATE INDEX idx_question_word ON question_bank(word);
+```
+
+**Purpose：** SRC100/300/500/800 测试题库。
+
+---
+
+## 4. test_sessions
+
+```sql
+CREATE TABLE test_sessions (
+  id TEXT PRIMARY KEY,
+  child_id TEXT NOT NULL,
+  level TEXT,
+  test_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'in_progress',
+
+  started_at INTEGER NOT NULL,
+  completed_at INTEGER,
+  time_limit_seconds INTEGER,
+  total_questions INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+
+  FOREIGN KEY (child_id) REFERENCES children(id) ON DELETE CASCADE,
+
+  CHECK (test_type IN ('quick', 'sampling', 'formal')),
+
+  CHECK (
+    (test_type = 'quick') OR
+    (
+      test_type IN ('sampling', 'formal')
+      AND level IN ('SRC100', 'SRC300', 'SRC500', 'SRC800')
+    )
+  ),
+
+  CHECK (status IN ('in_progress', 'completed', 'abandoned'))
+);
+
+CREATE INDEX idx_sessions_child_id ON test_sessions(child_id);
+CREATE INDEX idx_sessions_type ON test_sessions(test_type);
+CREATE INDEX idx_sessions_status ON test_sessions(status);
+CREATE INDEX idx_sessions_child_status
+  ON test_sessions(child_id, test_type, status);
+```
+
+**规则：**
+
+* Quick：`level` 可以 NULL
+* Sampling/Formal：必须有 SRC 等级
+
+---
+
+## 5. test_answers
+
+```sql
+CREATE TABLE test_answers (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  question_id TEXT,
+  part INTEGER NOT NULL,
+
+  question_content TEXT,
+  selected_answer TEXT,
+  is_correct INTEGER NOT NULL,
+  reaction_time_ms INTEGER,
+
+  created_at INTEGER NOT NULL,
+
+  FOREIGN KEY (session_id)
+    REFERENCES test_sessions(id) ON DELETE CASCADE,
+
+  FOREIGN KEY (question_id)
+    REFERENCES question_bank(id) ON DELETE SET NULL,
+
+  CHECK (part IN (1, 2, 3, 4))
+);
+
+CREATE INDEX idx_answers_session_id ON test_answers(session_id);
+CREATE INDEX idx_answers_question_id ON test_answers(question_id);
+CREATE INDEX idx_answers_session_part
+  ON test_answers(session_id, part);
+```
+
+**核心规则：**
+
+> `test_answers` = 原始答题事实，不可丢失，不承担业务判断。
+
+---
+
+## 6. test_results
+
+```sql
+CREATE TABLE test_results (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL UNIQUE,
+  child_id TEXT NOT NULL,
+
+  level TEXT NOT NULL,
+  test_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'completed',
+
+  character_score INTEGER NOT NULL,
+  vocab_score INTEGER NOT NULL,
+  reading_score INTEGER NOT NULL,
+  comprehension_score INTEGER NOT NULL,
+  total_score INTEGER NOT NULL,
+
+  stable_char_count INTEGER NOT NULL,
+  stable_vocab_count INTEGER NOT NULL,
+
+  completion_time_seconds INTEGER NOT NULL,
+  total_questions INTEGER NOT NULL,
+  correct_count INTEGER NOT NULL,
+
+  known_characters_json TEXT,
+  weak_characters_json TEXT,
+  part_breakdown_json TEXT,
+
+  completed_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+
+  FOREIGN KEY (session_id)
+    REFERENCES test_sessions(id) ON DELETE CASCADE,
+
+  FOREIGN KEY (child_id)
+    REFERENCES children(id) ON DELETE CASCADE,
+
+  CHECK (test_type IN ('sampling', 'formal')),
+
+  CHECK (status IN ('completed', 'invalid')),
+
+  CHECK (
+    level IN ('SRC100', 'SRC300', 'SRC500', 'SRC800')
+  )
+);
+
+CREATE INDEX idx_results_child_id
+  ON test_results(child_id);
+
+CREATE INDEX idx_results_level
+  ON test_results(level);
+
+CREATE INDEX idx_results_child_type
+  ON test_results(child_id, test_type, status);
+
+CREATE INDEX idx_results_completed_at
+  ON test_results(completed_at DESC);
+```
+
+### P0 核心规则
+
+> **`test_results` = 每一次已完成测试的历史结果。**
+
+同一个孩子可以有：
+
+```text
+Formal SRC300
+Formal SRC500
+Formal SRC300（复测）
+Formal SRC800
+```
+
+每次都新增一条记录，**不得覆盖历史**。
+
+### 当前正式测试结果
+
+```sql
+WHERE test_type = 'formal'
+  AND status = 'completed'
+ORDER BY completed_at DESC
+LIMIT 1
+```
+
+即：
+
+> **当前测试结果 = 最新一次有效完成结果。**
+
+不得：
+
+* 取最高等级
+* 取 MAX(level)
+* 用最高等级测试作为当前结果
+* 用历史最高 stable_char_count 代替当前结果
+
+### confirmed_level
+
+必须通过：
+
+```text
+test_answers
+      ↓
+test_results
+      ↓
+Formal Level Decision Algorithm
+      ↓
+children.confirmed_level
+```
+
+而不是：
+
+```text
+MAX(formal_test.level)
+```
+
+---
+
+## 7. quick_assessment_results
+
+```sql
+CREATE TABLE quick_assessment_results (
+  id TEXT PRIMARY KEY,
+  session_id TEXT UNIQUE,
+  child_id TEXT,
+  guest_session_id TEXT,
+
+  character_level_l INTEGER,
+  character_level_u INTEGER,
+  word_level_l INTEGER,
+  word_level_u INTEGER,
+  reading_base INTEGER,
+
+  confidence TEXT NOT NULL,
+  recommended_level TEXT NOT NULL,
+
+  total_questions INTEGER NOT NULL DEFAULT 0,
+  correct_count INTEGER NOT NULL DEFAULT 0,
+
+  raw_result_json TEXT,
+
+  completed_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+
+  FOREIGN KEY (session_id)
+    REFERENCES test_sessions(id) ON DELETE SET NULL,
+
+  FOREIGN KEY (child_id)
+    REFERENCES children(id) ON DELETE SET NULL,
+
+  CHECK (confidence IN ('high', 'medium', 'low')),
+
+  CHECK (
+    recommended_level IN ('SRC100', 'SRC300', 'SRC500', 'SRC800')
+  )
+);
+
+CREATE INDEX idx_quick_child_id
+  ON quick_assessment_results(child_id);
+
+CREATE INDEX idx_quick_confidence
+  ON quick_assessment_results(confidence);
+```
+
+### estimated_level 唯一来源
+
+```text
+Quick Assessment
+      ↓
+quick_assessment_results.recommended_level
+      ↓
+children.estimated_level
+```
+
+Formal Test：
+
+> **不得覆盖 `estimated_level`。**
+
+因此：
+
+```text
+estimated_level = SRC500
+confirmed_level = SRC300
+```
+
+在系统中完全允许。
+
+---
+
+## 8. book_episodes
+
+```sql
+CREATE TABLE book_episodes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  series_name TEXT NOT NULL,
+  series_id INTEGER NOT NULL,
+  episode_number INTEGER NOT NULL,
+  episode_title TEXT NOT NULL,
+
+  page_count INTEGER NOT NULL,
+  level_tier TEXT NOT NULL DEFAULT 'SRC500',
+  status TEXT NOT NULL DEFAULT 'draft',
+
+  cover_image_url TEXT,
+  description TEXT,
+  total_words INTEGER,
+
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER,
+
+  UNIQUE(series_id, episode_number)
+);
+
+CREATE INDEX idx_episodes_series
+  ON book_episodes(series_id);
+
+CREATE INDEX idx_episodes_status
+  ON book_episodes(status);
+```
+
+**Purpose：** Master Story 元数据。
+
+---
+
+## 9. book_episode_pages
+
+```sql
+CREATE TABLE book_episode_pages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  episode_id INTEGER NOT NULL,
+  page_number INTEGER NOT NULL,
+
+  image_url TEXT NOT NULL,
+  original_text TEXT NOT NULL,
+
+  new_chars_json TEXT NOT NULL DEFAULT '[]',
+  total_chars INTEGER NOT NULL DEFAULT 0,
+  unique_chars INTEGER NOT NULL DEFAULT 0,
+
+  created_at INTEGER NOT NULL,
+
+  FOREIGN KEY (episode_id)
+    REFERENCES book_episodes(id) ON DELETE CASCADE,
+
+  UNIQUE(episode_id, page_number)
+);
+
+CREATE INDEX idx_pages_episode_id
+  ON book_episode_pages(episode_id);
+```
+
+### Master Asset Lock
+
+`book_episode_pages` 中的：
+
+* 图片
+* 原文
+* 页码
+* Master Story
+
+均为锁定资产。
+
+AI 改写：
+
+> **只能创建 `book_rewrite_versions`，不能修改 Master。**
+
+---
+
+## 10. book_rewrite_versions
+
+```sql
+CREATE TABLE book_rewrite_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  episode_id INTEGER NOT NULL,
+  child_id TEXT,
+  target_level TEXT NOT NULL,
+
+  status TEXT NOT NULL DEFAULT 'ai_draft',
+  version INTEGER NOT NULL DEFAULT 1,
+
+  pages_json TEXT NOT NULL,
+  frontier_targets_json TEXT NOT NULL DEFAULT '[]',
+
+  total_chars INTEGER NOT NULL DEFAULT 0,
+  unique_chars INTEGER NOT NULL DEFAULT 0,
+  max_page_chars INTEGER NOT NULL DEFAULT 0,
+
+  validation_result_json TEXT,
+  audit_result_json TEXT,
+  audit_passed INTEGER NOT NULL DEFAULT 0,
+
+  generation_params_json TEXT,
+  generator_version TEXT,
+
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  failure_reason TEXT,
+
+  created_at INTEGER NOT NULL,
+  finalized_at INTEGER,
+  finalized_by TEXT,
+
+  FOREIGN KEY (episode_id)
+    REFERENCES book_episodes(id) ON DELETE CASCADE,
+
+  FOREIGN KEY (child_id)
+    REFERENCES children(id) ON DELETE SET NULL,
+
+  CHECK (
+    status IN (
+      'ai_draft',
+      'review',
+      'final',
+      'rejected',
+      'failed'
+    )
+  ),
+
+  CHECK (
+    target_level IN ('SRC100', 'SRC300', 'SRC500', 'SRC800')
+  )
+);
+
+CREATE INDEX idx_rewrites_episode_level
+  ON book_rewrite_versions(
+    episode_id,
+    target_level,
+    status
+  );
+
+CREATE INDEX idx_rewrites_child_id
+  ON book_rewrite_versions(child_id);
+
+CREATE INDEX idx_rewrites_status
+  ON book_rewrite_versions(status);
+```
+
+### Version 规则
+
+```text
+child_id IS NULL
+    → Generic Version
+
+child_id IS NOT NULL
+    → Child-specific Version
+```
+
+---
+
+## 11. custom_books
+
+```sql
+CREATE TABLE custom_books (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  child_id TEXT NOT NULL,
+  rewrite_id INTEGER NOT NULL,
+  episode_id INTEGER NOT NULL,
+
+  level_tier TEXT NOT NULL,
+
+  is_free INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER,
+
+  FOREIGN KEY (child_id)
+    REFERENCES children(id) ON DELETE CASCADE,
+
+  FOREIGN KEY (rewrite_id)
+    REFERENCES book_rewrite_versions(id) ON DELETE CASCADE,
+
+  FOREIGN KEY (episode_id)
+    REFERENCES book_episodes(id) ON DELETE CASCADE,
+
+  UNIQUE(child_id, rewrite_id)
+);
+
+CREATE INDEX idx_custom_books_child_id
+  ON custom_books(child_id);
+
+CREATE INDEX idx_custom_books_level
+  ON custom_books(level_tier);
+```
+
+### 核心规则
+
+不保存：
+
+```text
+times_read
+last_read_at
+```
+
+这些全部由 `reading_records` 派生。
+
+---
+
+## 12. reading_records
+
+```sql
+CREATE TABLE reading_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  child_id TEXT NOT NULL,
+  custom_book_id INTEGER NOT NULL,
+
+  start_time INTEGER NOT NULL,
+  end_time INTEGER,
+
+  duration_seconds INTEGER NOT NULL DEFAULT 0,
+  pages_read INTEGER NOT NULL DEFAULT 0,
+  total_pages INTEGER NOT NULL DEFAULT 0,
+
+  completed INTEGER NOT NULL DEFAULT 0,
+
+  created_at INTEGER NOT NULL,
+
+  FOREIGN KEY (child_id)
+    REFERENCES children(id) ON DELETE CASCADE,
+
+  FOREIGN KEY (custom_book_id)
+    REFERENCES custom_books(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_reading_child_id
+  ON reading_records(child_id);
+
+CREATE INDEX idx_reading_book_id
+  ON reading_records(custom_book_id);
+
+CREATE INDEX idx_reading_created_at
+  ON reading_records(created_at);
+```
+
+### 核心规则
+
+> **`reading_records` = 所有阅读行为的唯一事实来源。**
+
+以下指标均实时聚合：
+
+* 阅读次数
+* 最近阅读时间
+* 阅读总时长
+* 完成阅读次数
+* 页面阅读情况
+
+---
+
+## 13. subscriptions
+
+```sql
+CREATE TABLE subscriptions (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT NOT NULL UNIQUE,
+
+  plan_type TEXT NOT NULL DEFAULT 'free',
+  status TEXT NOT NULL DEFAULT 'active',
+
+  provider TEXT,
+  provider_subscription_id TEXT,
+
+  started_at INTEGER,
+  current_period_end INTEGER,
+  cancel_at_period_end INTEGER DEFAULT 0,
+
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER,
+
+  FOREIGN KEY (parent_id)
+    REFERENCES parents(id) ON DELETE CASCADE,
+
+  CHECK (
+    plan_type IN ('free', 'basic', 'premium')
+  ),
+
+  CHECK (
+    status IN (
+      'active',
+      'cancelled',
+      'expired',
+      'past_due'
+    )
+  )
+);
+
+CREATE INDEX idx_subscriptions_parent_id
+  ON subscriptions(parent_id);
+
+CREATE INDEX idx_subscriptions_status
+  ON subscriptions(status);
+```
+
+---
+
+## 14. book_entitlements
+
+```sql
+CREATE TABLE book_entitlements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  parent_id TEXT NOT NULL UNIQUE,
+
+  plan_type TEXT NOT NULL DEFAULT 'free',
+
+  total_books_allocated INTEGER NOT NULL DEFAULT 10,
+  total_books_used INTEGER NOT NULL DEFAULT 0,
+
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER,
+
+  FOREIGN KEY (parent_id)
+    REFERENCES parents(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_entitlements_parent_id
+  ON book_entitlements(parent_id);
+```
+
+### V1.0 商业规则
+
+注册时：
+
+```text
+total_books_allocated = 10
+total_books_used = 0
+```
+
+之后：
+
+```text
+remaining =
+total_books_allocated - total_books_used
+```
+
+无周期自动重置。
+
+> `book_entitlements` = 免费绘本额度唯一 Source of Truth。
+
+---
+
+## 15. guest_test_sessions
+
+```sql
+CREATE TABLE guest_test_sessions (
+  id TEXT PRIMARY KEY,
+  device_id TEXT,
+
+  test_type TEXT NOT NULL DEFAULT 'quick',
+  status TEXT NOT NULL DEFAULT 'in_progress',
+
+  result_data_json TEXT,
+
+  claimed INTEGER NOT NULL DEFAULT 0,
+  child_id TEXT,
+
+  created_at INTEGER NOT NULL,
+  completed_at INTEGER,
+
+  FOREIGN KEY (child_id)
+    REFERENCES children(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_guest_device_id
+  ON guest_test_sessions(device_id);
+
+CREATE INDEX idx_guest_claimed
+  ON guest_test_sessions(claimed);
+```
+
+用途：
+
+> 游客 Quick Assessment → 注册 → 认领测试结果。
+
+---
+
+## 16. otp_codes
+
+```sql
+CREATE TABLE otp_codes (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+
+  purpose TEXT NOT NULL DEFAULT 'login',
+
+  expires_at INTEGER NOT NULL,
+  attempts_remaining INTEGER NOT NULL DEFAULT 5,
+
+  used INTEGER NOT NULL DEFAULT 0,
+  revoked INTEGER NOT NULL DEFAULT 0,
+
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_otp_email_expires
+  ON otp_codes(email, expires_at);
+```
+
+V1.0：
+
+> 密码登录为主，OTP 为可选能力。
+
+---
+
+# B. Relationship Map
+
+```text
+parents
+   │
+   ├─── (1) subscriptions
+   │
+   ├─── (1) book_entitlements
+   │
+   └─── (N) children
+            │
+            ├─── (N) test_sessions
+            │          │
+            │          ├─── (N) test_answers
+            │          │
+            │          ├─── (1) test_results
+            │          │
+            │          └─── (1) quick_assessment_results
+            │
+            ├─── (N) custom_books
+            │          │
+            │          └─── (1) book_rewrite_versions
+            │                       │
+            │                       └─── (1) book_episodes
+            │                                  │
+            │                                  └─── (N) book_episode_pages
+            │
+            └─── (N) reading_records
+                       │
+                       └─── custom_books
+
+guest_test_sessions
+        │
+        └─── (0..1) children
+```
+
+关键关系：
+
+```text
+test_sessions → test_answers
+test_sessions → test_results
+
+children → test_results
+children → quick_assessment_results
+
+children → custom_books
+custom_books → book_rewrite_versions
+book_rewrite_versions → book_episodes
+book_episodes → book_episode_pages
+
+custom_books → reading_records
+```
+
+---
+
+# C. Source of Truth Map
+
+| 核心数据                 | 唯一 Source of Truth                                                        | 更新/计算方式                            |
+| -------------------- | ------------------------------------------------------------------------- | ---------------------------------- |
+| Quick 答题事实           | `test_sessions` + `test_answers`                                          | 每答一题写入                             |
+| Quick 结果             | `quick_assessment_results`                                                | Quick 完成时写入                        |
+| `estimated_level`    | `quick_assessment_results.recommended_level` → `children.estimated_level` | Quick 完成时                          |
+| Formal 答题事实          | `test_sessions` + `test_answers`                                          | 每答一题写入                             |
+| 历次正式测试结果             | `test_results`                                                            | 每次完成新增，不覆盖                         |
+| **当前正式测试结果**         | `test_results`                                                            | 最新有效完成结果                           |
+| `confirmed_level`    | `children.confirmed_level`                                                | Formal Level Decision Algorithm 更新 |
+| `stable_char_count`  | 最新有效 `test_results`                                                       | 实时查询                               |
+| `stable_vocab_count` | 最新有效 `test_results`                                                       | 实时查询                               |
+| Character Mastery    | `test_answers`                                                            | 实时计算                               |
+| Vocabulary Mastery   | `test_answers`                                                            | 实时计算                               |
+| 阅读行为事实               | `reading_records`                                                         | 每次阅读写入                             |
+| 阅读次数/时长/最近阅读         | `reading_records`                                                         | 实时聚合                               |
+| 孩子书架                 | `custom_books`                                                            | Final rewrite 分配后创建                |
+| i+1 改写内容             | `book_rewrite_versions`                                                   | 每次生成新增版本                           |
+| Master Story         | `book_episodes` + `book_episode_pages`                                    | Master Asset Lock                  |
+| 免费绘本额度               | `book_entitlements`                                                       | 注册初始化/使用时更新                        |
+| Subscription         | `subscriptions`                                                           | 订阅状态变化时更新                          |
+| Growth Map           | 多个核心事实实时计算                                                                | 不持久化                               |
+
+## 最核心的数据链
+
+### estimated_level
+
+```text
+Quick Assessment
+      ↓
+quick_assessment_results
+      ↓
+children.estimated_level
+```
+
+### confirmed_level
+
+```text
+Formal Test
+      ↓
+test_answers
+      ↓
+test_results
+      ↓
+Formal Level Decision Algorithm
+      ↓
+children.confirmed_level
+```
+
+### i+1 定制绘本
+
+```text
+children.confirmed_level
+        +
+test_answers / Reading Profile
+        +
+Master Story
+        ↓
+Book Generator
+        ↓
+book_rewrite_versions
+        ↓
+Final Version
+        ↓
+custom_books
+```
+
+### 阅读成长
+
+```text
+reading_records
+      +
+test_results
+      +
+test_answers
+      +
+children.confirmed_level
+      +
+custom_books
+      ↓
+Growth Map
+```
+
+---
+
+# D. Preliminary PostgreSQL → D1 Migration Map
+
+> **本表仅为 Preliminary Migration Map。**
+>
+> 在实际迁移前，必须先对旧 PostgreSQL 做完整 schema introspection。不得把当前推测字段视为已确认事实。
+
+| PostgreSQL                 | D1                                           | 当前已知映射                                                  | 必须验证                                                 |
+| -------------------------- | -------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------- |
+| `parents_profiles`         | `parents`                                    | id、email、password_hash、email_verified、status、created_at | 实际字段名、类型；subscription 字段；last_login_at               |
+| `parents_profiles`         | `subscriptions`                              | 如存在 subscription 信息，可转换初始化                              | 实际 subscription_status、plan_type、subscription_id     |
+| —                          | `book_entitlements`                          | 每个 parent 初始化 10；used 可由实际书架数据计算                        | 旧数据中的实际可用书/历史赠送规则                                    |
+| `children`                 | `children`                                   | 基础身份字段直接映射                                              | parent_id 类型；等级字段实际来源                                |
+| `question_bank`            | `question_bank`                              | 基本题库字段映射                                                | difficulty、JSON 字段实际类型                               |
+| `test_sessions`            | `test_sessions`                              | child_id、level、时间、status 等                              | test_mode 实际枚举；total_questions 是否存在                  |
+| `test_answers`             | `test_answers`                               | 答题事实基本映射                                                | question_content、is_recognized 等字段                   |
+| `test_results`             | `test_results`                               | 得分、stable counts、known chars 等映射                        | test_mode、total_questions、correct_count、completed_at |
+| `quick_assessment_results` | `quick_assessment_results`                   | 等级边界、reading_base、confidence、raw_result 等               | recommended_level、session_id、完成时间等                   |
+| `guest_test_sessions`      | `guest_test_sessions`                        | guest session 基本字段映射                                    | test_type、status、result_status                       |
+| `book_episodes`            | `book_episodes`                              | series/episode/title/page 等                             | series_id、level_tier、图片、description、total_words      |
+| `book_episode_pages`       | `book_episode_pages`                         | episode/page/image/original_text                        | new_chars、统计字段、旧 rewritten_text                      |
+| `book_rewrite_versions`    | `book_rewrite_versions`                      | rewrite/version/status/content 等                        | audit、统计、generator_version 等                         |
+| `book_rewrite_audits`      | 并入 `book_rewrite_versions.audit_result_json` | Audit 数据可合并                                             | 一个 rewrite 是否存在多条 audit                              |
+| `custom_books`             | `custom_books`                               | child/episode/version 等                                 | rewrite_id、is_free、status；旧聚合字段处理                    |
+| `otp_codes`                | `otp_codes`                                  | OTP 基本字段映射                                              | 是否需要迁移；原则上可不迁历史 OTP                                  |
+| `otp_rate_limit`           | 不迁移                                          | —                                                       | 临时限流数据                                               |
+| `health_check`             | 不迁移                                          | —                                                       | 运维数据                                                 |
+| `character_mastery`        | 不迁移                                          | 派生数据                                                    | 从 test_answers 重建                                    |
+| `vocabulary_mastery`       | 不迁移                                          | 派生数据                                                    | 从 test_answers 重建                                    |
+| —                          | `reading_records`                            | 新表                                                      | 旧库是否存在逐次阅读事实；不能用聚合字段伪造                               |
+
+### Migration 原则
+
+正式迁移前必须实际 introspect：
+
+```text
+Tables
+Columns
+Data Types
+Primary Keys
+Foreign Keys
+Unique Constraints
+Indexes
+```
+
+然后才生成：
+
+> **Final PostgreSQL → D1 Migration Map**
+
+本阶段：
+
+> **不执行迁移。**
+
+---
+
+# E. Remaining Risks
+
+## 1. Formal Level Decision Algorithm 尚未最终定义
+
+Schema 已经确定：
+
+```text
+正式测试历史
+    ↓
+Formal Level Decision Algorithm
+    ↓
+confirmed_level
+```
+
+但算法本身仍需要定义：
+
+* 等级确认阈值
+* 稳定区间
+* 复测规则
+* 测试异常处理
+* 等级退化处理
+
+这是应用层规则，不阻塞 Schema Freeze。
+
+---
+
+## 2. 旧 PostgreSQL Schema 尚未实际 introspect
+
+当前 Migration Map 只能作为：
+
+> **Preliminary**
+
+不得依据推测字段直接执行迁移。
+
+下一阶段首先应该：
+
+> **Read-only introspection → 生成 Final Migration Map**
+
+---
+
+## 3. 历史阅读数据可能不完整
+
+旧系统如果只有：
+
+```text
+custom_books.times_read
+```
+
+而没有逐次：
+
+```text
+reading_records
+```
+
+则不能还原历史阅读时长、页面阅读轨迹等。
+
+处理原则：
+
+> 能准确迁移的迁移；无法准确还原的不要伪造。
+
+从 D1 正式启用后开始积累完整 `reading_records`。
+
+---
+
+## 4. Character/Vocabulary Mastery 的实时计算性能
+
+V1.0 数据量较小时：
+
+> 直接从 `test_answers` 聚合即可。
+
+未来数据量明显增长后，如有必要再增加缓存或异步计算。
+
+**当前不增加 mastery snapshot 表。**
+
+---
+
+## 5. Growth Map 查询性能
+
+Growth Map 需要组合：
+
+```text
+children
++
+latest test_results
++
+test_answers aggregation
++
+reading_records aggregation
++
+custom_books
+```
+
+V1.0 先实际测试：
+
+> Vercel → Worker → D1
+
+的真实响应时间。
+
+只有实际出现性能问题，才考虑缓存。
+
+---
+
+## 6. OTP 限流
+
+V1.0：
+
+> 密码登录为主，OTP 为可选。
+
+因此不恢复：
+
+```text
+otp_rate_limit
+```
+
+如未来启用 OTP 限流，优先考虑 Worker/KV 等应用层能力。
+
+---
+
+# V2.1 FINAL LOCK
+
+### 核心结论
+
+> **test_results = 每一次已完成测试的历史结果；当前测试结果 = 最新一次有效完成结果。**
+
+同时：
+
+```text
+estimated_level
+    ← Quick Assessment
+
+confirmed_level
+    ← Formal Level Decision Algorithm
+```
+
+二者独立。
+
+---
+
+### V1.0 唯一业务数据源
+
+> **SRC Primary Database**
+
+不再使用：
+
+* Database A
+* Database B
+* Sandbox Database
+* Production Database
+
+作为业务数据库名称。
+
+---
+
+### V1.0 不建立的表
+
+```text
+character_mastery
+vocabulary_mastery
+growth_map_snapshots
+mastery_snapshots
+system_config
+health_check
+otp_rate_limit
+```
+
+除非未来证明 V1.0 当前业务流程确实需要，否则不增加。
+
+---
+
+### 当前阶段正式状态
+
+**D1 Schema V2.1：FINAL / LOCKED**
+
+下一阶段不是修改 Schema，而是：
+
+> **对旧 PostgreSQL 做 Read-only 完整 Schema Introspection，并据此生成 Final PostgreSQL → D1 Migration Map。**
+
+**本轮到此停止。**
+
+不进入：
+
+* Worker 创建
+* D1 创建
+* 数据迁移
+* Production 部署
+* 数据导入
+* 前端修改
