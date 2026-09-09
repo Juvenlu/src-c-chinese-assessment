@@ -317,7 +317,7 @@ async function migrateChildren() {
       const { rows: quickRows } = await pgPool.query(
         `SELECT character_level_u, word_level_u, reading_base
          FROM quick_assessment_results
-         WHERE child_id = $1::uuid
+         WHERE child_id = $1::text::uuid
          ORDER BY created_at DESC LIMIT 1`,
         [row.id]
       );
@@ -335,7 +335,7 @@ async function migrateChildren() {
       // Derive assessment_status
       const { rows: formalSessions } = await pgPool.query(
         `SELECT status FROM test_sessions
-         WHERE child_id = $1::uuid AND test_mode IN ('formal','full','fulltest')
+         WHERE child_id = $1 AND test_mode IN ('formal','full','fulltest')
          ORDER BY created_at DESC LIMIT 1`,
         [row.id]
       );
@@ -711,7 +711,7 @@ async function migrateQuickAssessmentResults() {
       let completedAt = tsToUnix(row.created_at);
       if (row.guest_session_id) {
         const { rows: guest } = await pgPool.query(
-          'SELECT completed_at FROM guest_test_sessions WHERE id = $1::uuid',
+          'SELECT completed_at FROM guest_test_sessions WHERE id = $1::text::uuid',
           [row.guest_session_id]
         );
         if (guest.length > 0 && guest[0].completed_at) {
