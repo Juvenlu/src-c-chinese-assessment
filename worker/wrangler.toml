@@ -1,4 +1,5 @@
 name = "src-primary-api"
+main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -7,9 +8,6 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "src-primary-database"
 database_id = "519f117f-88b6-49c7-9d1c-dd9284ac10a4"
-
-# 入口文件
-main = "src/index.ts"
 
 # 部署配置
 [env.production]
