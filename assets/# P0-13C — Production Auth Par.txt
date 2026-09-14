@@ -1,0 +1,914 @@
+# P0-13C — Production Auth / Parent Flow Migration Design
+# READ-ONLY ONLY — 禁止任何代码修改、数据库写入和部署
+
+你现在执行 SRC V1.0 Production Migration 的 **P0-13C：只读迁移设计审计**。
+
+==================================================
+一、最高优先级规则
+==================================================
+
+本阶段是：
+
+**READ-ONLY / DESIGN ONLY**
+
+绝对禁止：
+
+1. 修改任何代码
+2. 创建、修改、删除任何文件
+3. 修改 Git
+4. git commit / push
+5. 修改 Vercel 配置
+6. 修改 Cloudflare Worker 配置
+7. 修改 Cloudflare Secrets / Environment Variables
+8. 修改 D1 Schema
+9. 执行任何 INSERT / UPDATE / DELETE / ALTER / DROP / CREATE
+10. 执行任何迁移脚本
+11. 部署 Worker
+12. 部署 Vercel
+13. 修改生产数据
+14. 索取、输出、复制任何 Secret / Token / API Key / Password
+15. 将任何 Secret 写入代码、文件、日志或报告
+
+只能：
+
+- 查看代码
+- 查看 Git 状态
+- 查看已有配置
+- 查看 D1 Schema
+- 执行 SELECT / 只读查询
+- 分析 API
+- 分析现有认证流程
+- 设计迁移方案
+- 输出 PASS / FAIL / BLOCKED
+- 提出下一阶段 WRITE 的精确实施计划
+
+如果任何操作可能产生写入，立即停止并报告，不要自行执行。
+
+==================================================
+二、SRC 当前生产架构（必须遵守）
+==================================================
+
+正式生产架构已经锁定：
+
+GitHub
+↓
+Vercel Production Web Runtime
+↓
+Cloudflare Worker
+↓
+Cloudflare D1
+↓
+SRC Primary Database
+
+正式名称：
+
+**SRC Primary Database**
+
+D1 技术名称：
+
+**src-primary-database**
+
+D1 Database ID：
+
+519f117f-88b6-49c7-9d1c-dd9284ac10a4
+
+Cloudflare Worker：
+
+**src-primary-api**
+
+Worker URL：
+
+https://src-c-chinese-assessment.quweizhongwen.workers.dev
+
+GitHub：
+
+Juvenlu/src-c-chinese-assessment
+
+Production Web：
+
+src-c-chinese-assessment.vercel.app
+
+==================================================
+三、已经确认 PASS 的基础设施
+==================================================
+
+以下内容已经完成，不要重复执行，不要重新初始化：
+
+### P0-8.6 D1 Schema Initialization = PASS
+
+D1 Schema V2.1 FINAL / Schema Freeze：
+
+- 16 business tables
+- 191 columns
+- 16 PK
+- 8 UNIQUE
+- 19 FK
+- 17 CHECK
+- 38 INDEX
+- 6 AUTOINCREMENT
+
+D1 当前：
+
+- 16 business tables
+- + sqlite_sequence
+- 初始化时业务表均为 0 rows
+- Schema 已冻结
+
+绝对禁止：
+
+- 重新执行 schema.sql
+- 重新执行 P0-8.6 POST
+- 重新执行 migrate.mjs
+- 修改 Schema
+
+### P0-8.4 = PASS
+
+Vercel → Cloudflare D1 API credentials verification 已 PASS。
+
+### P0-11 = PASS
+
+Worker 已成功部署。
+
+Worker：
+
+src-primary-api
+
+D1 binding：
+
+DB → src-primary-database
+
+Worker /health：
+
+GET /health
+
+已经由浏览器人工确认返回：
+
+{
+  "status": "ok",
+  "database": "src-primary-database",
+  "query": "verified"
+}
+
+因此：
+
+Worker → D1 = PASS
+
+### P0-12 = PASS
+
+Worker skeleton / D1 binding / production health / read-only architecture audit = PASS。
+
+### P0-13A = PASS
+
+已经完成现有 Auth / Children / OTP API 审计。
+
+### P0-13B = PASS
+
+已经完成：
+
+- D1 parents schema mapping
+- D1 children schema mapping
+- D1 otp_codes schema mapping
+- Supabase Auth dependency audit
+- session architecture audit
+- UUID → INTEGER compatibility分析
+
+==================================================
+四、P0-13B 已确认的重要事实
+==================================================
+
+D1 parents：
+
+- id INTEGER PRIMARY KEY AUTOINCREMENT
+- email TEXT(255) NOT NULL UNIQUE
+- password_hash TEXT
+- email_verified INTEGER DEFAULT 0
+- subscription_status TEXT DEFAULT 'free'
+- plan_type TEXT DEFAULT 'free'
+- status TEXT DEFAULT 'active'
+- created_at TEXT
+- updated_at TEXT
+
+D1 children：
+
+- id INTEGER PRIMARY KEY AUTOINCREMENT
+- parent_id INTEGER NOT NULL FK → parents(id)
+- nickname TEXT NOT NULL
+- age INTEGER
+- grade TEXT
+- country TEXT
+- home_language TEXT
+- home_language_other TEXT
+- status TEXT DEFAULT 'active'
+- created_at TEXT
+- updated_at TEXT
+
+D1 otp_codes：
+
+- id INTEGER PRIMARY KEY AUTOINCREMENT
+- email TEXT NOT NULL
+- code_hash TEXT NOT NULL
+- purpose TEXT NOT NULL
+- expires_at TEXT NOT NULL
+- attempts_remaining INTEGER DEFAULT 5
+- used INTEGER DEFAULT 0
+- revoked INTEGER DEFAULT 0
+- created_at TEXT
+
+现有旧代码使用：
+
+parents_profiles
+
+而 D1 正式表为：
+
+parents
+
+这是已知 mapping difference。
+
+现有旧代码中的部分 ID 为 UUID。
+
+D1 使用：
+
+INTEGER AUTOINCREMENT
+
+因此：
+
+**不能直接复制旧 UUID 到 D1。**
+
+必须由 D1 生成新的 INTEGER ID。
+
+==================================================
+五、现有 Session 的重要安全问题
+==================================================
+
+P0-13B 已确认当前 session token：
+
+- 不是 JWT
+- 没有签名
+- 没有 expiry
+- 本质上是 Base64(JSON)
+- payload 包括 uid / email / iat
+- 可以被伪造
+
+因此：
+
+**绝对不能把当前 unsigned Base64 session 原样作为未来正式生产家长测试的长期认证方案。**
+
+P0-13C 必须设计新的安全 session 方案。
+
+优先考虑：
+
+- HMAC signed session
+- exp / expiry
+- parent_id
+- email
+- issued_at
+- signature
+
+优先考虑 Web Crypto / Worker 原生能力。
+
+Secret 必须：
+
+- 只存在于 Cloudflare Worker Secret
+- 不进入 GitHub
+- 不进入代码
+- 不进入 wrangler.toml
+- 不进入日志
+- 不进入 Agent 输出
+
+本阶段只做设计，不创建 Secret。
+
+==================================================
+六、当前业务目标
+==================================================
+
+我们的近期目标不是“把某一个最简单的 API 搬过去”。
+
+真正目标是：
+
+让 SRC 能够进入真实 Production Parent Flow 测试。
+
+目标业务链路：
+
+Direct Test
+↓
+estimated_level
+↓
+Parent Registration
+↓
+Child Creation
+↓
+Formal Test
+↓
+confirmed_level
+↓
+Growth Map / Reading Recommendation
+
+最终必须满足：
+
+**Vercel → Worker → D1**
+
+而不是：
+
+Vercel → Supabase / PostgreSQL
+
+也就是说：
+
+未来正式业务数据必须进入：
+
+**SRC Primary Database / D1**
+
+不能继续依赖旧 Supabase 作为正式生产数据源。
+
+==================================================
+七、P0-13C 必须重点回答的问题
+==================================================
+
+请对当前代码和配置进行只读审计，重点回答以下问题。
+
+--------------------------------------------------
+A. 当前真实 Frontend / API 架构
+--------------------------------------------------
+
+请确认：
+
+1. 当前项目是什么 Web Framework？
+2. `/api/auth/signup`
+3. `/api/auth/login`
+4. `/api/auth/me`
+5. `/api/auth/send-otp`
+6. `/api/auth/verify-otp`
+7. `/api/auth/change-password`
+8. `/api/children`
+9. `/api/children/[id]`
+
+这些 API 是：
+
+- Next.js API Route？
+- Route Handler？
+- Serverless Function？
+- 还是其他机制？
+
+请找出：
+
+Frontend
+→ Vercel API
+→ Database
+
+的真实调用关系。
+
+不要猜。
+
+--------------------------------------------------
+B. Parent Registration 完整业务链路
+--------------------------------------------------
+
+重点审计：
+
+`/api/auth/signup`
+
+必须明确：
+
+1. 注册输入字段
+2. parent 创建逻辑
+3. child 创建逻辑
+4. guest_test_sessions 是否参与
+5. quick_assessment_results 是否参与
+6. 是否自动登录
+7. session 如何产生
+8. session 如何返回 Frontend
+9. Frontend 如何保存 session
+10. 后续 `/api/auth/me` 如何读取 session
+11. child list 如何读取 session
+12. 是否存在旧 Supabase Auth dependency
+
+输出真实调用链。
+
+--------------------------------------------------
+C. 是否依赖 OTP
+--------------------------------------------------
+
+必须检查真实产品流程：
+
+Parent Registration
+
+是否：
+
+A. 不需要 OTP
+
+还是：
+
+B. 必须先 send OTP → verify OTP → signup
+
+还是：
+
+C. 某些注册路径需要 OTP，某些不需要。
+
+不要根据旧报告推断。
+
+必须根据当前代码确认。
+
+如果 OTP 是注册主链路的强依赖，请明确指出。
+
+如果 OTP 不是注册主链路的强依赖，也必须明确指出。
+
+--------------------------------------------------
+D. Auth + Parent + Children 的最小完整迁移单元
+--------------------------------------------------
+
+请不要简单说：
+
+“先迁移 children”。
+
+请设计一个真正能够形成可测试 Parent Flow 的：
+
+**最小完整迁移单元**
+
+必须回答：
+
+1. 哪些 API 必须一起迁移？
+2. 哪些 API 可以暂时保留旧 DB？
+3. 哪些 API 不能拆开？
+4. 是否应该同时迁移：
+   - signup
+   - login
+   - me
+   - children
+   - session
+5. OTP 应该：
+   - 同一阶段迁移
+   - 还是下一阶段迁移
+6. 为什么？
+
+目标不是一次迁移全部 API。
+
+目标是：
+
+**最小范围 + 完整业务闭环 + 最低风险。**
+
+--------------------------------------------------
+E. Vercel → Worker → D1 的实际接口设计
+--------------------------------------------------
+
+设计未来结构。
+
+必须明确：
+
+Vercel API 是否：
+
+方案 1：
+
+Frontend
+→ Vercel API
+→ Worker
+→ D1
+
+还是：
+
+方案 2：
+
+Frontend
+→ Worker
+→ D1
+
+还是其他。
+
+必须结合现有代码判断哪一种：
+
+- 改动最小
+- 最安全
+- 最容易回滚
+- 最符合现有项目结构
+
+不要为了“架构漂亮”而大改现有 Frontend。
+
+SRC 当前生产架构要求：
+
+**业务数据库访问必须通过 Worker → D1。**
+
+--------------------------------------------------
+F. Worker API 设计
+--------------------------------------------------
+
+请设计第一阶段 Worker 最小 API。
+
+例如仅作为设计参考，不要直接照搬：
+
+POST /auth/signup
+POST /auth/login
+GET /auth/me
+GET /children
+POST /children
+
+但必须根据真实现有代码决定。
+
+请明确：
+
+- endpoint
+- HTTP method
+- request body
+- response body
+- auth requirement
+- D1 tables
+- read/write
+- error cases
+
+本阶段只设计，不实现。
+
+--------------------------------------------------
+G. Session 安全设计
+--------------------------------------------------
+
+请设计新的 Production Session。
+
+必须明确：
+
+1. session token 内容
+2. signature 方法
+3. expiry
+4. token 验证位置
+5. logout 处理方式
+6. Frontend 如何保存
+7. Worker 如何验证
+8. Vercel 是否需要验证
+9. 是否使用 HttpOnly Cookie
+10. 是否存在 CSRF 风险
+11. 是否存在 token replay 风险
+12. 如何避免旧 Base64 session 继续被接受
+
+重点：
+
+**不要为了兼容旧 session 而保留不安全的 fallback。**
+
+如果迁移阶段必须兼容，请明确：
+
+- 临时兼容范围
+- 结束时间/退出条件
+- 安全风险
+
+并提出更安全的方案。
+
+--------------------------------------------------
+H. UUID → INTEGER
+--------------------------------------------------
+
+请检查所有 Auth / Children 相关代码：
+
+旧：
+
+UUID parent_id / child_id
+
+新：
+
+INTEGER parent.id / child.id
+
+必须找出：
+
+- 哪些地方依赖 UUID
+- 哪些地方可以直接改为 INTEGER
+- 哪些 response shape 会发生变化
+- 哪些 Frontend 代码需要同步调整
+- 哪些数据库关系需要 Worker 内部处理
+
+特别检查：
+
+session token
+child_id
+parent_id
+API URL parameters
+frontend state
+localStorage / cookie
+reading/test API 是否假设 UUID。
+
+--------------------------------------------------
+I. Supabase Auth 移除范围
+--------------------------------------------------
+
+请精确列出：
+
+哪些代码依赖：
+
+supabase.auth.admin.*
+
+supabase.auth.*
+
+包括：
+
+- createUser
+- listUsers
+- getUser
+- signOut
+- 其他
+
+必须明确：
+
+每个依赖未来如何替代。
+
+不要修改代码，只做 mapping。
+
+--------------------------------------------------
+J. 旧 Supabase / PostgreSQL 残留风险
+--------------------------------------------------
+
+请检查本阶段涉及的 Auth / Parent / Children 代码：
+
+是否仍然：
+
+- import Supabase
+- import pg
+- 使用 COZE_SUPABASE_URL
+- 使用 COZE_SUPABASE_SERVICE_ROLE_KEY
+- 直接连接 PostgreSQL
+- 直接 `.from()`
+
+必须明确：
+
+哪些必须删除/替换。
+
+但本阶段不要删除。
+
+--------------------------------------------------
+K. D1 数据完整性
+--------------------------------------------------
+
+请确认第一阶段涉及的：
+
+parents
+children
+otp_codes（如果涉及）
+
+是否可以完全使用现有 Frozen Schema。
+
+绝对不能提出：
+
+“修改 D1 Schema 解决问题”
+
+如果发现代码与 Schema 不兼容：
+
+必须设计代码适配方案。
+
+--------------------------------------------------
+L. 错误处理与回滚
+--------------------------------------------------
+
+设计：
+
+如果 Worker 新 API 出错：
+
+- 如何返回错误？
+- Vercel 如何处理？
+- 如何避免产生半成功状态？
+- parent 创建成功但 child 创建失败怎么办？
+- login 成功但 children 查询失败怎么办？
+
+特别分析：
+
+**signup parent + child 是否必须在一个 D1 transaction 中完成。**
+
+只做设计，不执行。
+
+--------------------------------------------------
+M. 真实 Production 测试要求
+--------------------------------------------------
+
+设计完成后，请给出未来 P0-14 的最小验收链路。
+
+至少包括：
+
+1. Direct Test
+2. estimated_level
+3. parent registration
+4. child creation
+5. login/session
+6. `/auth/me`
+7. child list
+8. Formal Test
+9. confirmed_level
+10. Growth Map
+11. 检查数据是否真正进入 D1
+12. 检查是否仍写入旧 Supabase
+
+但 P0-13C 不执行这些测试。
+
+==================================================
+八、必须检查 Git / Worker 当前状态
+==================================================
+
+只读检查：
+
+- git branch
+- git status
+- git HEAD
+- origin/main
+- worker/wrangler.toml
+- worker/src/index.ts
+- worker/package.json
+
+确认：
+
+local HEAD = origin/main
+
+以及 Worker 当前仍然只包含：
+
+/health
+
+不要修改。
+
+==================================================
+九、必须检查 Worker 当前代码
+==================================================
+
+确认：
+
+Worker 当前是否：
+
+- 只实现 `/health`
+- 使用 D1 binding DB
+- 没有业务 API
+- 没有 DML
+- 没有 DDL
+- 没有 Supabase
+- 没有 PostgreSQL
+
+不要添加任何 endpoint。
+
+==================================================
+十、必须检查当前 API 实现
+==================================================
+
+请读取实际代码，不要根据以前报告直接假设。
+
+至少检查：
+
+/api/auth/signup
+/api/auth/login
+/api/auth/me
+/api/auth/send-otp
+/api/auth/verify-otp
+/api/auth/change-password
+/api/children
+/api/children/[id]
+
+以及这些 API 依赖的：
+
+- auth/session utilities
+- child-access
+- database utilities
+- Supabase client
+- PostgreSQL client
+- 相关 frontend 调用
+
+==================================================
+十一、输出格式
+==================================================
+
+最后必须严格输出：
+
+# P0-13C READ-ONLY RESULT
+
+## A. Current Architecture
+PASS / FAIL / BLOCKED
+
+## B. Parent Registration Flow
+PASS / FAIL / BLOCKED
+
+## C. OTP Dependency
+PASS / FAIL / BLOCKED
+
+## D. Auth / Parent / Children Migration Unit
+PASS / FAIL / BLOCKED
+
+## E. Vercel → Worker → D1 Design
+PASS / FAIL / BLOCKED
+
+## F. Session Security Design
+PASS / FAIL / BLOCKED
+
+## G. UUID → INTEGER Mapping
+PASS / FAIL / BLOCKED
+
+## H. Supabase Auth Removal Mapping
+PASS / FAIL / BLOCKED
+
+## I. D1 Frozen Schema Compatibility
+PASS / FAIL / BLOCKED
+
+## J. Rollback / Transaction Design
+PASS / FAIL / BLOCKED
+
+## K. Overall P0-13C
+PASS / FAIL / BLOCKED
+
+==================================================
+十二、最终必须给出“下一步”
+==================================================
+
+如果全部 PASS：
+
+请给出：
+
+### P0-13C Final Design Decision
+
+必须明确：
+
+1. 第一阶段到底迁移哪些 API
+2. 哪些暂不迁移
+3. 为什么
+4. Worker 需要增加哪些 endpoint
+5. Vercel 需要如何调用 Worker
+6. Session 最终采用什么安全方案
+7. 是否需要 Cloudflare Worker Secret
+8. Secret 的名称即可，绝对不要输出 Secret 值
+9. 是否需要 D1 transaction
+10. 如何保证 Vercel → Worker → D1
+11. 如何验证没有写入旧 Supabase
+12. P0-14 如何进行真实 Production Acceptance Test
+
+然后给出：
+
+### Recommended Next Step
+
+只允许提出：
+
+**P0-13D WRITE IMPLEMENTATION**
+
+的准备工作。
+
+不要自行开始 P0-13D。
+
+==================================================
+十三、非常重要
+==================================================
+
+本阶段不要“顺手修复”。
+
+即使你发现：
+
+- 安全问题
+- API bug
+- 类型问题
+- 配置问题
+- Session 问题
+- Supabase 残留
+- Worker 问题
+
+也只能：
+
+**报告 + 设计解决方案**
+
+不得修改。
+
+如果无法确认某项：
+
+标记：
+
+**BLOCKED / NEEDS VERIFICATION**
+
+不要猜。
+
+如果 Agent 环境无法访问 Cloudflare API：
+
+不要要求用户提供 Token。
+
+不要把 Token 写入任何文件。
+
+只报告：
+
+**Agent Cloudflare API access unavailable**
+
+并继续完成可以通过代码、Git、现有配置完成的只读审计。
+
+==================================================
+十四、最终原则
+==================================================
+
+P0-13C 的目标不是“迁移一个 API”。
+
+目标是设计出：
+
+**最小、完整、安全、可回滚的 Production Parent Flow 第一迁移单元。**
+
+最终目标：
+
+Direct Test
+→ Parent Registration
+→ Child
+→ Formal Test
+→ confirmed_level
+→ Growth Map
+
+全部生产业务数据：
+
+**Vercel → Cloudflare Worker → SRC Primary Database / D1**
+
+同时：
+
+- 不修改 Frozen Schema
+- 不重新迁移数据库
+- 不继续依赖旧 Supabase
+- 不保留不安全的 unsigned Base64 session
+- 不一次迁移全部 API
+- 不改变无关 UI
+- 不做任何本阶段 WRITE
+
+现在开始执行 **P0-13C READ-ONLY AUDIT ONLY**。
+完成后只输出审计结果和迁移设计，不执行任何写操作。
