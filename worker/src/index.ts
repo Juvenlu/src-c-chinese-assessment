@@ -141,7 +141,7 @@ async function handlePostGuestTestResult(request: Request, env: Env): Promise<Re
 			).bind(
 				sessionId,
 				body.device_id,
-				"quick_assessment",
+				"quick",
 				"completed",
 				resultDataJson,
 				0, // claimed = 0 (false)
@@ -188,42 +188,6 @@ async function handlePostGuestTestResult(request: Request, env: Env): Promise<Re
 	} catch (error) {
 		return jsonResponse({
 			error: "Failed to save guest test result",
-			message: error instanceof Error ? error.message : "Unknown error",
-		}, 500);
-	}
-}
-
-// ===== Handler：GET /v1/guest/test-result =====
-
-async function handleGetGuestTestResult(request: Request, env: Env): Promise<Response> {
-	const url = new URL(request.url);
-	const sessionId = url.searchParams.get("session_id");
-
-	if (!sessionId) {
-		return jsonResponse({ error: "session_id is required" }, 400);
-	}
-
-	try {
-		const session = await env.DB.prepare(
-			"SELECT * FROM guest_test_sessions WHERE id = ?"
-		).bind(sessionId).first() as Record<string, unknown> | null;
-
-		if (!session) {
-			return jsonResponse({ error: "Not found" }, 404);
-		}
-
-		const result = await env.DB.prepare(
-			"SELECT * FROM quick_assessment_results WHERE guest_session_id = ?"
-		).bind(sessionId).first() as Record<string, unknown> | null;
-
-		return jsonResponse({
-			success: true,
-			session,
-			result,
-		});
-	} catch (error) {
-		return jsonResponse({
-			error: "Failed to query guest test result",
 			message: error instanceof Error ? error.message : "Unknown error",
 		}, 500);
 	}
@@ -277,11 +241,6 @@ export default {
 			// POST /v1/guest/test-result
 			if (path === "/v1/guest/test-result" && request.method === "POST") {
 				return handlePostGuestTestResult(request, env);
-			}
-
-			// GET /v1/guest/test-result
-			if (path === "/v1/guest/test-result" && request.method === "GET") {
-				return handleGetGuestTestResult(request, env);
 			}
 
 			// v1 404
