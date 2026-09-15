@@ -5,9 +5,16 @@
  *   Vercel Production → Cloudflare Worker → D1「SRC Primary Database」
  */
 
+import bcrypt from "bcryptjs";
+import {
+	signSession,
+	createSessionCookie,
+} from "./session";
+
 export interface Env {
 	DB: D1Database;
 	SRC_WORKER_SERVICE_KEY: string;
+	SESSION_SECRET: string;
 }
 
 // ===== 工具函数 =====
@@ -195,6 +202,136 @@ async function handlePostGuestTestResult(request: Request, env: Env): Promise<Re
 	}
 }
 
+// ===== Handler：POST /v1/auth/login =====
+
+interface LoginRequestBody {
+	email?: string;
+	password?: string;
+}
+
+interface ParentRow {
+	id: string;
+	email: string;
+	password_hash: string;
+	email_verified: number;
+	status: string;
+	created_at: number;
+}
+
+interface ChildRow {
+	id: string;
+	nickname: string;
+	age: number;
+	grade: string;
+	country: string;
+	home_language: string | null;
+	home_language_other: string | null;
+	created_at: number;
+	updated_at: number | null;
+	status: string;
+}
+
+async function handlePostAuthLogin(request: Request, env: Env): Promise<Response> {
+	let body: LoginRequestBody;
+	try {
+		body = await request.json() as LoginRequestBody;
+	} catch {
+		return jsonResponse({ error: "Email或密码不正确" }, 401);
+	}
+
+	const email = (body.email || "").toString().trim().toLowerCase();
+	const password = (body.password || "").toString();
+
+	if (!email || !password) {
+		return jsonResponse({ error: "Email或密码不正确" }, 401);
+	}
+
+	if (!env.SESSION_SECRET) {
+		return jsonResponse({ error: "服务配置错误" }, 500);
+	}
+
+	try {
+		const parentResult = await env.DB.prepare(
+			"SELECT id, email, password_hash, email_verified, status, created_at FROM parents WHERE email = ?"
+		).bind(email).all<ParentRow>();
+
+		const parent = parentResult.results?.[0];
+
+		if (!parent) {
+			return jsonResponse({ error: "Email或密码不正确" }, 401);
+		}
+
+		if (parent.status !== "active") {
+			return jsonResponse({ error: "账户已被禁用，请联系管理员" }, 403);
+		}
+
+		if (!parent.password_hash) {
+			return jsonResponse({ error: "账户需要设置密码，请使用忘记密码功能" }, 401);
+		}
+
+		const passwordValid = await bcrypt.compare(password, parent.password_hash);
+		if (!passwordValid) {
+			return jsonResponse({ error: "Email或密码不正确" }, 401);
+		}
+
+		const childrenResult = await env.DB.prepare(
+			`SELECT id, nickname, age, grade, country, home_language, home_language_other,
+					 created_at, updated_at, status
+			 FROM children
+			 WHERE parent_id = ? AND status = 'active'
+			 ORDER BY created_at ASC`
+		).bind(parent.id).all<ChildRow>();
+
+		const children = childrenResult.results || [];
+
+		const sessionToken = await signSession(
+			{ parent_id: parent.id },
+			env.SESSION_SECRET
+		);
+
+		const userOut = {
+			id: parent.id,
+			email: parent.email,
+			email_verified: parent.email_verified === 1,
+			created_at: parent.created_at,
+		};
+
+		const childrenOut = children.map((c) => ({
+			id: c.id,
+			nickname: c.nickname,
+			age: c.age,
+			grade: c.grade,
+			country: c.country,
+			home_language: c.home_language,
+			home_language_other: c.home_language_other,
+			created_at: c.created_at,
+			updated_at: c.updated_at,
+			status: c.status,
+		}));
+
+		const cookie = createSessionCookie(sessionToken);
+
+		return jsonResponse(
+			{
+				success: true,
+				session: sessionToken,
+				user: userOut,
+				children: childrenOut,
+			},
+			200,
+			{
+				"Set-Cookie": cookie,
+			}
+		);
+	} catch (error) {
+		console.error("[Login] error:", error instanceof Error ? error.message : "Unknown");
+		return jsonResponse(
+			{ error: "登录失败，请稍后重试" },
+			500
+		);
+	}
+}
+
 // ===== 主入口 =====
 
 export default {
@@ -243,6 +380,11 @@ export default {
 			// POST /v1/guest/test-result
 			if (path === "/v1/guest/test-result" && request.method === "POST") {
 				return handlePostGuestTestResult(request, env);
+			}
+
+			// POST /v1/auth/login
+			if (path === "/v1/auth/login" && request.method === "POST") {
+				return handlePostAuthLogin(request, env);
 			}
 
 			// v1 404
