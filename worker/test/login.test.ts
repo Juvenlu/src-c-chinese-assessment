@@ -5,7 +5,7 @@
  * 运行：npx tsx test/login.test.ts
  */
 
-import bcrypt from "bcryptjs";
+import { hashPassword } from "../src/password";
 import { signSession, SESSION_COOKIE_NAME } from "../src/session";
 
 // 直接测试核心逻辑：构造 mock 环境并调用 handlePostAuthLogin
@@ -17,7 +17,7 @@ const TEST_SECRET = "test-session-secret-for-login-unit-tests";
 const MOCK_PARENT_ID = "parent-uuid-001";
 const MOCK_EMAIL = "test@example.com";
 const MOCK_PASSWORD = "CorrectPass123!";
-const MOCK_PASSWORD_HASH = bcrypt.hashSync(MOCK_PASSWORD, 10);
+let MOCK_PASSWORD_HASH = "";
 
 const MOCK_CHILDREN = [
 	{
@@ -143,7 +143,8 @@ async function test1_successLogin() {
 	assert(parent.status === "active", "status = active");
 	assert(parent.password_hash.length > 0, "password_hash 存在");
 
-	const valid = await bcrypt.compare(MOCK_PASSWORD, parent.password_hash);
+	const { verifyPassword } = await import("../src/password.js");
+	const valid = await verifyPassword(MOCK_PASSWORD, parent.password_hash);
 	assert(valid === true, "密码校验通过");
 
 	const childrenResult = await db
@@ -189,7 +190,8 @@ async function test3_wrongPassword() {
 		.all<any>();
 	const parent = parentResult.results[0];
 
-	const valid = await bcrypt.compare("WrongPassword!", parent.password_hash);
+	const { verifyPassword } = await import("../src/password.js");
+	const valid = await verifyPassword("WrongPassword!", parent.password_hash);
 	assert(valid === false, "错误密码校验失败");
 }
 
@@ -261,20 +263,22 @@ async function test7_sessionCookie() {
 	assert(clearCookie.includes("Max-Age=0"), "清除 cookie Max-Age=0");
 }
 
-async function test8_bcryptPerformance() {
-	console.log("\nTest 8: bcrypt 性能基线（Node 环境）");
+async function test8_pbkdf2PerformanceBaseline() {
+	console.log("\nTest 8: PBKDF2 性能基线（Node 环境）");
 
 	const start = Date.now();
-	const hash = bcrypt.hashSync("benchmark-password", 10);
+	const hash = await hashPassword("benchmark-password");
 	const hashTime = Date.now() - start;
 
+	const { verifyPassword } = await import("../src/password.js");
 	const start2 = Date.now();
-	bcrypt.compareSync("benchmark-password", hash);
+	await verifyPassword("benchmark-password", hash);
 	const compareTime = Date.now() - start2;
 
-	console.log(`  (hash 10 rounds: ${hashTime}ms, compare: ${compareTime}ms)`);
+	console.log(`  (hash 200K iterations: ${hashTime}ms, verify: ${compareTime}ms)`);
 	assert(hashTime > 0, "hash 执行成功");
-	assert(compareTime > 0, "compare 执行成功");
+	assert(compareTime > 0, "verify 执行成功");
+	assert(hash.startsWith("pbkdf2_sha256$"), "hash 使用 PBKDF2 格式");
 	// 注意：Worker 环境性能可能不同，部署前需要实际验证
 	console.log(`  ⚠  Worker 环境实际性能需部署后验证（Node 结果仅供参考）`);
 }
@@ -356,6 +360,10 @@ async function runAll() {
 	console.log("P0-13F-3 Login Handler Unit Tests");
 	console.log("=".repeat(60));
 
+	// 初始化 PBKDF2 password hash（异步）
+	MOCK_PASSWORD_HASH = await hashPassword(MOCK_PASSWORD);
+	console.log(`\n[setup] PBKDF2 hash 已生成 (${MOCK_PASSWORD_HASH.length} chars)`);
+
 	await test1_successLogin();
 	await test2_emailNotFound();
 	await test3_wrongPassword();
@@ -363,7 +371,7 @@ async function runAll() {
 	await test5_noPasswordHash();
 	await test6_noChildren();
 	await test7_sessionCookie();
-	await test8_bcryptPerformance();
+	await test8_pbkdf2PerformanceBaseline();
 	await test9_responseCompatibility();
 	await test10_emptySecretFailFast();
 

@@ -5,7 +5,7 @@
  *   Vercel Production → Cloudflare Worker → D1「SRC Primary Database」
  */
 
-import bcrypt from "bcryptjs";
+import { verifyPassword } from "./password";
 import {
 	signSession,
 	createSessionCookie,
@@ -269,7 +269,7 @@ async function handlePostAuthLogin(request: Request, env: Env): Promise<Response
 			return jsonResponse({ error: "账户需要设置密码，请使用忘记密码功能" }, 401);
 		}
 
-		const passwordValid = await bcrypt.compare(password, parent.password_hash);
+		const passwordValid = await verifyPassword(password, parent.password_hash);
 		if (!passwordValid) {
 			return jsonResponse({ error: "Email或密码不正确" }, 401);
 		}

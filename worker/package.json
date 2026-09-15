@@ -13,8 +13,5 @@
     "tsx": "^4.23.13",
     "typescript": "^5.0.0",
     "wrangler": "^4.0.0"
-  },
-  "dependencies": {
-    "bcryptjs": "^3.0.3"
   }
 }
