@@ -40,18 +40,20 @@ function nowUnix(): number {
 
 // ===== 业务类型 =====
 
+type Level = 'SRC100' | 'SRC300' | 'SRC500' | 'SRC800';
+
 interface QuickResultPostBody {
 	device_id: string;
 	result_data: {
-		characterLevel: number;
-		characterLevelLower: number;
-		characterLevelUpper: number;
-		wordLevel: number;
-		wordLevelLower: number;
-		wordLevelUpper: number;
-		readingBaseLevel: number;
+		characterLevel: Level;
+		characterLevelLower: Level;
+		characterLevelUpper: Level;
+		wordLevel: Level;
+		wordLevelLower: Level;
+		wordLevelUpper: Level;
+		readingBaseLevel: Level;
 		readingBaseDesc?: string;
-		recommendedReadingLevel: number;
+		recommendedReadingLevel: Level;
 		recommendedReadingDesc?: string;
 		confidence: string;
 		totalQuestions: number;
