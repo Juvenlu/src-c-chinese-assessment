@@ -10,9 +10,13 @@
  *   - Salt: 16 random bytes
  *   - Derived key: 32 bytes
  *
- * Uses Web Crypto API (native to Workers Runtime).
+ * Uses Node.js crypto.pbkdf2Sync (from node:crypto), which is fully
+ * supported in Cloudflare Workers via the nodejs_compat flag.
+ * This avoids the PBKDF2 NotSupportedError in Workers Web Crypto.
  * Constant-time comparison via crypto.subtle.timingSafeEqual.
  */
+
+import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 const ALG_IDENTIFIER = 'pbkdf2_sha256';
 const ITERATIONS = 200_000;
@@ -29,11 +33,11 @@ export async function hashPassword(password: string): Promise<string> {
     throw new Error('Password must be a non-empty string');
   }
 
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
-  const derivedKey = await deriveKey(password, salt, ITERATIONS);
+  const salt = randomBytes(SALT_BYTES);
+  const derived = pbkdf2Sync(password, salt, ITERATIONS, HASH_BYTES, 'sha256');
 
-  const saltHex = bytesToHex(salt);
-  const hashHex = bytesToHex(new Uint8Array(derivedKey));
+  const saltHex = salt.toString('hex');
+  const hashHex = derived.toString('hex');
 
   return `${ALG_IDENTIFIER}$${ITERATIONS}$${saltHex}$${hashHex}`;
 }
@@ -68,15 +72,14 @@ export async function verifyPassword(password: string, storedHash: string): Prom
       return false;
     }
 
-    const salt = hexToBytes(saltHex);
-    const expectedHash = hexToBytes(hashHex);
+    const salt = Buffer.from(saltHex, 'hex');
+    const expectedHash = Buffer.from(hashHex, 'hex');
 
     if (salt.length !== SALT_BYTES || expectedHash.length !== HASH_BYTES) {
       return false;
     }
 
-    const derivedKey = await deriveKey(password, salt, iterations);
-    const actualHash = new Uint8Array(derivedKey);
+    const actualHash = pbkdf2Sync(password, salt, iterations, HASH_BYTES, 'sha256');
 
     if (actualHash.length !== expectedHash.length) {
       return false;
@@ -89,73 +92,23 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   }
 }
 
-async function deriveKey(password: string, salt: Uint8Array, iterations: number): Promise<ArrayBuffer> {
-  const encoder = new TextEncoder();
-  const passwordKey = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveKey']
-  );
-
-  const derivedKey = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt,
-      iterations,
-      hash: { name: 'SHA-256' },
-    },
-    passwordKey,
-    { name: 'HMAC', hash: 'SHA-256', length: HASH_BYTES * 8 },
-    true, // extractable — needed to export raw bytes
-    ['sign']
-  );
-
-  const raw = await crypto.subtle.exportKey('raw', derivedKey);
-  return raw as ArrayBuffer;
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  if (typeof hex !== 'string' || hex.length % 2 !== 0) {
-    throw new Error('Invalid hex string');
-  }
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    const byte = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
-    if (Number.isNaN(byte)) {
-      throw new Error('Invalid hex character');
-    }
-    bytes[i] = byte;
-  }
-  return bytes;
-}
-
 /**
- * Constant-time comparison of two Uint8Arrays.
- * Uses crypto.subtle.timingSafeEqual if available (Workers Runtime),
- * otherwise falls back to a manual constant-time XOR implementation.
+ * Constant-time buffer comparison using Web Crypto timingSafeEqual.
+ * Falls back to a manual constant-time compare if not available.
  */
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-  // Try native timingSafeEqual first (available in Workers Runtime)
-  const subtle = (crypto as any).subtle;
-  if (subtle && typeof subtle.timingSafeEqual === 'function') {
-    return subtle.timingSafeEqual(a, b);
+  // Prefer native timingSafeEqual when available
+  if (typeof crypto !== 'undefined' && crypto.subtle?.timingSafeEqual) {
+    return crypto.subtle.timingSafeEqual(a, b);
   }
 
-  // Manual constant-time comparison fallback
   if (a.length !== b.length) {
     return false;
   }
-  let diff = 0;
+
+  let result = 0;
   for (let i = 0; i < a.length; i++) {
-    diff |= a[i] ^ b[i];
+    result |= a[i] ^ b[i];
   }
-  return diff === 0;
+  return result === 0;
 }
