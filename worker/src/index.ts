@@ -372,6 +372,7 @@ function numToLevel(num: number | null): string | null {
 
 async function handlePostAuthSignup(request: Request, env: Env): Promise<Response> {
 	let body: SignupRequestBody;
+	let signupStep = "start";
 	try {
 		body = await request.json() as SignupRequestBody;
 	} catch {
@@ -414,6 +415,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 
 	try {
 		// ===== Email 查重 =====
+		signupStep = "email_lookup";
 		const existing = await env.DB.prepare(
 			"SELECT id FROM parents WHERE email = ?"
 		).bind(email).first<{ id: string }>();
@@ -423,6 +425,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 		}
 
 		// ===== 密码哈希 =====
+		signupStep = "password_hash";
 		const passwordHash = await hashPassword(password);
 
 		// ===== 生成 IDs =====
@@ -449,6 +452,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 		} | null = null;
 
 		if (guestSessionId) {
+			signupStep = "guest_session_lookup";
 			const guestRow = await env.DB.prepare(
 				"SELECT id, claimed, result_data_json FROM guest_test_sessions WHERE id = ?"
 			).bind(guestSessionId).first<GuestSessionRow>();
@@ -465,6 +469,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 
 			let resultObj: Record<string, unknown>;
 			try {
+				signupStep = "guest_result_parse";
 				resultObj = JSON.parse(guestRow.result_data_json) as Record<string, unknown>;
 			} catch {
 				return jsonResponse({ error: "测试结果无效或已被绑定，请重新测试" }, 400);
@@ -473,6 +478,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 				return jsonResponse({ error: "测试结果无效或已被绑定，请重新测试" }, 400);
 			}
 
+			signupStep = "guest_result_process";
 			const charL = extractLevelNum(resultObj.characterLevelLower);
 			const charU = extractLevelNum(resultObj.characterLevelUpper || resultObj.characterLevel);
 			const wordL = extractLevelNum(resultObj.wordLevelLower);
@@ -514,6 +520,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 		}
 
 		// ===== 原子写入 =====
+		signupStep = "prepare_batch";
 		const statements: D1PreparedStatement[] = [];
 
 		// 1. INSERT parent
@@ -591,9 +598,11 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 		}
 
 		// 执行 batch
+		signupStep = "db_batch";
 		await env.DB.batch(statements);
 
 		// ===== 生成 Session =====
+		signupStep = "session_sign";
 		const sessionToken = await signSession(
 			{ parent_id: parentId },
 			env.SESSION_SECRET
@@ -644,7 +653,26 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 		if (msg.includes("UNIQUE constraint failed: parents.email")) {
 			return jsonResponse({ error: "这个邮箱已经注册，请直接登录" }, 409);
 		}
-		console.error("[Signup] error:", msg);
+		const errName = error instanceof Error ? error.name : "Unknown";
+		// 安全分类：只输出 step + name + 通用类别，不输出 message 原文（可能含敏感信息）
+		let errCategory = "unknown";
+		if (msg.includes("D1") || msg.includes("SQLITE") || msg.includes("database") || msg.includes("batch")) {
+			errCategory = "database";
+		} else if (msg.includes("crypto") || msg.includes("CryptoKey") || msg.includes("HMAC")) {
+			errCategory = "crypto";
+		} else if (msg.includes("fetch") || msg.includes("network")) {
+			errCategory = "network";
+		} else if (msg.includes("JSON")) {
+			errCategory = "json_parse";
+		} else if (msg.includes("session") || msg.includes("SESSION_SECRET")) {
+			errCategory = "session";
+		}
+		console.error(
+			"[signup-error] " +
+			"step=" + signupStep + " " +
+			"name=" + errName + " " +
+			"category=" + errCategory
+		);
 		return jsonResponse(
 			{ error: "注册失败，请稍后重试" },
 			500
