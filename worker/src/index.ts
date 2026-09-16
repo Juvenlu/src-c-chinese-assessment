@@ -373,6 +373,7 @@ function numToLevel(num: number | null): string | null {
 async function handlePostAuthSignup(request: Request, env: Env): Promise<Response> {
 	let body: SignupRequestBody;
 	let signupStep = "start";
+	let hashSubstep = "pre_random_bytes"; // TEMP P0-13F-5-AB: 细粒度 password_hash 子步骤追踪
 	try {
 		body = await request.json() as SignupRequestBody;
 	} catch {
@@ -426,7 +427,10 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 
 		// ===== 密码哈希 =====
 		signupStep = "password_hash";
-		const passwordHash = await hashPassword(password);
+		hashSubstep = "pre_random_bytes";
+		const passwordHash = await hashPassword(password, (sub) => {
+			hashSubstep = sub;
+		});
 
 		// ===== 生成 IDs =====
 		const parentId = crypto.randomUUID();
@@ -671,7 +675,8 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 			"[signup-error] " +
 			"step=" + signupStep + " " +
 			"name=" + errName + " " +
-			"category=" + errCategory
+			"category=" + errCategory +
+			(signupStep === "password_hash" ? " substep=" + hashSubstep : "")
 		);
 		return jsonResponse(
 			{
@@ -680,6 +685,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 					step: signupStep,
 					name: errName,
 					category: errCategory,
+					...(signupStep === "password_hash" ? { substep: hashSubstep } : {}),
 				},
 			},
 			500

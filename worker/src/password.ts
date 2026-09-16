@@ -27,14 +27,27 @@ const FORMAT_PARTS = 4; // identifier$iterations$salt$hash
 /**
  * Hash a password using PBKDF2-SHA256.
  * Returns a string in the format: pbkdf2_sha256$200000$<salt_hex>$<hash_hex>
+ *
+ * TEMPORARY DIAGNOSTIC (P0-13F-5-AB):
+ * Wraps internal calls with sub-step tracking so callers can pinpoint
+ * exactly which operation throws.  Remove once Production NotSupportedError
+ * root cause is confirmed.
  */
-export async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(
+  password: string,
+  onSubstep?: (substep: string) => void,
+): Promise<string> {
   if (typeof password !== 'string' || password.length === 0) {
     throw new Error('Password must be a non-empty string');
   }
 
+  onSubstep?.('pre_random_bytes');
   const salt = randomBytes(SALT_BYTES);
+  onSubstep?.('post_random_bytes');
+
+  onSubstep?.('pre_pbkdf2');
   const derived = pbkdf2Sync(password, salt, ITERATIONS, HASH_BYTES, 'sha256');
+  onSubstep?.('post_pbkdf2');
 
   const saltHex = salt.toString('hex');
   const hashHex = derived.toString('hex');
