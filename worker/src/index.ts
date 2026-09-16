@@ -6,6 +6,7 @@
  */
 
 import { verifyPassword, hashPassword } from "./password";
+import { runPbkdf2Diagnostic } from "./pbkdf2-diag";
 import {
 	signSession,
 	createSessionCookie,
@@ -704,7 +705,7 @@ export default {
 		const corsHeaders = {
 			"Access-Control-Allow-Origin": "*",
 			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-			"Access-Control-Allow-Headers": "Content-Type, X-SRC-Service-Key",
+			"Access-Control-Allow-Headers": "Content-Type, X-SRC-Service-Key, X-Diag-Password",
 		};
 
 		// CORS preflight
@@ -754,6 +755,50 @@ export default {
 			}
 
 			// v1 404
+			return jsonResponse({ error: "Not found", path }, 404, corsHeaders);
+		}
+
+		// ===== /debug/* — 只读诊断端点（需要 Service Key 鉴权）=====
+		// 用于定位 Production 密码学运行时问题，不修改业务数据
+		if (path.startsWith("/debug/")) {
+			if (!verifyServiceKey(request, env)) {
+				return jsonResponse({ error: "Unauthorized" }, 401, corsHeaders);
+			}
+
+			// GET /debug/pbkdf2?iterations=200000
+			if (path === "/debug/pbkdf2" && request.method === "GET") {
+				const itersParam = url.searchParams.get("iterations");
+				const iterations = itersParam ? parseInt(itersParam, 10) : 1000;
+				if (isNaN(iterations) || iterations <= 0) {
+					return jsonResponse(
+						{ error: "Invalid iterations parameter" },
+						400,
+						corsHeaders,
+					);
+				}
+				const result = await runPbkdf2Diagnostic(iterations);
+				return jsonResponse(result, 200, corsHeaders);
+			}
+
+			// GET /debug/pbkdf2/batch?list=1000,10000,100000,200000
+			if (path === "/debug/pbkdf2/batch" && request.method === "GET") {
+				const listParam = url.searchParams.get("list") || "1000,10000,100000,200000";
+				const iterationsList = listParam
+					.split(",")
+					.map((s) => parseInt(s.trim(), 10))
+					.filter((n) => !isNaN(n) && n > 0);
+
+				const results = [];
+				for (const iters of iterationsList) {
+					results.push(await runPbkdf2Diagnostic(iters));
+				}
+				return jsonResponse(
+					{ algorithm: "PBKDF2", hash: "SHA-256", saltBytes: 16, outputBits: 256, results },
+					200,
+					corsHeaders,
+				);
+			}
+
 			return jsonResponse({ error: "Not found", path }, 404, corsHeaders);
 		}
 
