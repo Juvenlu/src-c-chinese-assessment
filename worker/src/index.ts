@@ -674,7 +674,14 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 			"category=" + errCategory
 		);
 		return jsonResponse(
-			{ error: "注册失败，请稍后重试" },
+			{
+				error: "注册失败，请稍后重试",
+				debug: {
+					step: signupStep,
+					name: errName,
+					category: errCategory,
+				},
+			},
 			500
 		);
 	}
