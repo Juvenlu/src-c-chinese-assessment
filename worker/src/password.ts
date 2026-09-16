@@ -94,21 +94,26 @@ async function deriveKey(password: string, salt: Uint8Array, iterations: number)
   const passwordKey = await crypto.subtle.importKey(
     'raw',
     encoder.encode(password),
-    'PBKDF2',
+    { name: 'PBKDF2' },
     false,
-    ['deriveBits']
+    ['deriveKey']
   );
 
-  return crypto.subtle.deriveBits(
+  const derivedKey = await crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
       salt,
       iterations,
-      hash: 'SHA-256',
+      hash: { name: 'SHA-256' },
     },
     passwordKey,
-    HASH_BYTES * 8 // bits
+    { name: 'HMAC', hash: 'SHA-256', length: HASH_BYTES * 8 },
+    true, // extractable — needed to export raw bytes
+    ['sign']
   );
+
+  const raw = await crypto.subtle.exportKey('raw', derivedKey);
+  return raw as ArrayBuffer;
 }
 
 function bytesToHex(bytes: Uint8Array): string {
