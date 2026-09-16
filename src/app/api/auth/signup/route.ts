@@ -1,28 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import {
-  getSupabaseClient,
-  isValidEmail,
-  generateSessionToken,
-} from '@/lib/auth-utils';
 
-const SALT_ROUNDS = 10;
+const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const SRC_WORKER_SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
+const WORKER_GUEST_API_ENABLED = process.env.WORKER_GUEST_API_ENABLED === 'true';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 /**
  * POST /api/auth/signup
  * 家长邮箱 + 密码注册
  * body: { email, password, nickname, age, grade, country, home_language?, home_language_other?, guest_session_id? }
  *
- * 注册成功后：
- * 1. 创建 auth.users（满足外键约束）
- * 2. 创建 parents_profiles（含 password_hash）
- * 3. 创建第一个 Child Profile
- * 4. 如有 guest_session_id，自动绑定测试结果
- * 5. 自动登录（返回 session token）
+ * Production: Vercel → Worker → D1（fail-fast，绝不 fallback 到 Supabase）
+ * Development: 优先 Worker，未配置时 fallback Supabase（仅限本地开发）
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    const workerConfigured =
+      WORKER_GUEST_API_ENABLED && WORKER_BASE_URL && SRC_WORKER_SERVICE_KEY;
+
+    // Production：必须走 Worker，配置缺失直接 fail-fast
+    if (IS_PRODUCTION && !workerConfigured) {
+      console.error(
+        '[auth/signup POST] PRODUCTION ERROR: Worker is not configured. ' +
+          'Required: WORKER_GUEST_API_ENABLED=true, WORKER_BASE_URL, SRC_WORKER_SERVICE_KEY.',
+      );
+      return NextResponse.json(
+        { error: '服务配置错误' },
+        { status: 500 },
+      );
+    }
+
+    // Worker 已配置：走 Vercel → Worker → D1
+    if (workerConfigured) {
+      const res = await fetch(`${WORKER_BASE_URL}/v1/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-SRC-Service-Key': SRC_WORKER_SERVICE_KEY as string,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      // 透传 Set-Cookie（HMAC Session）
+      const setCookie = res.headers.get('set-cookie');
+      const responseHeaders: Record<string, string> = {};
+      if (setCookie) {
+        responseHeaders['Set-Cookie'] = setCookie;
+      }
+
+      if (!res.ok) {
+        return NextResponse.json(data, { status: res.status, headers: responseHeaders });
+      }
+
+      return NextResponse.json(data, { status: res.status, headers: responseHeaders });
+    }
+
+    // Development fallback：Supabase（仅开发环境，Production 不会到达此处）
+    const bcrypt = (await import('bcryptjs')).default;
+    const {
+      getSupabaseClient,
+      isValidEmail,
+      generateSessionToken,
+    } = await import('@/lib/auth-utils');
+
+    const SALT_ROUNDS = 10;
+
     const email = (body.email || '').toString().trim().toLowerCase();
     const password = (body.password || '').toString();
     const nickname = (body.nickname || '').toString().trim();
@@ -37,23 +83,18 @@ export async function POST(req: NextRequest) {
     if (!email || !isValidEmail(email)) {
       return NextResponse.json({ error: '请输入有效的Email地址' }, { status: 400 });
     }
-
     if (!password || password.length < 8) {
       return NextResponse.json({ error: '密码至少需要8位' }, { status: 400 });
     }
-
     if (!nickname) {
       return NextResponse.json({ error: '请输入孩子昵称' }, { status: 400 });
     }
-
     if (!age || age < 3 || age > 18) {
       return NextResponse.json({ error: '请选择有效的年龄' }, { status: 400 });
     }
-
     if (!grade) {
       return NextResponse.json({ error: '请选择年级' }, { status: 400 });
     }
-
     if (!country) {
       return NextResponse.json({ error: '请选择国家/地区' }, { status: 400 });
     }
@@ -91,7 +132,6 @@ export async function POST(req: NextRequest) {
         });
 
       if (createAuthError || !authData.user) {
-        // 并发场景：Email已存在
         if (createAuthError?.message?.includes('already registered')) {
           return NextResponse.json(
             { error: '这个邮箱已经注册，请直接登录' },
@@ -104,7 +144,6 @@ export async function POST(req: NextRequest) {
       userId = authData.user.id;
       createdAt = authData.user.created_at;
     } catch (authErr: any) {
-      // 如果 auth 失败，尝试用 email 在 auth.users 中查找（竞态条件）
       console.warn('[Signup] auth create failed, trying lookup:', authErr.message);
       const { data: listData } = await supabase.auth.admin.listUsers();
       const found = listData?.users?.find(
@@ -134,7 +173,6 @@ export async function POST(req: NextRequest) {
 
     if (profileError) {
       console.error('[Signup] profile insert error:', profileError.message);
-      // 可能竞态，重新查
       const { data: retryProfile } = await supabase
         .from('parents_profiles')
         .select('id, email, created_at')
@@ -178,33 +216,27 @@ export async function POST(req: NextRequest) {
     // ===== 如果有游客测试，自动绑定 =====
     if (guestSessionId) {
       try {
-        // 读取 guest session 的结果数据（含 claimed 状态）
         const { data: guestSession } = await supabase
           .from('guest_test_sessions')
           .select('id, claimed, result_data')
           .eq('id', guestSessionId)
           .maybeSingle();
 
-        // 安全校验 1：guest_session 必须存在
         if (!guestSession) {
           console.warn(`[Signup] guest session not found: ${guestSessionId}`);
           throw new Error('GUEST_SESSION_NOT_FOUND');
         }
-
-        // 安全校验 2：guest_session 必须尚未 claimed
         if (guestSession.claimed) {
           console.warn(`[Signup] guest session already claimed: ${guestSessionId}`);
           throw new Error('GUEST_SESSION_ALREADY_CLAIMED');
         }
 
-        // 安全校验 3：result_data 必须有效
         const resultData = guestSession.result_data as Record<string, any> | null;
         if (!resultData || typeof resultData !== 'object') {
           console.warn(`[Signup] guest session has invalid result_data: ${guestSessionId}`);
           throw new Error('GUEST_SESSION_INVALID_DATA');
         }
 
-        // 标记 guest session 为已认领
         await supabase
           .from('guest_test_sessions')
           .update({
@@ -213,8 +245,6 @@ export async function POST(req: NextRequest) {
           })
           .eq('id', guestSessionId);
 
-        // 写入 quick_assessment_results
-        // 从 Level 字符串（如 "SRC500"）中提取数字
         const extractLevelNum = (val: any): number | null => {
           if (!val) return null;
           if (typeof val === 'number') return val;
@@ -244,10 +274,8 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Signup] guest result bound to child ${childData.id}, reading_base=SRC${readingBase}`);
       } catch (bindErr) {
-        // 只有明确的校验错误才向外抛出，未知错误保留为 warning 但不阻断注册
         const code = bindErr instanceof Error ? bindErr.message : '';
         if (code.startsWith('GUEST_SESSION_')) {
-          // 明确校验失败：返回错误，不继续注册流程
           console.error(`[Signup] guest session claim rejected: ${code}`);
           return NextResponse.json(
             { error: '测试结果无效或已被绑定，请重新测试' },

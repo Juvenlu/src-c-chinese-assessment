@@ -5,7 +5,7 @@
  *   Vercel Production → Cloudflare Worker → D1「SRC Primary Database」
  */
 
-import { verifyPassword } from "./password";
+import { verifyPassword, hashPassword } from "./password";
 import {
 	signSession,
 	createSessionCookie,
@@ -332,6 +332,326 @@ async function handlePostAuthLogin(request: Request, env: Env): Promise<Response
 	}
 }
 
+// ===== Handler：POST /v1/auth/signup =====
+
+interface SignupRequestBody {
+	email?: string;
+	password?: string;
+	nickname?: string;
+	age?: number;
+	grade?: string;
+	country?: string;
+	home_language?: string;
+	home_language_other?: string;
+	guest_session_id?: string;
+}
+
+interface GuestSessionRow {
+	id: string;
+	claimed: number;
+	result_data_json: string | null;
+}
+
+function isValidEmail(email: string): boolean {
+	// 简单但够用的 email 正则
+	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function extractLevelNum(val: unknown): number | null {
+	if (val === null || val === undefined) return null;
+	if (typeof val === "number") return val;
+	const m = String(val).match(/(\d+)/);
+	return m ? parseInt(m[1], 10) : null;
+}
+
+function numToLevel(num: number | null): string | null {
+	if (num === null) return null;
+	const map: Record<number, string> = { 100: "SRC100", 300: "SRC300", 500: "SRC500", 800: "SRC800" };
+	return map[num] || null;
+}
+
+async function handlePostAuthSignup(request: Request, env: Env): Promise<Response> {
+	let body: SignupRequestBody;
+	try {
+		body = await request.json() as SignupRequestBody;
+	} catch {
+		return jsonResponse({ error: "请求数据格式错误" }, 400);
+	}
+
+	const email = (body.email || "").toString().trim().toLowerCase();
+	const password = (body.password || "").toString();
+	const nickname = (body.nickname || "").toString().trim();
+	const age = typeof body.age === "number" ? body.age : parseInt(String(body.age || "0"), 10);
+	const grade = (body.grade || "").toString().trim();
+	const country = (body.country || "").toString().trim();
+	const homeLanguage = body.home_language ? String(body.home_language) : null;
+	const homeLanguageOther = body.home_language_other ? String(body.home_language_other) : null;
+	const guestSessionId = body.guest_session_id ? String(body.guest_session_id) : null;
+
+	// ===== 基础校验 =====
+	if (!email || !isValidEmail(email)) {
+		return jsonResponse({ error: "请输入有效的Email地址" }, 400);
+	}
+	if (!password || password.length < 8) {
+		return jsonResponse({ error: "密码至少需要8位" }, 400);
+	}
+	if (!nickname) {
+		return jsonResponse({ error: "请输入孩子昵称" }, 400);
+	}
+	if (!age || age < 3 || age > 18) {
+		return jsonResponse({ error: "请选择有效的年龄" }, 400);
+	}
+	if (!grade) {
+		return jsonResponse({ error: "请选择年级" }, 400);
+	}
+	if (!country) {
+		return jsonResponse({ error: "请选择国家/地区" }, 400);
+	}
+
+	if (!env.SESSION_SECRET) {
+		return jsonResponse({ error: "服务配置错误" }, 500);
+	}
+
+	try {
+		// ===== Email 查重 =====
+		const existing = await env.DB.prepare(
+			"SELECT id FROM parents WHERE email = ?"
+		).bind(email).first<{ id: string }>();
+
+		if (existing) {
+			return jsonResponse({ error: "这个邮箱已经注册，请直接登录" }, 409);
+		}
+
+		// ===== 密码哈希 =====
+		const passwordHash = await hashPassword(password);
+
+		// ===== 生成 IDs =====
+		const parentId = crypto.randomUUID();
+		const childId = crypto.randomUUID();
+		const nowTs = nowUnix();
+
+		// ===== Guest Claim 预校验 =====
+		let guestClaimData: {
+			sessionId: string;
+			resultObj: Record<string, unknown>;
+			charL: number | null;
+			charU: number | null;
+			wordL: number | null;
+			wordU: number | null;
+			readingBase: number | null;
+			confidence: string;
+			recommendedLevel: string;
+			totalQuestions: number;
+			correctCount: number;
+			estimatedLevel: string | null;
+			resultJson: string;
+			assessmentId: string;
+		} | null = null;
+
+		if (guestSessionId) {
+			const guestRow = await env.DB.prepare(
+				"SELECT id, claimed, result_data_json FROM guest_test_sessions WHERE id = ?"
+			).bind(guestSessionId).first<GuestSessionRow>();
+
+			if (!guestRow) {
+				return jsonResponse({ error: "测试结果无效或已被绑定，请重新测试" }, 400);
+			}
+			if (guestRow.claimed !== 0) {
+				return jsonResponse({ error: "测试结果无效或已被绑定，请重新测试" }, 400);
+			}
+			if (!guestRow.result_data_json) {
+				return jsonResponse({ error: "测试结果无效或已被绑定，请重新测试" }, 400);
+			}
+
+			let resultObj: Record<string, unknown>;
+			try {
+				resultObj = JSON.parse(guestRow.result_data_json) as Record<string, unknown>;
+			} catch {
+				return jsonResponse({ error: "测试结果无效或已被绑定，请重新测试" }, 400);
+			}
+			if (!resultObj || typeof resultObj !== "object") {
+				return jsonResponse({ error: "测试结果无效或已被绑定，请重新测试" }, 400);
+			}
+
+			const charL = extractLevelNum(resultObj.characterLevelLower);
+			const charU = extractLevelNum(resultObj.characterLevelUpper || resultObj.characterLevel);
+			const wordL = extractLevelNum(resultObj.wordLevelLower);
+			const wordU = extractLevelNum(resultObj.wordLevelUpper || resultObj.wordLevel);
+			const readingBase = extractLevelNum(resultObj.readingBaseLevel);
+			const confidence = resultObj.confidence && ["high", "medium", "low"].includes(String(resultObj.confidence))
+				? String(resultObj.confidence)
+				: "medium";
+			const recommendedLevel = numToLevel(readingBase) || "SRC100";
+			const totalQuestions = typeof resultObj.totalQuestions === "number" ? resultObj.totalQuestions : 0;
+
+			// 从 levelResults 或 answers 估算正确数（如果没有 correct 字段，保守设为 0）
+			let correctCount = 0;
+			if (Array.isArray(resultObj.answers)) {
+				correctCount = resultObj.answers.filter((a: any) =>
+					typeof a?.correct === "boolean" ? a.correct : a?.userAnswer === true
+				).length;
+			}
+
+			const estimatedLevel = numToLevel(readingBase);
+			const assessmentId = crypto.randomUUID();
+
+			guestClaimData = {
+				sessionId: guestRow.id,
+				resultObj,
+				charL,
+				charU,
+				wordL,
+				wordU,
+				readingBase,
+				confidence,
+				recommendedLevel,
+				totalQuestions,
+				correctCount,
+				estimatedLevel,
+				resultJson: guestRow.result_data_json,
+				assessmentId,
+			};
+		}
+
+		// ===== 原子写入 =====
+		const statements: D1PreparedStatement[] = [];
+
+		// 1. INSERT parent
+		statements.push(
+			env.DB.prepare(
+				`INSERT INTO parents (id, email, password_hash, email_verified, status, created_at)
+				 VALUES (?, ?, ?, 1, 'active', ?)`
+			).bind(parentId, email, passwordHash, nowTs)
+		);
+
+		// 2. INSERT child
+		const childAssessmentStatus = guestClaimData ? "quick_done" : "not_started";
+		const childEstimatedLevel = guestClaimData?.estimatedLevel || null;
+
+		statements.push(
+			env.DB.prepare(
+				`INSERT INTO children
+					(id, parent_id, nickname, age, grade, country,
+					 home_language, home_language_other, status,
+					 assessment_status, estimated_level, confirmed_level, created_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL, ?)`
+			).bind(
+				childId,
+				parentId,
+				nickname,
+				age,
+				grade,
+				country,
+				homeLanguage,
+				homeLanguageOther,
+				childAssessmentStatus,
+				childEstimatedLevel,
+				nowTs
+			)
+		);
+
+		// 3. Guest Claim: UPDATE guest_test_sessions + INSERT quick_assessment_results
+		if (guestClaimData) {
+			statements.push(
+				env.DB.prepare(
+					`UPDATE guest_test_sessions
+					 SET claimed = 1, child_id = ?
+					 WHERE id = ?`
+				).bind(childId, guestClaimData.sessionId)
+			);
+
+			statements.push(
+				env.DB.prepare(
+					`INSERT INTO quick_assessment_results
+						(id, child_id, guest_session_id,
+						 character_level_l, character_level_u,
+						 word_level_l, word_level_u, reading_base,
+						 confidence, recommended_level,
+						 total_questions, correct_count,
+						 raw_result_json, completed_at, created_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				).bind(
+					guestClaimData.assessmentId,
+					childId,
+					guestClaimData.sessionId,
+					guestClaimData.charL,
+					guestClaimData.charU,
+					guestClaimData.wordL,
+					guestClaimData.wordU,
+					guestClaimData.readingBase,
+					guestClaimData.confidence,
+					guestClaimData.recommendedLevel,
+					guestClaimData.totalQuestions,
+					guestClaimData.correctCount,
+					guestClaimData.resultJson,
+					nowTs,
+					nowTs
+				)
+			);
+		}
+
+		// 执行 batch
+		await env.DB.batch(statements);
+
+		// ===== 生成 Session =====
+		const sessionToken = await signSession(
+			{ parent_id: parentId },
+			env.SESSION_SECRET
+		);
+
+		// ===== 构造返回 =====
+		const userOut = {
+			id: parentId,
+			email,
+			email_verified: true,
+			created_at: nowTs,
+		};
+
+		const childOut = {
+			id: childId,
+			nickname,
+			age,
+			grade,
+			country,
+			home_language: homeLanguage,
+			home_language_other: homeLanguageOther,
+			status: "active",
+			assessment_status: childAssessmentStatus,
+			estimated_level: childEstimatedLevel,
+			confirmed_level: null,
+			created_at: nowTs,
+			updated_at: null,
+		};
+
+		const cookie = createSessionCookie(sessionToken);
+
+		return jsonResponse(
+			{
+				success: true,
+				session: sessionToken,
+				user: userOut,
+				child: childOut,
+				children: [childOut],
+			},
+			200,
+			{
+				"Set-Cookie": cookie,
+			}
+		);
+	} catch (error) {
+		// UNIQUE constraint on email = 并发重复注册
+		const msg = error instanceof Error ? error.message : "Unknown";
+		if (msg.includes("UNIQUE constraint failed: parents.email")) {
+			return jsonResponse({ error: "这个邮箱已经注册，请直接登录" }, 409);
+		}
+		console.error("[Signup] error:", msg);
+		return jsonResponse(
+			{ error: "注册失败，请稍后重试" },
+			500
+		);
+	}
+}
+
 // ===== 主入口 =====
 
 export default {
@@ -385,6 +705,11 @@ export default {
 			// POST /v1/auth/login
 			if (path === "/v1/auth/login" && request.method === "POST") {
 				return handlePostAuthLogin(request, env);
+			}
+
+			// POST /v1/auth/signup
+			if (path === "/v1/auth/signup" && request.method === "POST") {
+				return handlePostAuthSignup(request, env);
 			}
 
 			// v1 404

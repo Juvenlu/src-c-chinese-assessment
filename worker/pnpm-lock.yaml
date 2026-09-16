@@ -9,7 +9,7 @@ importers:
   .:
     devDependencies:
       '@cloudflare/workers-types':
-        specifier: ^4.20250101.0
+        specifier: ^4.20260702.1
         version: 4.20260702.1
       tsx:
         specifier: ^4.23.13
