@@ -35,7 +35,9 @@ export default function Pbkdf2DiagPage() {
   const [serviceKey, setServiceKey] = useState('');
   const [sha256Results, setSha256Results] = useState<TestResult[]>([]);
   const [sha512Results, setSha512Results] = useState<TestResult[]>([]);
-  const [loading, setLoading] = useState<'none' | 'sha256' | 'sha512'>('none');
+  const [argon2Result, setArgon2Result] = useState<any>(null);
+  const [argon2VerifyResult, setArgon2VerifyResult] = useState<any>(null);
+  const [loading, setLoading] = useState<'none' | 'sha256' | 'sha512' | 'argon2'>('none');
   const [error, setError] = useState('');
 
   const runSha256Test = async () => {
@@ -90,6 +92,44 @@ export default function Pbkdf2DiagPage() {
         setSha512Results(data.results);
       } else {
         setError('Unexpected response format');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setLoading('none');
+    }
+  };
+
+  const runArgon2Test = async () => {
+    if (!workerUrl || !serviceKey) {
+      setError('请填写 Worker URL 和 Service Key');
+      return;
+    }
+    setLoading('argon2');
+    setError('');
+    setArgon2Result(null);
+    setArgon2VerifyResult(null);
+    try {
+      const base = workerUrl.replace(/\/$/, '');
+      const res = await fetch(`${base}/debug/argon2`, {
+        method: 'GET',
+        headers: { 'X-SRC-Service-Key': serviceKey },
+      });
+      const data = await res.json();
+      if ('error' in data) {
+        setError(data.error);
+      } else {
+        setArgon2Result(data);
+      }
+
+      // Also test verify
+      const res2 = await fetch(`${base}/debug/argon2/verify`, {
+        method: 'GET',
+        headers: { 'X-SRC-Service-Key': serviceKey },
+      });
+      const data2 = await res2.json();
+      if (!('error' in data2)) {
+        setArgon2VerifyResult(data2);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
@@ -203,6 +243,22 @@ export default function Pbkdf2DiagPage() {
           >
             {loading === 'sha512' ? '测试中...' : 'SHA-512 (100k / 100001)'}
           </button>
+
+          <button
+            onClick={runArgon2Test}
+            disabled={loading !== 'none'}
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              background: loading === 'argon2' ? '#999' : '#6a1b9a',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 4,
+              cursor: loading !== 'none' ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading === 'argon2' ? '测试中...' : 'Argon2id (19 MiB / t=2)'}
+          </button>
         </div>
       </div>
 
@@ -214,6 +270,80 @@ export default function Pbkdf2DiagPage() {
 
       {sha256Results.length > 0 && renderTable(sha256Results, 'PBKDF2-HMAC-SHA256 / 256-bit output')}
       {sha512Results.length > 0 && renderTable(sha512Results, 'PBKDF2-HMAC-SHA-512 / 512-bit output')}
+
+      {argon2Result && (
+        <div style={{ marginBottom: 30 }}>
+          <h2>Argon2id (WASM) 测试结果</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: '#eee' }}>
+                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ddd' }}>配置</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>Success</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>elapsed</th>
+                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ddd' }}>details</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontWeight: 600 }}>
+                  OWASP min (19 MiB, t=2, p=1)
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', fontWeight: 600, color: argon2Result.owaspMin?.success ? '#2e7d32' : '#c62828' }}>
+                  {argon2Result.owaspMin?.success ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>{argon2Result.owaspMin?.elapsedMs} ms</td>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontSize: 12, color: '#555' }}>
+                  {argon2Result.owaspMin?.success ? (
+                    <span>hash_len={argon2Result.owaspMin?.hashLength}, prefix={argon2Result.owaspMin?.hashPrefix}</span>
+                  ) : (
+                    <span>
+                      error: <strong>{argon2Result.owaspMin?.errorName}</strong><br />
+                      {argon2Result.owaspMin?.errorMessage}
+                    </span>
+                  )}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontWeight: 600 }}>
+                  Low (1 MiB, t=1, p=1)
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', fontWeight: 600, color: argon2Result.lowParams?.success ? '#2e7d32' : '#c62828' }}>
+                  {argon2Result.lowParams?.success ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>{argon2Result.lowParams?.elapsedMs} ms</td>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontSize: 12, color: '#555' }}>
+                  {argon2Result.lowParams?.success ? (
+                    <span>hash_len={argon2Result.lowParams?.hashLength}, prefix={argon2Result.lowParams?.hashPrefix}</span>
+                  ) : (
+                    <span>
+                      error: <strong>{argon2Result.lowParams?.errorName}</strong><br />
+                      {argon2Result.lowParams?.errorMessage}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {argon2VerifyResult && (
+            <div style={{ marginTop: 16, padding: 12, background: '#f3e5f5', borderRadius: 8 }}>
+              <strong>Verify 测试：</strong>{' '}
+              {argon2VerifyResult.hashSuccess ? 'hash PASS' : 'hash FAIL'}
+              {' / '}
+              {argon2VerifyResult.verifySuccess ? 'verify PASS' : 'verify FAIL'}
+              {' / match: '}
+              <strong>{argon2VerifyResult.match ? 'YES' : 'NO'}</strong>
+              {' / '}
+              {argon2VerifyResult.elapsedMs} ms
+              {argon2VerifyResult.errorName && (
+                <div style={{ color: '#c62828', marginTop: 4 }}>
+                  error: <strong>{argon2VerifyResult.errorName}</strong> — {argon2VerifyResult.errorMessage}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ marginTop: 40, paddingTop: 20, borderTop: '1px solid #eee', color: '#999', fontSize: 12 }}>
         <p>

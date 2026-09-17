@@ -14,5 +14,8 @@
     "tsx": "^4.23.13",
     "typescript": "^5.0.0",
     "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "hash-wasm": "^4.12.0"
   }
 }

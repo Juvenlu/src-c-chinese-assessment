@@ -7,6 +7,7 @@
 
 import { verifyPassword, hashPassword } from "./password";
 import { runPbkdf2Diagnostic, runPbkdf2Sha512Diagnostic } from "./pbkdf2-diag";
+import { runArgon2BatchDiagnostic, runArgon2VerifyDiagnostic } from "./argon2-diag";
 import {
 	signSession,
 	createSessionCookie,
@@ -831,6 +832,18 @@ export default {
 						corsHeaders,
 					);
 				}
+				// GET /debug/argon2 - Argon2id WASM 可行性诊断
+				if (path === "/debug/argon2" && request.method === "GET") {
+					const result = await runArgon2BatchDiagnostic();
+					return jsonResponse(result, 200, corsHeaders);
+				}
+
+				// GET /debug/argon2/verify - Argon2id hash+verify 诊断
+				if (path === "/debug/argon2/verify" && request.method === "GET") {
+					const result = await runArgon2VerifyDiagnostic();
+					return jsonResponse(result, 200, corsHeaders);
+				}
+
 
 			return jsonResponse({ error: "Not found", path }, 404, corsHeaders);
 		}
