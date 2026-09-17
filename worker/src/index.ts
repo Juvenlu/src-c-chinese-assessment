@@ -16,12 +16,11 @@ import {
 	getSessionFromRequest,
 	SESSION_COOKIE_NAME,
 } from "./session";
+import { handleGetGrowthMap } from "./growth-map";
 
-export interface Env {
-	DB: D1Database;
-	SRC_WORKER_SERVICE_KEY: string;
-	SESSION_SECRET: string;
-}
+import type { Env } from "./types";
+
+export type { Env };
 
 // ===== 工具函数 =====
 
@@ -782,6 +781,26 @@ async function handlePostAuthLogout(_request: Request, _env: Env): Promise<Respo
 	);
 }
 
+// ===== Growth Map =====
+
+/**
+ * GET /v1/growth-map
+ *
+ * 鉴权链：
+ * 1. X-SRC-Service-Key（由外层 /v1/ 路由统一校验）
+ * 2. Cookie src_auth_session（家长登录态）
+ * 3. child_id 归属校验（在 growth-map module 内）
+ */
+async function handleV1GrowthMap(request: Request, env: Env): Promise<Response> {
+	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	if (!session) {
+		return jsonResponse({ error: "未登录" }, 401);
+	}
+
+	const parentId = session.parent_id;
+	return handleGetGrowthMap(request, env, parentId);
+}
+
 // ===== 主入口 =====
 
 export default {
@@ -850,6 +869,12 @@ export default {
 			if (path === "/v1/auth/logout" && request.method === "POST") {
 				return handlePostAuthLogout(request, env);
 			}
+			// GET /v1/growth-map — 成长地图（需要登录 Session + child_id 归属校验）
+			if (path === "/v1/growth-map" && request.method === "GET") {
+				return handleV1GrowthMap(request, env);
+			}
+
+
 
 
 			// v1 404
