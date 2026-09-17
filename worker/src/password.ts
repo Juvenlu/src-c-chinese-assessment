@@ -1,194 +1,514 @@
 /**
- * PBKDF2-SHA256 password hashing utility.
+ * Password hashing utility — Argon2id (primary) + legacy PBKDF2-SHA256 verify.
  *
- * Storage format:
+ * Primary (new passwords):
+ *   Argon2id
+ *   m = 19456 KiB (19 MiB)
+ *   t = 2
+ *   p = 1
+ *   salt = 16 random bytes
+ *   output = 32 bytes
+ *   version = 19 (0x13)
+ *
+ * Storage format (PHC / Modular Crypt Format):
+ *   $argon2id$v=19$m=19456,t=2,p=1$<salt_b64>$<hash_b64>
+ *
+ * Legacy verify (read-only):
  *   pbkdf2_sha256$<iterations>$<salt_hex>$<hash_hex>
+ *   - iterations must be ≤ 100,000 (Cloudflare Workers Production limit)
+ *   - iterations > 100,000 is rejected without attempting compute
  *
- * Parameters:
- *   - Algorithm: PBKDF2 + SHA-256
- *   - Iterations: 200,000
- *   - Salt: 16 random bytes
- *   - Derived key: 32 bytes
- *
- * Uses Web Crypto API (crypto.subtle.importKey + deriveBits),
- * which is natively supported in Cloudflare Workers.
- * Constant-time comparison via crypto.subtle.timingSafeEqual.
+ * Uses:
+ *   - argon2-wasm-edge (pre-compiled .wasm, setWASMModules)
+ *   - Web Crypto PBKDF2 for legacy verify
+ *   - crypto.subtle.timingSafeEqual for constant-time comparison
  */
 
-const ALG_IDENTIFIER = 'pbkdf2_sha256';
-const ITERATIONS = 200_000;
-const SALT_BYTES = 16;
-const HASH_BYTES = 32;
-const FORMAT_PARTS = 4; // identifier$iterations$salt$hash
+import argon2WasmModule from "argon2-wasm-edge/wasm/argon2.wasm";
+import blake2bWasmModule from "argon2-wasm-edge/wasm/blake2b.wasm";
+import { argon2id as argon2idHash } from "argon2-wasm-edge";
 
-/**
- * Internal PBKDF2 derived key computation using Web Crypto.
- * Returns raw derived key bytes.
- */
-async function pbkdf2DeriveBytes(
-	password: string,
-	salt: Uint8Array,
-	iterations: number,
-	hashBytes: number,
-	onSubstep?: (substep: string) => void,
-): Promise<Uint8Array> {
-	const encoder = new TextEncoder();
-	const passwordBytes = encoder.encode(password);
+// ————————————————————————————————————
+// Constants — Argon2id (primary)
+// ————————————————————————————————————
+const ARGON2_TYPE = "argon2id";
+const ARGON2_VERSION = 0x13; // 19
+const ARGON2_MEMORY_KIB = 19456; // 19 MiB
+const ARGON2_ITERATIONS = 2;
+const ARGON2_PARALLELISM = 1;
+const ARGON2_SALT_BYTES = 16;
+const ARGON2_HASH_BYTES = 32;
 
-	onSubstep?.('pre_import_key');
-	const key = await crypto.subtle.importKey(
-		"raw",
-		passwordBytes,
-		{ name: "PBKDF2" },
-		false,
-		["deriveBits"],
-	);
-	onSubstep?.('post_import_key');
+// ————————————————————————————————————
+// Constants — PBKDF2 legacy
+// ————————————————————————————————————
+const PBKDF2_ALG_IDENTIFIER = "pbkdf2_sha256";
+const PBKDF2_FORMAT_PARTS = 4;
+const PBKDF2_MAX_ITERATIONS = 100000; // Cloudflare Workers Production hard limit
+const PBKDF2_MIN_ITERATIONS = 1;
 
-	onSubstep?.('pre_derive_bits');
-	const derivedBuffer = await crypto.subtle.deriveBits(
-		{
-			name: "PBKDF2",
-			salt,
-			iterations,
-			hash: "SHA-256",
-		},
-		key,
-		hashBytes * 8, // bits
-	);
-	onSubstep?.('post_derive_bits');
+// ————————————————————————————————————
+// WASM Initialization (lazy singleton)
+// ————————————————————————————————————
+let wasmInitPromise: Promise<void> | null = null;
+let wasmInitFailed = false;
 
-	return new Uint8Array(derivedBuffer);
+async function ensureWASM(): Promise<void> {
+  if (wasmInitFailed) {
+    // Reset after failure so next request can retry
+    wasmInitPromise = null;
+    wasmInitFailed = false;
+  }
+
+  if (!wasmInitPromise) {
+    wasmInitPromise = (async () => {
+      try {
+        // Dynamic import to avoid top-level side effects in edge cases
+        const { setWASMModules } = await import("argon2-wasm-edge");
+        await setWASMModules({
+          argon2WASM: argon2WasmModule,
+          blake2bWASM: blake2bWasmModule,
+        });
+      } catch (e) {
+        wasmInitFailed = true;
+        throw e;
+      }
+    })();
+  }
+
+  await wasmInitPromise;
 }
 
-/**
- * Convert a Uint8Array to a hex string.
- */
-function bytesToHex(bytes: Uint8Array): string {
-	return Array.from(bytes)
-		.map((b) => b.toString(16).padStart(2, '0'))
-		.join('');
-}
+// ————————————————————————————————————
+// Constant-time comparison
+// ————————————————————————————————————
 
 /**
- * Convert a hex string to a Uint8Array.
- * Returns null for invalid input.
+ * Constant-time byte array comparison using Web Crypto timingSafeEqual.
+ *
+ * If lengths differ, we still perform one valid timingSafeEqual call
+ * (comparing a with itself) then return false.
+ * This prevents leaking information about the expected hash length
+ * through timing differences.
+ *
+ * Cloudflare Workers officially supports crypto.subtle.timingSafeEqual.
+ * Reference: https://developers.cloudflare.com/workers/examples/protect-against-timing-attacks/
  */
+function timingSafeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength === b.byteLength) {
+    return crypto.subtle.timingSafeEqual(a, b);
+  }
+  // Length mismatch: consume time with a valid comparison, then return false.
+  crypto.subtle.timingSafeEqual(a, a);
+  return false;
+}
+
+// ————————————————————————————————————
+// Encoding helpers
+// ————————————————————————————————————
+
 function hexToBytes(hex: string): Uint8Array | null {
-	if (typeof hex !== 'string' || hex.length % 2 !== 0) {
-		return null;
-	}
-	const bytes = new Uint8Array(hex.length / 2);
-	for (let i = 0; i < bytes.length; i++) {
-		const byte = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-		if (Number.isNaN(byte)) {
-			return null;
-		}
-		bytes[i] = byte;
-	}
-	return bytes;
+  if (typeof hex !== "string" || hex.length % 2 !== 0) {
+    return null;
+  }
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    const byte = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    if (Number.isNaN(byte)) {
+      return null;
+    }
+    bytes[i] = byte;
+  }
+  return bytes;
 }
 
 /**
- * Hash a password using PBKDF2-SHA256.
- * Returns a string in the format: pbkdf2_sha256$200000$<salt_hex>$<hash_hex>
+ * Decode a standard base64 string (used in PHC format) to Uint8Array.
+ * Returns null on invalid input.
+ */
+function base64Decode(str: string): Uint8Array | null {
+  try {
+    // PHC uses standard base64 without padding sometimes; add padding if needed
+    const padded = str + "=".repeat((4 - (str.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Encode Uint8Array to standard base64 string (no padding, PHC style).
+ */
+function base64Encode(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/=+$/, "");
+}
+
+// ————————————————————————————————————
+// PBKDF2 (legacy verify only)
+// ————————————————————————————————————
+
+async function pbkdf2DeriveBytes(
+  password: string,
+  salt: Uint8Array,
+  iterations: number,
+  hashBytes: number,
+): Promise<Uint8Array> {
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    passwordBytes,
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"],
+  );
+
+  const derivedBuffer = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations,
+      hash: "SHA-256",
+    },
+    key,
+    hashBytes * 8,
+  );
+
+  return new Uint8Array(derivedBuffer);
+}
+
+// ————————————————————————————————————
+// Argon2id core
+// ————————————————————————————————————
+
+interface Argon2Params {
+  memorySize: number; // KiB
+  iterations: number;
+  parallelism: number;
+  hashLength: number;
+  version: number;
+}
+
+const ARGON2_OFFICIAL_PARAMS: Argon2Params = {
+  memorySize: ARGON2_MEMORY_KIB,
+  iterations: ARGON2_ITERATIONS,
+  parallelism: ARGON2_PARALLELISM,
+  hashLength: ARGON2_HASH_BYTES,
+  version: ARGON2_VERSION,
+};
+
+async function computeArgon2idRaw(
+  password: string,
+  salt: Uint8Array,
+  params: Argon2Params,
+): Promise<Uint8Array> {
+  await ensureWASM();
+
+  const result = await argon2idHash({
+    password,
+    salt,
+    hashLength: params.hashLength,
+    outputType: "binary",
+    memorySize: params.memorySize,
+    iterations: params.iterations,
+    parallelism: params.parallelism,
+    version: params.version,
+  });
+
+  if (result instanceof Uint8Array) {
+    return result;
+  }
+  // Should not happen with outputType: "binary"
+  throw new Error("Unexpected argon2id output type");
+}
+
+// ————————————————————————————————————
+// PHC Format Parsing
+// ————————————————————————————————————
+
+interface ParsedArgon2Hash {
+  algorithm: string;
+  version: number;
+  memory: number; // KiB
+  iterations: number;
+  parallelism: number;
+  salt: Uint8Array;
+  hash: Uint8Array;
+}
+
+/**
+ * Parse an Argon2 PHC string.
+ * Returns null if the format is invalid.
+ * Does NOT validate parameter ranges — call validateArgon2Params for that.
+ */
+function parseArgon2Hash(hash: string): ParsedArgon2Hash | null {
+  if (typeof hash !== "string") return null;
+
+  // Expected format: $argon2id$v=19$m=...,t=...,p=...$<salt>$<hash>
+  const parts = hash.split("$");
+  // parts[0] = "" (leading $), parts[1] = "argon2id", parts[2] = "v=19",
+  // parts[3] = "m=...,t=...,p=...", parts[4] = salt, parts[5] = hash
+  if (parts.length !== 6) return null;
+  if (parts[0] !== "") return null;
+  if (parts[1] !== ARGON2_TYPE) return null;
+
+  // Parse version
+  const versionMatch = parts[2].match(/^v=(\d+)$/);
+  if (!versionMatch) return null;
+  const version = parseInt(versionMatch[1], 10);
+  if (!Number.isInteger(version) || version <= 0) return null;
+
+  // Parse params: m=...,t=...,p=...
+  const paramStr = parts[3];
+  const params: Record<string, string> = {};
+  for (const pair of paramStr.split(",")) {
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx < 0) return null;
+    const key = pair.slice(0, eqIdx);
+    const value = pair.slice(eqIdx + 1);
+    params[key] = value;
+  }
+
+  const memory = parseInt(params.m, 10);
+  const iterations = parseInt(params.t, 10);
+  const parallelism = parseInt(params.p, 10);
+
+  if (!Number.isInteger(memory) || memory <= 0) return null;
+  if (!Number.isInteger(iterations) || iterations <= 0) return null;
+  if (!Number.isInteger(parallelism) || parallelism <= 0) return null;
+
+  const salt = base64Decode(parts[4]);
+  const hashBytes = base64Decode(parts[5]);
+
+  if (!salt || salt.length === 0) return null;
+  if (!hashBytes || hashBytes.length === 0) return null;
+
+  return {
+    algorithm: parts[1],
+    version,
+    memory,
+    iterations,
+    parallelism,
+    salt,
+    hash: hashBytes,
+  };
+}
+
+/**
+ * Strictly validate that parsed Argon2 params match the ONLY allowed configuration.
+ * Prevents database hash tampering from causing DoS via high memory/CPU.
  *
- * TEMPORARY DIAGNOSTIC (P0-13F-5-AB):
- * Wraps internal calls with sub-step tracking so callers can pinpoint
- * exactly which operation throws.  Remove once Production NotSupportedError
- * root cause is confirmed.
+ * In V1, we only accept the exact official params:
+ *   version=19, memory=19456, iterations=2, parallelism=1
+ */
+function isOfficialArgon2Params(parsed: ParsedArgon2Hash): boolean {
+  return (
+    parsed.version === ARGON2_OFFICIAL_PARAMS.version &&
+    parsed.memory === ARGON2_OFFICIAL_PARAMS.memorySize &&
+    parsed.iterations === ARGON2_OFFICIAL_PARAMS.iterations &&
+    parsed.parallelism === ARGON2_OFFICIAL_PARAMS.parallelism &&
+    parsed.hash.length === ARGON2_OFFICIAL_PARAMS.hashLength
+  );
+}
+
+// ————————————————————————————————————
+// PBKDF2 Format Parsing
+// ————————————————————————————————————
+
+interface ParsedPbkdf2Hash {
+  identifier: string;
+  iterations: number;
+  salt: Uint8Array;
+  hash: Uint8Array;
+}
+
+function parsePbkdf2Hash(hash: string): ParsedPbkdf2Hash | null {
+  if (typeof hash !== "string") return null;
+
+  const parts = hash.split("$");
+  if (parts.length !== PBKDF2_FORMAT_PARTS) return null;
+
+  const [identifier, iterationsStr, saltHex, hashHex] = parts;
+  if (identifier !== PBKDF2_ALG_IDENTIFIER) return null;
+
+  const iterations = parseInt(iterationsStr, 10);
+  if (!Number.isInteger(iterations) || iterations < PBKDF2_MIN_ITERATIONS) {
+    return null;
+  }
+
+  // Reject iterations > 100k at parse time — never attempt compute
+  if (iterations > PBKDF2_MAX_ITERATIONS) {
+    return null;
+  }
+
+  const salt = hexToBytes(saltHex);
+  const hashBytes = hexToBytes(hashHex);
+
+  if (!salt || salt.length === 0) return null;
+  if (!hashBytes || hashBytes.length === 0) return null;
+
+  return { identifier, iterations, salt, hash: hashBytes };
+}
+
+// ————————————————————————————————————
+// Dummy hash (for timing-equality on reject paths)
+// ————————————————————————————————————
+
+/**
+ * Perform a dummy Argon2id hash to ensure reject paths take similar time
+ * to valid verify paths. This prevents attackers from distinguishing:
+ *   - empty hash / malformed hash / wrong algorithm
+ *   - wrong password
+ *   - invalid parameters
+ *
+ * Uses the official Argon2id params (slowest path) for maximum protection.
+ */
+async function dummyArgon2Hash(password: string): Promise<void> {
+  try {
+    const dummySalt = new Uint8Array(ARGON2_SALT_BYTES);
+    // All zeros — we don't care about the output, only the computation time
+    await computeArgon2idRaw(password, dummySalt, ARGON2_OFFICIAL_PARAMS);
+  } catch {
+    // Swallow errors — dummy hash must never throw to the caller
+  }
+}
+
+// ————————————————————————————————————
+// Public API: hashPassword
+// ————————————————————————————————————
+
+/**
+ * Hash a password using Argon2id with the official parameters.
+ *
+ * Returns a PHC-format string:
+ *   $argon2id$v=19$m=19456,t=2,p=1$<salt_b64>$<hash_b64>
+ *
+ * @param password Plain-text password string
+ * @param onSubstep Optional diagnostic callback (kept for backward compat)
  */
 export async function hashPassword(
-	password: string,
-	onSubstep?: (substep: string) => void,
+  password: string,
+  onSubstep?: (substep: string) => void,
 ): Promise<string> {
-	if (typeof password !== 'string' || password.length === 0) {
-		throw new Error('Password must be a non-empty string');
-	}
+  if (typeof password !== "string" || password.length === 0) {
+    throw new Error("Password must be a non-empty string");
+  }
 
-	onSubstep?.('pre_random_bytes');
-	const salt = new Uint8Array(SALT_BYTES);
-	crypto.getRandomValues(salt);
-	onSubstep?.('post_random_bytes');
+  onSubstep?.("pre_random_bytes");
+  const salt = new Uint8Array(ARGON2_SALT_BYTES);
+  crypto.getRandomValues(salt);
+  onSubstep?.("post_random_bytes");
 
-	const derived = await pbkdf2DeriveBytes(password, salt, ITERATIONS, HASH_BYTES, onSubstep);
+  onSubstep?.("pre_wasm_init");
+  await ensureWASM();
+  onSubstep?.("post_wasm_init");
 
-	const saltHex = bytesToHex(salt);
-	const hashHex = bytesToHex(derived);
+  onSubstep?.("pre_argon2_hash");
+  const hashBytes = await computeArgon2idRaw(password, salt, ARGON2_OFFICIAL_PARAMS);
+  onSubstep?.("post_argon2_hash");
 
-	return `${ALG_IDENTIFIER}$${ITERATIONS}$${saltHex}$${hashHex}`;
+  const saltB64 = base64Encode(salt);
+  const hashB64 = base64Encode(hashBytes);
+
+  return `$${ARGON2_TYPE}$v=${ARGON2_VERSION}$m=${ARGON2_MEMORY_KIB},t=${ARGON2_ITERATIONS},p=${ARGON2_PARALLELISM}$${saltB64}$${hashB64}`;
 }
+
+// ————————————————————————————————————
+// Public API: verifyPassword
+// ————————————————————————————————————
 
 /**
  * Verify a password against a stored hash.
- * Returns true if the password matches, false otherwise.
- * Always returns false for malformed/empty hashes (safe failure).
+ *
+ * Supports:
+ *   - $argon2id$...  → Argon2id (only official params accepted)
+ *   - pbkdf2_sha256$... → Legacy PBKDF2 (iterations ≤ 100k)
+ *
+ * Always returns false for:
+ *   - empty / null hash
+ *   - malformed hash
+ *   - unsupported algorithm / version
+ *   - out-of-range parameters (rejected without computation)
+ *
+ * Uses crypto.subtle.timingSafeEqual for constant-time byte comparison.
+ * All reject paths perform a dummy Argon2id hash to minimize timing leaks.
  */
-export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-	try {
-		if (typeof password !== 'string' || password.length === 0) {
-			return false;
-		}
-		if (typeof storedHash !== 'string' || storedHash.length === 0) {
-			return false;
-		}
+export async function verifyPassword(
+  password: string,
+  storedHash: string | null | undefined,
+): Promise<boolean> {
+  // ——— Guard: password must be a non-empty string ———
+  if (typeof password !== "string" || password.length === 0) {
+    await dummyArgon2Hash("dummy");
+    return false;
+  }
 
-		const parts = storedHash.split('$');
-		if (parts.length !== FORMAT_PARTS) {
-			return false;
-		}
+  // ——— Guard: storedHash must be a non-empty string ———
+  if (!storedHash || typeof storedHash !== "string" || storedHash.length === 0) {
+    await dummyArgon2Hash(password);
+    return false;
+  }
 
-		const [identifier, iterationsStr, saltHex, hashHex] = parts;
+  try {
+    // ——— Determine algorithm ———
+    if (storedHash.startsWith("$argon2id$")) {
+      const parsed = parseArgon2Hash(storedHash);
+      if (!parsed) {
+        await dummyArgon2Hash(password);
+        return false;
+      }
 
-		if (identifier !== ALG_IDENTIFIER) {
-			return false;
-		}
+      // Strict: only accept the exact official params
+      // (Prevent DoS via database hash tampering with high m/t)
+      if (!isOfficialArgon2Params(parsed)) {
+        await dummyArgon2Hash(password);
+        return false;
+      }
 
-		const iterations = Number(iterationsStr);
-		if (!Number.isInteger(iterations) || iterations <= 0) {
-			return false;
-		}
+      const computed = await computeArgon2idRaw(password, parsed.salt, {
+        memorySize: parsed.memory,
+        iterations: parsed.iterations,
+        parallelism: parsed.parallelism,
+        hashLength: parsed.hash.length,
+        version: parsed.version,
+      });
 
-		const salt = hexToBytes(saltHex);
-		const expectedHash = hexToBytes(hashHex);
+      return timingSafeEqualBytes(computed, parsed.hash);
+    }
 
-		if (!salt || !expectedHash) {
-			return false;
-		}
-		if (salt.length !== SALT_BYTES || expectedHash.length !== HASH_BYTES) {
-			return false;
-		}
+    if (storedHash.startsWith(PBKDF2_ALG_IDENTIFIER + "$")) {
+      const parsed = parsePbkdf2Hash(storedHash);
+      // parsePbkdf2Hash already rejects iterations > 100k
+      if (!parsed) {
+        await dummyArgon2Hash(password);
+        return false;
+      }
 
-		const actualHash = await pbkdf2DeriveBytes(password, salt, iterations, HASH_BYTES);
+      const computed = await pbkdf2DeriveBytes(
+        password,
+        parsed.salt,
+        parsed.iterations,
+        parsed.hash.length,
+      );
 
-		if (actualHash.length !== expectedHash.length) {
-			return false;
-		}
+      return timingSafeEqualBytes(computed, parsed.hash);
+    }
 
-		return timingSafeEqual(actualHash, expectedHash);
-	} catch {
-		// Any error (invalid hex, crypto failure, etc.) → safe failure
-		return false;
-	}
-}
-
-/**
- * Constant-time buffer comparison using Web Crypto timingSafeEqual.
- * Falls back to a manual constant-time compare if not available.
- */
-function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-	// Prefer native timingSafeEqual when available
-	if (typeof crypto !== 'undefined' && crypto.subtle?.timingSafeEqual) {
-		return crypto.subtle.timingSafeEqual(a, b);
-	}
-
-	if (a.length !== b.length) {
-		return false;
-	}
-
-	let result = 0;
-	for (let i = 0; i < a.length; i++) {
-		result |= a[i] ^ b[i];
-	}
-	return result === 0;
+    // Unknown algorithm
+    await dummyArgon2Hash(password);
+    return false;
+  } catch {
+    // Any unexpected error → safe failure
+    return false;
+  }
 }

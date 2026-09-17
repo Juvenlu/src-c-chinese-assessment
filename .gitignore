@@ -160,3 +160,6 @@ Desktop.ini
 # Misc
 .coze-logs
 .codegraph
+
+# Wrangler local dev state / cache
+worker/.wrangler/
