@@ -11,6 +11,9 @@ importers:
       argon2-browser:
         specifier: ^1.18.0
         version: 1.18.0
+      argon2-wasm-edge:
+        specifier: ^1.0.23
+        version: 1.0.23
       hash-wasm:
         specifier: ^4.12.0
         version: 4.12.0
@@ -436,6 +439,9 @@ packages:
   argon2-browser@1.18.0:
     resolution: {integrity: sha512-ImVAGIItnFnvET1exhsQB7apRztcoC5TnlSqernMJDUjbc/DLq3UEYeXFrLPrlaIl8cVfwnXb6wX2KpFf2zxHw==}
 
+  argon2-wasm-edge@1.0.23:
+    resolution: {integrity: sha512-9OGfPkqC9Oe1sP50HNTemwbk/x+CJF7ci74jKsFXPIt7F0aJmSySx5JCOZ4+Zj4VmXIDaXr8y1p5FKFR633YVA==}
+
   blake3-wasm@2.1.5:
     resolution: {integrity: sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g==}
 
@@ -801,6 +807,8 @@ snapshots:
       undici-types: 6.21.0
 
   argon2-browser@1.18.0: {}
+
+  argon2-wasm-edge@1.0.23: {}
 
   blake3-wasm@2.1.5: {}
 

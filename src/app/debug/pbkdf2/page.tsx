@@ -38,7 +38,8 @@ export default function Pbkdf2DiagPage() {
   const [argon2Result, setArgon2Result] = useState<any>(null);
   const [argon2VerifyResult, setArgon2VerifyResult] = useState<any>(null);
   const [argon2WasmResult, setArgon2WasmResult] = useState<any>(null);
-  const [loading, setLoading] = useState<'none' | 'sha256' | 'sha512' | 'argon2' | 'argon2wasm'>('none');
+  const [argon2EdgeResult, setArgon2EdgeResult] = useState<any>(null);
+  const [loading, setLoading] = useState<'none' | 'sha256' | 'sha512' | 'argon2' | 'argon2wasm' | 'argon2edge'>('none');
   const [error, setError] = useState('');
 
   const runSha256Test = async () => {
@@ -158,6 +159,33 @@ export default function Pbkdf2DiagPage() {
         setError(data.error);
       } else {
         setArgon2WasmResult(data);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setLoading('none');
+    }
+  };
+
+  const runArgon2EdgeTest = async () => {
+    if (!workerUrl || !serviceKey) {
+      setError('请填写 Worker URL 和 Service Key');
+      return;
+    }
+    setLoading('argon2edge');
+    setError('');
+    setArgon2EdgeResult(null);
+    try {
+      const base = workerUrl.replace(/\/$/, '');
+      const res = await fetch(`${base}/debug/argon2-edge`, {
+        method: 'GET',
+        headers: { 'X-SRC-Service-Key': serviceKey },
+      });
+      const data = await res.json();
+      if ('error' in data) {
+        setError(data.error);
+      } else {
+        setArgon2EdgeResult(data);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
@@ -303,6 +331,22 @@ export default function Pbkdf2DiagPage() {
           >
             {loading === 'argon2wasm' ? '测试中...' : 'Argon2id WASM (precompiled)'}
           </button>
+
+          <button
+            onClick={runArgon2EdgeTest}
+            disabled={loading !== 'none'}
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              background: loading === 'argon2edge' ? '#999' : '#e65100',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 4,
+              cursor: loading !== 'none' ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading === 'argon2edge' ? '测试中...' : 'Argon2id (argon2-wasm-edge)'}
+          </button>
         </div>
       </div>
 
@@ -436,6 +480,92 @@ export default function Pbkdf2DiagPage() {
                     <span>
                       error: <strong>{argon2WasmResult.lowParams?.errorName}</strong><br />
                       {argon2WasmResult.lowParams?.errorMessage}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {argon2EdgeResult && (
+        <div style={{ marginBottom: 30 }}>
+          <h2>Argon2id (argon2-wasm-edge) 测试结果</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: '#eee' }}>
+                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ddd' }}>配置</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>WASM Init</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>Hash</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>Verify</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>Match</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>总耗时</th>
+                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ddd' }}>details</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontWeight: 600 }}>
+                  OWASP min (19 MiB, t=2, p=1)
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', color: argon2EdgeResult.owaspMin?.wasmInit ? '#2e7d32' : '#c62828' }}>
+                  {argon2EdgeResult.owaspMin?.wasmInit ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', fontWeight: 600, color: argon2EdgeResult.owaspMin?.hashSuccess ? '#2e7d32' : '#c62828' }}>
+                  {argon2EdgeResult.owaspMin?.hashSuccess ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', color: argon2EdgeResult.owaspMin?.verifySuccess ? '#2e7d32' : '#c62828' }}>
+                  {argon2EdgeResult.owaspMin?.verifySuccess ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', color: argon2EdgeResult.owaspMin?.match ? '#2e7d32' : '#c62828' }}>
+                  {argon2EdgeResult.owaspMin?.match ? 'YES' : 'NO'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>
+                  {argon2EdgeResult.owaspMin?.totalElapsedMs} ms
+                </td>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontSize: 12, color: '#555' }}>
+                  {argon2EdgeResult.owaspMin?.hashSuccess ? (
+                    <span>
+                  hash={argon2EdgeResult.owaspMin?.hashPrefix?.slice(0, 40)}
+                  {argon2EdgeResult.owaspMin?.initElapsedMs !== undefined ? `, init=${argon2EdgeResult.owaspMin.initElapsedMs}ms` : ''}
+                  {argon2EdgeResult.owaspMin?.hashElapsedMs !== undefined ? `, hash=${argon2EdgeResult.owaspMin.hashElapsedMs}ms` : ''}
+                  {argon2EdgeResult.owaspMin?.verifyElapsedMs !== undefined ? `, verify=${argon2EdgeResult.owaspMin.verifyElapsedMs}ms` : ''}
+                    </span>
+                  ) : (
+                    <span>
+                      error: <strong>{argon2EdgeResult.owaspMin?.errorName}</strong><br />
+                      {argon2EdgeResult.owaspMin?.errorMessage}
+                    </span>
+                  )}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontWeight: 600 }}>
+                  Low (1 MiB, t=1, p=1)
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', color: argon2EdgeResult.lowParams?.wasmInit ? '#2e7d32' : '#c62828' }}>
+                  {argon2EdgeResult.lowParams?.wasmInit ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', fontWeight: 600, color: argon2EdgeResult.lowParams?.hashSuccess ? '#2e7d32' : '#c62828' }}>
+                  {argon2EdgeResult.lowParams?.hashSuccess ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', color: argon2EdgeResult.lowParams?.verifySuccess ? '#2e7d32' : '#c62828' }}>
+                  {argon2EdgeResult.lowParams?.verifySuccess ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', color: argon2EdgeResult.lowParams?.match ? '#2e7d32' : '#c62828' }}>
+                  {argon2EdgeResult.lowParams?.match ? 'YES' : 'NO'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>
+                  {argon2EdgeResult.lowParams?.totalElapsedMs} ms
+                </td>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontSize: 12, color: '#555' }}>
+                  {argon2EdgeResult.lowParams?.hashSuccess ? (
+                    <span>hash={argon2EdgeResult.lowParams?.hashPrefix?.slice(0, 40)}</span>
+                  ) : (
+                    <span>
+                      error: <strong>{argon2EdgeResult.lowParams?.errorName}</strong><br />
+                      {argon2EdgeResult.lowParams?.errorMessage}
                     </span>
                   )}
                 </td>

@@ -9,6 +9,7 @@ import { verifyPassword, hashPassword } from "./password";
 import { runPbkdf2Diagnostic, runPbkdf2Sha512Diagnostic } from "./pbkdf2-diag";
 import { runArgon2BatchDiagnostic, runArgon2VerifyDiagnostic } from "./argon2-diag";
 import { runArgon2WasmBatchDiagnostic } from "./argon2-wasm-diag";
+import { runArgon2EdgeBatchDiagnostic } from "./argon2-edge-diag";
 import {
 	signSession,
 	createSessionCookie,
@@ -849,6 +850,12 @@ export default {
 					const result = await runArgon2WasmBatchDiagnostic();
 					return jsonResponse(result, 200, corsHeaders);
 				}
+				// GET /debug/argon2-edge - argon2-wasm-edge 版 Argon2id 可行性诊断
+				if (path === "/debug/argon2-edge" && request.method === "GET") {
+					const result = await runArgon2EdgeBatchDiagnostic();
+					return jsonResponse(result, 200, corsHeaders);
+				}
+
 
 
 
