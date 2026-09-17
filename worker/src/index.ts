@@ -6,7 +6,7 @@
  */
 
 import { verifyPassword, hashPassword } from "./password";
-import { runPbkdf2Diagnostic } from "./pbkdf2-diag";
+import { runPbkdf2Diagnostic, runPbkdf2Sha512Diagnostic } from "./pbkdf2-diag";
 import {
 	signSession,
 	createSessionCookie,
@@ -798,6 +798,39 @@ export default {
 					corsHeaders,
 				);
 			}
+				// GET /debug/pbkdf2/sha512?iterations=100000
+				if (path === "/debug/pbkdf2/sha512" && request.method === "GET") {
+					const itersParam = url.searchParams.get("iterations");
+					const iterations = itersParam ? parseInt(itersParam, 10) : 100000;
+					if (isNaN(iterations) || iterations <= 0) {
+						return jsonResponse(
+							{ error: "Invalid iterations parameter" },
+							400,
+							corsHeaders,
+						);
+					}
+					const result = await runPbkdf2Sha512Diagnostic(iterations);
+					return jsonResponse(result, 200, corsHeaders);
+				}
+
+				// GET /debug/pbkdf2/sha512/batch?list=100000,100001
+				if (path === "/debug/pbkdf2/sha512/batch" && request.method === "GET") {
+					const listParam = url.searchParams.get("list") || "100000,100001";
+					const iterationsList = listParam
+						.split(",")
+						.map((s) => parseInt(s.trim(), 10))
+						.filter((n) => !isNaN(n) && n > 0);
+
+					const results = [];
+					for (const iters of iterationsList) {
+						results.push(await runPbkdf2Sha512Diagnostic(iters));
+					}
+					return jsonResponse(
+						{ algorithm: "PBKDF2", hash: "SHA-512", saltBytes: 16, outputBits: 512, results },
+						200,
+						corsHeaders,
+					);
+				}
 
 			return jsonResponse({ error: "Not found", path }, 404, corsHeaders);
 		}

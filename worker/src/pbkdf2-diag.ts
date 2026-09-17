@@ -15,6 +15,9 @@
  */
 
 export interface Pbkdf2DiagResult {
+  algorithm: string;
+  hash: string;
+  outputBits: number;
   iterations: number;
   getRandomValues: "PASS" | "FAIL";
   importKey: "PASS" | "FAIL";
@@ -28,11 +31,16 @@ export interface Pbkdf2DiagResult {
   hashHexPrefix?: string;
 }
 
-export async function runPbkdf2Diagnostic(
+async function runPbkdf2Generic(
+  hash: "SHA-256" | "SHA-512",
   iterations: number,
+  outputBits: number,
 ): Promise<Pbkdf2DiagResult> {
   const start = Date.now();
   const result: Pbkdf2DiagResult = {
+    algorithm: "PBKDF2",
+    hash,
+    outputBits,
     iterations,
     getRandomValues: "FAIL",
     importKey: "FAIL",
@@ -69,10 +77,10 @@ export async function runPbkdf2Diagnostic(
         name: "PBKDF2",
         salt,
         iterations,
-        hash: "SHA-256",
+        hash,
       },
       key,
-      256, // bits
+      outputBits,
     );
     result.deriveBits = "PASS";
     result.substep = "post_derive_bits";
@@ -90,4 +98,16 @@ export async function runPbkdf2Diagnostic(
 
   result.elapsedMs = Date.now() - start;
   return result;
+}
+
+export async function runPbkdf2Diagnostic(
+  iterations: number,
+): Promise<Pbkdf2DiagResult> {
+  return runPbkdf2Generic("SHA-256", iterations, 256);
+}
+
+export async function runPbkdf2Sha512Diagnostic(
+  iterations: number,
+): Promise<Pbkdf2DiagResult> {
+  return runPbkdf2Generic("SHA-512", iterations, 512);
 }
