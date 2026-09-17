@@ -15,3 +15,8 @@ database_id = "519f117f-88b6-49c7-9d1c-dd9284ac10a4"
 # 部署配置
 [env.production]
 name = "src-primary-api"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "src-primary-database"
+database_id = "519f117f-88b6-49c7-9d1c-dd9284ac10a4"
