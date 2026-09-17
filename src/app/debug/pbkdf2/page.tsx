@@ -37,7 +37,8 @@ export default function Pbkdf2DiagPage() {
   const [sha512Results, setSha512Results] = useState<TestResult[]>([]);
   const [argon2Result, setArgon2Result] = useState<any>(null);
   const [argon2VerifyResult, setArgon2VerifyResult] = useState<any>(null);
-  const [loading, setLoading] = useState<'none' | 'sha256' | 'sha512' | 'argon2'>('none');
+  const [argon2WasmResult, setArgon2WasmResult] = useState<any>(null);
+  const [loading, setLoading] = useState<'none' | 'sha256' | 'sha512' | 'argon2' | 'argon2wasm'>('none');
   const [error, setError] = useState('');
 
   const runSha256Test = async () => {
@@ -130,6 +131,33 @@ export default function Pbkdf2DiagPage() {
       const data2 = await res2.json();
       if (!('error' in data2)) {
         setArgon2VerifyResult(data2);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setLoading('none');
+    }
+  };
+
+  const runArgon2WasmTest = async () => {
+    if (!workerUrl || !serviceKey) {
+      setError('请填写 Worker URL 和 Service Key');
+      return;
+    }
+    setLoading('argon2wasm');
+    setError('');
+    setArgon2WasmResult(null);
+    try {
+      const base = workerUrl.replace(/\/$/, '');
+      const res = await fetch(`${base}/debug/argon2-wasm`, {
+        method: 'GET',
+        headers: { 'X-SRC-Service-Key': serviceKey },
+      });
+      const data = await res.json();
+      if ('error' in data) {
+        setError(data.error);
+      } else {
+        setArgon2WasmResult(data);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
@@ -259,6 +287,22 @@ export default function Pbkdf2DiagPage() {
           >
             {loading === 'argon2' ? '测试中...' : 'Argon2id (19 MiB / t=2)'}
           </button>
+
+          <button
+            onClick={runArgon2WasmTest}
+            disabled={loading !== 'none'}
+            style={{
+              padding: '12px 20px',
+              fontSize: 14,
+              background: loading === 'argon2wasm' ? '#999' : '#00695c',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 4,
+              cursor: loading !== 'none' ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading === 'argon2wasm' ? '测试中...' : 'Argon2id WASM (precompiled)'}
+          </button>
         </div>
       </div>
 
@@ -273,7 +317,7 @@ export default function Pbkdf2DiagPage() {
 
       {argon2Result && (
         <div style={{ marginBottom: 30 }}>
-          <h2>Argon2id (WASM) 测试结果</h2>
+          <h2>Argon2id (WASM / hash-wasm) 测试结果</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: '#eee' }}>
@@ -342,6 +386,62 @@ export default function Pbkdf2DiagPage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {argon2WasmResult && (
+        <div style={{ marginBottom: 30 }}>
+          <h2>Argon2id (预编译 WASM / wasm_modules) 测试结果</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: '#eee' }}>
+                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ddd' }}>配置</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>Success</th>
+                <th style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>elapsed</th>
+                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ddd' }}>details</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontWeight: 600 }}>
+                  OWASP min (19 MiB, t=2, p=1)
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', fontWeight: 600, color: argon2WasmResult.owaspMin?.success ? '#2e7d32' : '#c62828' }}>
+                  {argon2WasmResult.owaspMin?.success ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>{argon2WasmResult.owaspMin?.elapsedMs} ms</td>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontSize: 12, color: '#555' }}>
+                  {argon2WasmResult.owaspMin?.success ? (
+                    <span>hash_len={argon2WasmResult.owaspMin?.hashLength}, prefix={argon2WasmResult.owaspMin?.hashPrefix}{argon2WasmResult.owaspMin?.initElapsedMs !== undefined ? `, init=${argon2WasmResult.owaspMin.initElapsedMs}ms` : ''}</span>
+                  ) : (
+                    <span>
+                      error: <strong>{argon2WasmResult.owaspMin?.errorName}</strong><br />
+                      {argon2WasmResult.owaspMin?.errorMessage}
+                    </span>
+                  )}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontWeight: 600 }}>
+                  Low (1 MiB, t=1, p=1)
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd', fontWeight: 600, color: argon2WasmResult.lowParams?.success ? '#2e7d32' : '#c62828' }}>
+                  {argon2WasmResult.lowParams?.success ? 'PASS' : 'FAIL'}
+                </td>
+                <td style={{ padding: 8, textAlign: 'center', border: '1px solid #ddd' }}>{argon2WasmResult.lowParams?.elapsedMs} ms</td>
+                <td style={{ padding: 8, border: '1px solid #ddd', fontSize: 12, color: '#555' }}>
+                  {argon2WasmResult.lowParams?.success ? (
+                    <span>hash_len={argon2WasmResult.lowParams?.hashLength}, prefix={argon2WasmResult.lowParams?.hashPrefix}</span>
+                  ) : (
+                    <span>
+                      error: <strong>{argon2WasmResult.lowParams?.errorName}</strong><br />
+                      {argon2WasmResult.lowParams?.errorMessage}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
 
