@@ -13,6 +13,8 @@ import { runArgon2EdgeBatchDiagnostic } from "./argon2-edge-diag";
 import {
 	signSession,
 	createSessionCookie,
+	getSessionFromRequest,
+	SESSION_COOKIE_NAME,
 } from "./session";
 
 export interface Env {
@@ -296,8 +298,9 @@ async function handlePostAuthLogin(request: Request, env: Env): Promise<Response
 		const userOut = {
 			id: parent.id,
 			email: parent.email,
-			email_verified: parent.email_verified === 1,
+			emailVerified: parent.email_verified === 1,
 			created_at: parent.created_at,
+			status: parent.status,
 		};
 
 		const childrenOut = children.map((c) => ({
@@ -697,6 +700,88 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 	}
 }
 
+// ===== Handler：GET /v1/auth/me =====
+// 返回当前登录家长信息 + 孩子列表
+// 使用 Worker HMAC Session，不依赖 Supabase
+async function handleGetAuthMe(request: Request, env: Env): Promise<Response> {
+	try {
+		const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+		if (!session || !session.parent_id) {
+			return jsonResponse({ user: null, children: [] }, 401);
+		}
+
+		// 查询家长信息（不含 password_hash）
+		const parentResult = await env.DB.prepare(
+			"SELECT id, email, email_verified, status, created_at FROM parents WHERE id = ?"
+		).bind(session.parent_id).all<ParentRow>();
+
+		const parent = parentResult.results?.[0];
+		if (!parent) {
+			return jsonResponse({ user: null, children: [] }, 401);
+		}
+
+		if (parent.status !== "active") {
+			return jsonResponse({ user: null, children: [] }, 401);
+		}
+
+		// 查询孩子列表
+		const childrenResult = await env.DB.prepare(
+			`SELECT id, nickname, age, grade, country, home_language, home_language_other,
+					 created_at, updated_at, status
+			 FROM children
+			 WHERE parent_id = ? AND status = 'active'
+			 ORDER BY created_at ASC`
+		).bind(parent.id).all<ChildRow>();
+
+		const children = childrenResult.results || [];
+
+		const userOut = {
+			id: parent.id,
+			email: parent.email,
+			emailVerified: parent.email_verified === 1,
+			created_at: parent.created_at,
+			status: parent.status,
+		};
+
+		const childrenOut = children.map((c) => ({
+			id: c.id,
+			nickname: c.nickname,
+			age: c.age,
+			grade: c.grade,
+			country: c.country,
+			home_language: c.home_language,
+			home_language_other: c.home_language_other,
+			created_at: c.created_at,
+			updated_at: c.updated_at,
+			status: c.status,
+		}));
+
+		return jsonResponse(
+			{
+				user: userOut,
+				children: childrenOut,
+			},
+			200
+		);
+	} catch (error) {
+		console.error("[me] error:", error instanceof Error ? error.message : String(error));
+		return jsonResponse({ error: "获取用户信息失败" }, 500);
+	}
+}
+
+// ===== Handler：POST /v1/auth/logout =====
+// 清除 Session Cookie（Worker 侧）
+async function handlePostAuthLogout(_request: Request, _env: Env): Promise<Response> {
+	// 设置过期的 cookie 来清除 src_auth_session
+	const expiredCookie = `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+
+	return jsonResponse(
+		{ success: true },
+		200,
+		{ "Set-Cookie": expiredCookie }
+	);
+}
+
 // ===== 主入口 =====
 
 export default {
@@ -725,13 +810,13 @@ export default {
 					status: "ok",
 					database: "src-primary-database",
 					query: row?.ok === 1 ? "verified" : "unknown",
-				}, 200, corsHeaders);
+				}, 200);
 			} catch (error) {
 				return jsonResponse({
 					status: "error",
 					database: "src-primary-database",
 					message: error instanceof Error ? error.message : "Unknown error",
-				}, 500, corsHeaders);
+				}, 500);
 			}
 		}
 
@@ -739,7 +824,7 @@ export default {
 		if (path.startsWith("/v1/")) {
 			// Service Key 鉴权
 			if (!verifyServiceKey(request, env)) {
-				return jsonResponse({ error: "Unauthorized" }, 401, corsHeaders);
+				return jsonResponse({ error: "Unauthorized" }, 401);
 			}
 
 			// POST /v1/guest/test-result
@@ -756,16 +841,26 @@ export default {
 			if (path === "/v1/auth/signup" && request.method === "POST") {
 				return handlePostAuthSignup(request, env);
 			}
+			// GET /v1/auth/me — 当前登录家长信息（Worker HMAC Session）
+			if (path === "/v1/auth/me" && request.method === "GET") {
+				return handleGetAuthMe(request, env);
+			}
+
+			// POST /v1/auth/logout — 清除 Session Cookie
+			if (path === "/v1/auth/logout" && request.method === "POST") {
+				return handlePostAuthLogout(request, env);
+			}
+
 
 			// v1 404
-			return jsonResponse({ error: "Not found", path }, 404, corsHeaders);
+			return jsonResponse({ error: "Not found", path }, 404);
 		}
 
 		// ===== /debug/* — 只读诊断端点（需要 Service Key 鉴权）=====
 		// 用于定位 Production 密码学运行时问题，不修改业务数据
 		if (path.startsWith("/debug/")) {
 			if (!verifyServiceKey(request, env)) {
-				return jsonResponse({ error: "Unauthorized" }, 401, corsHeaders);
+				return jsonResponse({ error: "Unauthorized" }, 401);
 			}
 
 			// GET /debug/pbkdf2?iterations=200000
@@ -780,7 +875,7 @@ export default {
 					);
 				}
 				const result = await runPbkdf2Diagnostic(iterations);
-				return jsonResponse(result, 200, corsHeaders);
+				return jsonResponse(result, 200);
 			}
 
 			// GET /debug/pbkdf2/batch?list=1000,10000,100000,200000
@@ -813,7 +908,7 @@ export default {
 						);
 					}
 					const result = await runPbkdf2Sha512Diagnostic(iterations);
-					return jsonResponse(result, 200, corsHeaders);
+					return jsonResponse(result, 200);
 				}
 
 				// GET /debug/pbkdf2/sha512/batch?list=100000,100001
@@ -837,32 +932,32 @@ export default {
 				// GET /debug/argon2 - Argon2id WASM 可行性诊断
 				if (path === "/debug/argon2" && request.method === "GET") {
 					const result = await runArgon2BatchDiagnostic();
-					return jsonResponse(result, 200, corsHeaders);
+					return jsonResponse(result, 200);
 				}
 
 				// GET /debug/argon2/verify - Argon2id hash+verify 诊断
 				if (path === "/debug/argon2/verify" && request.method === "GET") {
 					const result = await runArgon2VerifyDiagnostic();
-					return jsonResponse(result, 200, corsHeaders);
+					return jsonResponse(result, 200);
 				}
 				// GET /debug/argon2-wasm - 预编译 WASM 版 Argon2id 可行性诊断
 				if (path === "/debug/argon2-wasm" && request.method === "GET") {
 					const result = await runArgon2WasmBatchDiagnostic();
-					return jsonResponse(result, 200, corsHeaders);
+					return jsonResponse(result, 200);
 				}
 				// GET /debug/argon2-edge - argon2-wasm-edge 版 Argon2id 可行性诊断
 				if (path === "/debug/argon2-edge" && request.method === "GET") {
 					const result = await runArgon2EdgeBatchDiagnostic();
-					return jsonResponse(result, 200, corsHeaders);
+					return jsonResponse(result, 200);
 				}
 
 
 
 
-			return jsonResponse({ error: "Not found", path }, 404, corsHeaders);
+			return jsonResponse({ error: "Not found", path }, 404);
 		}
 
 		// 根路径 404
-		return jsonResponse({ error: "Not found", path }, 404, corsHeaders);
+		return jsonResponse({ error: "Not found", path }, 404);
 	},
 };
