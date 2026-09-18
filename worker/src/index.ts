@@ -17,6 +17,7 @@ import {
 	SESSION_COOKIE_NAME,
 } from "./session";
 import { handleGetGrowthMap } from "./growth-map";
+import { handleV1ChildrenGet, handleV1ChildrenPost, handleV1ChildPatch } from "./children";
 
 import type { Env } from "./types";
 
@@ -874,8 +875,21 @@ export default {
 				return handleV1GrowthMap(request, env);
 			}
 
+			// GET /v1/children — 孩子列表（需要登录 Session）
+			if (path === "/v1/children" && request.method === "GET") {
+				return handleV1ChildrenGet(request, env);
+			}
 
+			// POST /v1/children — 创建孩子（需要登录 Session，可选 guest 绑定）
+			if (path === "/v1/children" && request.method === "POST") {
+				return handleV1ChildrenPost(request, env);
+			}
 
+			// PATCH /v1/children/:id — 更新孩子信息（需要登录 Session + 归属校验）
+			const childPatchMatch = path.match(/^\/v1\/children\/([^/]+)$/);
+			if (childPatchMatch && request.method === "PATCH") {
+				return handleV1ChildPatch(request, env, childPatchMatch[1]);
+			}
 
 			// v1 404
 			return jsonResponse({ error: "Not found", path }, 404);

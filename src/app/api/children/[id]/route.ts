@@ -1,68 +1,92 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, getSupabaseClient } from '@/lib/auth-utils';
 
 /**
- * PATCH /api/children/[id]
- * 更新孩子资料
+ * Child detail/update — Worker Proxy
+ *
+ * GET   /api/children/[id] → GET   /v1/children/[id]  (当前前端未直接调用 GET by id)
+ * PATCH /api/children/[id] → PATCH /v1/children/[id]
+ *
+ * Worker 内部用 HMAC Session 校验 + child 归属校验。
+ * Production 必须走 Worker，绝不 fallback 到 Supabase。
  */
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+
+const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const WORKER_ENABLED =
+	process.env.WORKER_GUEST_API_ENABLED === 'true' ||
+	process.env.WORKER_CHILDREN_ENABLED === 'true' ||
+	IS_PRODUCTION;
+
+if (IS_PRODUCTION && (!WORKER_BASE_URL || !SERVICE_KEY)) {
+	console.error('[children/[id]] Production 缺少 WORKER_BASE_URL 或 SRC_WORKER_SERVICE_KEY 配置');
+}
+
+export const runtime = 'nodejs';
+
+export async function GET(
+	req: NextRequest,
+	{ params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
+	const { id } = await params;
 
-    const childId = (await params).id;
-    const body = await req.json();
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ success: false, error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ success: false, error: '开发模式请开启 Worker' });
+	}
 
-    const supabase = getSupabaseClient();
+	try {
+		const res = await fetch(`${WORKER_BASE_URL}/v1/children/${id}`, {
+			method: 'GET',
+			headers: {
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			cache: 'no-store',
+		});
 
-    // 验证归属
-    const { data: child } = await supabase
-      .from('children')
-      .select('*')
-      .eq('id', childId)
-      .eq('parent_id', user.id)
-      .maybeSingle();
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (err) {
+		console.error('[children/[id] GET] worker error:', err);
+		return NextResponse.json({ success: false, error: '查询失败，请稍后重试' }, { status: 500 });
+	}
+}
 
-    if (!child) {
-      return NextResponse.json({ error: '孩子档案不存在' }, { status: 404 });
-    }
+export async function PATCH(
+	req: NextRequest,
+	{ params }: { params: Promise<{ id: string }> }
+) {
+	const { id } = await params;
 
-    // 可更新字段
-    const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ success: false, error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ success: false, error: '开发模式请开启 Worker' });
+	}
 
-    if (body.nickname !== undefined) updateData.nickname = body.nickname.trim();
-    if (body.age !== undefined) {
-      const age = parseInt(body.age, 10);
-      if (!isNaN(age) && age >= 3 && age <= 18) updateData.age = age;
-    }
-    if (body.grade !== undefined) updateData.grade = body.grade.trim();
-    if (body.country !== undefined) updateData.country = body.country.trim();
-    if (body.home_language !== undefined) updateData.home_language = body.home_language;
-    if (body.home_language_other !== undefined) updateData.home_language_other = body.home_language_other;
+	try {
+		const body = await req.json();
 
-    const { data: updated, error } = await supabase
-      .from('children')
-      .update(updateData)
-      .eq('id', childId)
-      .select()
-      .single();
+		const res = await fetch(`${WORKER_BASE_URL}/v1/children/${id}`, {
+			method: 'PATCH',
+			headers: {
+				'Content-Type': 'application/json',
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			body: JSON.stringify(body),
+		});
 
-    if (error) {
-      console.error('[children PATCH] error:', error);
-      return NextResponse.json({ error: '更新失败' }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, child: updated });
-  } catch (err) {
-    console.error('[children PATCH] error:', err);
-    return NextResponse.json({ error: '更新失败，请稍后重试' }, { status: 500 });
-  }
+		const data = await res.json();
+		// Worker 返回 { success, child }，与前端期望一致，直接透传
+		return NextResponse.json(data, { status: res.status });
+	} catch (err) {
+		console.error('[children/[id] PATCH] worker error:', err);
+		return NextResponse.json({ success: false, error: '更新失败，请稍后重试' }, { status: 500 });
+	}
 }
