@@ -63,11 +63,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(data, { status: res.status });
       }
 
-      // Worker 返回 { success: true, data: growthMapData }
-      // 前端期望直接收到 growth map data（兼容旧格式）
-      return NextResponse.json(data.success && data.data ? data.data : data, {
-        status: res.status,
-      });
+      return NextResponse.json(data, { status: res.status });
     }
 
     // Development 且未配置 Worker：返回错误
