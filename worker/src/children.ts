@@ -176,6 +176,17 @@ export async function handlePatchChild(request: Request, env: Env, parentId: str
 }
 
 /**
+ * Level string → number 转换（与 signup route 行为一致）
+ * SRC100 → 100, SRC300 → 300, ... ; number → 原数; 空/非法 → null
+ */
+function extractLevelNum(val: unknown): number | null {
+	if (val == null || val === '') return null;
+	if (typeof val === 'number') return val;
+	const m = String(val).match(/(\d+)/);
+	return m ? parseInt(m[1], 10) : null;
+}
+
+/**
  * 绑定游客测试结果到孩子
  * 使用 env.DB.batch() 原子执行：INSERT quick_result + UPDATE guest_session
  * 失败时 throw，由调用方 catch（不影响 child 创建）
@@ -211,13 +222,14 @@ async function bindGuestTestToChild(
 	const completedAt = guestSession.created_at ? Number(guestSession.created_at) : nowUnix;
 
 	// 字段映射（result_data → D1 quick_assessment_results）
-	const charL = resultData.characterLevelLower ?? resultData.characterLevelL ?? 0;
-	const charU = resultData.characterLevelUpper ?? resultData.characterLevelU ?? 0;
-	const wordL = resultData.wordLevelLower ?? resultData.wordLevelL ?? 0;
-	const wordU = resultData.wordLevelUpper ?? resultData.wordLevelU ?? 0;
-	const readingBase = resultData.readingBaseLevel ?? resultData.readingBaseLevel ?? 0;
-	const confidence = resultData.confidence ?? 'unknown';
-	const recommendedLevel = resultData.recommendedReadingDesc ?? resultData.recommendedLevel ?? '';
+	// 注意：D1 level 列是 INTEGER，需 extractLevelNum() 转换
+	const charL = extractLevelNum(resultData.characterLevelLower) ?? 0;
+	const charU = extractLevelNum(resultData.characterLevelUpper) ?? 0;
+	const wordL = extractLevelNum(resultData.wordLevelLower) ?? 0;
+	const wordU = extractLevelNum(resultData.wordLevelUpper) ?? 0;
+	const readingBase = extractLevelNum(resultData.readingBaseLevel) ?? 0;
+	const confidence = resultData.confidence ?? 'medium';
+	const recommendedLevel = resultData.recommendedReadingLevel ?? resultData.readingBaseLevel;
 	const totalQuestions = resultData.totalQuestions ?? resultData.total_questions ?? 0;
 	const correctCount = resultData.correctCount ?? resultData.correct_count ?? 0;
 	const rawResultJson = typeof resultData === 'object' ? JSON.stringify(resultData) : '';
