@@ -1,156 +1,139 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, getSupabaseClient } from '@/lib/auth-utils';
-import { requireChildOwnership, requireSessionOwnership } from '@/lib/auth/child-access';
-import { LEVEL_CONFIG, Level } from '@/lib/types';
 
 /**
- * GET /api/sessions
- * 查询测试会话列表
+ * Test Sessions — Worker Proxy
  *
- * 权限链：user → child → ownership
- * 必须传 child_id，且 child 属于当前登录用户
+ * GET   /api/sessions?child_id=   → GET   /v1/sessions?child_id=
+ * POST  /api/sessions             → POST  /v1/sessions
+ * PATCH /api/sessions             → PATCH /v1/sessions/:id  (id 从 body 提取)
+ *
+ * 所有请求通过 X-SRC-Service-Key 鉴权后，
+ * Worker 内部再用 HMAC Session 校验登录态 + child/session ownership。
+ *
+ * Production 必须走 Worker，绝不 fallback 到 Supabase。
  */
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const childId = searchParams.get('child_id');
 
-    if (!childId) {
-      return NextResponse.json({ error: 'child_id required' }, { status: 400 });
-    }
+const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
-    // 校验 child 归属
-    const auth = await requireChildOwnership(childId);
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const WORKER_ENABLED =
+	process.env.WORKER_GUEST_API_ENABLED === 'true' ||
+	process.env.WORKER_CHILDREN_ENABLED === 'true' ||
+	IS_PRODUCTION;
 
-    const supabase = getSupabaseClient();
+if (IS_PRODUCTION && (!WORKER_BASE_URL || !SERVICE_KEY)) {
+	console.error('[sessions] Production 缺少 WORKER_BASE_URL 或 SRC_WORKER_SERVICE_KEY 配置');
+}
 
-    const { data, error } = await supabase
-      .from('test_sessions')
-      .select('*')
-      .eq('child_id', auth.childId)
-      .order('created_at', { ascending: false });
+export const runtime = 'nodejs';
 
-    if (error) throw error;
+/**
+ * GET /api/sessions?child_id=xxx
+ */
+export async function GET(req: NextRequest) {
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ data: [] });
+	}
 
-    return NextResponse.json({ data });
-  } catch (error: any) {
-    console.error('[sessions/GET] error:', error);
-    return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
-  }
+	try {
+		const { searchParams } = new URL(req.url);
+		const childId = searchParams.get('child_id');
+
+		if (!childId) {
+			return NextResponse.json({ error: 'child_id required' }, { status: 400 });
+		}
+
+		const res = await fetch(`${WORKER_BASE_URL}/v1/sessions?child_id=${encodeURIComponent(childId)}`, {
+			method: 'GET',
+			headers: {
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			cache: 'no-store',
+		});
+
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (err) {
+		console.error('[sessions GET] worker error:', err);
+		return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
+	}
 }
 
 /**
  * POST /api/sessions
  * 创建测试会话
- *
- * 权限链：user → child → ownership
- * 必须传 child_id，且 child 属于当前登录用户
  */
-export async function POST(request: NextRequest) {
-  try {
-    // 先鉴权（在 body 解析之前）
-    const user = await getCurrentUser(request.headers.get('x-session') || '');
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+export async function POST(req: NextRequest) {
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ error: '开发模式请开启 Worker' }, { status: 500 });
+	}
 
-    const body = await request.json();
-    const { child_id, level, test_mode } = body;
+	try {
+		const body = await req.json();
 
-    if (!child_id || !level) {
-      return NextResponse.json({ error: 'child_id and level required' }, { status: 400 });
-    }
+		const res = await fetch(`${WORKER_BASE_URL}/v1/sessions`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			body: JSON.stringify(body),
+		});
 
-    // 校验 level 合法性（仅允许四级正式等级）
-    const validLevels: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
-    if (!validLevels.includes(level as Level)) {
-      return NextResponse.json(
-        { error: `Invalid level: ${level}. Must be one of: ${validLevels.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
-    // 校验 child 归属（再次确认 body 中的 child_id 属于当前用户）
-    const childAuth = await requireChildOwnership(child_id);
-    if (!childAuth.ok) {
-      return NextResponse.json({ error: childAuth.error }, { status: childAuth.status });
-    }
-
-    const supabase = getSupabaseClient();
-
-    const timeLimit = LEVEL_CONFIG[level as Level]?.timeLimitSeconds || 300;
-
-    const { data, error } = await supabase
-      .from('test_sessions')
-      .insert({
-        child_id: child_id,
-        level,
-        test_mode: test_mode || 'sampling',
-        status: 'in_progress',
-        time_limit_seconds: timeLimit,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return NextResponse.json({ data }, { status: 201 });
-  } catch (error: any) {
-    console.error('[sessions/POST] error:', error);
-    return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
-  }
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (err) {
+		console.error('[sessions POST] worker error:', err);
+		return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+	}
 }
 
 /**
  * PATCH /api/sessions
  * 更新测试会话状态
  *
- * 权限链：user → session → child → ownership
- * 必须先查 session → child，校验归属后才能修改
+ * 注意：Vercel 接口 id 在 body 里，Worker 接口 id 在 URL path 里，
+ * 这里做路径转换：从 body 提取 id → 拼到 URL 上。
  */
-export async function PATCH(request: NextRequest) {
-  try {
-    // 先验证登录状态（鉴权优先于 body 解析）
-    const user = await getCurrentUser(request.headers.get('x-session') || '');
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+export async function PATCH(req: NextRequest) {
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ error: '开发模式请开启 Worker' }, { status: 500 });
+	}
 
-    const body = await request.json();
-    const { id, status, score } = body;
+	try {
+		const body = await req.json();
+		const { id } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: 'session id required' }, { status: 400 });
-    }
+		if (!id) {
+			return NextResponse.json({ error: 'session id required' }, { status: 400 });
+		}
 
-    // 关键：通过 session_id 校验权限，确保 child 属于当前用户
-    const auth = await requireSessionOwnership(id);
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
+		const res = await fetch(`${WORKER_BASE_URL}/v1/sessions/${encodeURIComponent(id)}`, {
+			method: 'PATCH',
+			headers: {
+				'Content-Type': 'application/json',
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			body: JSON.stringify(body),
+		});
 
-    const supabase = getSupabaseClient();
-
-    const updates: Record<string, any> = {};
-    if (status) updates.status = status;
-    if (score !== undefined) updates.score = score;
-    if (status === 'completed') updates.completed_at = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from('test_sessions')
-      .update(updates)
-      .eq('id', auth.sessionId)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return NextResponse.json({ data });
-  } catch (error: any) {
-    console.error('[sessions/PATCH] error:', error);
-    return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
-  }
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (err) {
+		console.error('[sessions PATCH] worker error:', err);
+		return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
+	}
 }

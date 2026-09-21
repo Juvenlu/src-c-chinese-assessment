@@ -1,174 +1,109 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, getSupabaseClient } from '@/lib/auth-utils';
-import { requireChildOwnership, requireSessionOwnership } from '@/lib/auth/child-access';
+
+/**
+ * Test Answers — Worker Proxy
+ *
+ * GET  /api/answers?session_id=xxx    → GET  /v1/answers?session_id=xxx
+ * GET  /api/answers?child_id=xxx      → GET  /v1/answers?child_id=xxx
+ * POST /api/answers                   → POST /v1/answers
+ *
+ * 所有请求通过 X-SRC-Service-Key 鉴权后，
+ * Worker 内部再用 HMAC Session 校验登录态 + session/child ownership。
+ *
+ * Production 必须走 Worker，绝不 fallback 到 Supabase。
+ */
+
+const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const WORKER_ENABLED =
+	process.env.WORKER_GUEST_API_ENABLED === 'true' ||
+	process.env.WORKER_CHILDREN_ENABLED === 'true' ||
+	IS_PRODUCTION;
+
+if (IS_PRODUCTION && (!WORKER_BASE_URL || !SERVICE_KEY)) {
+	console.error('[answers] Production 缺少 WORKER_BASE_URL 或 SRC_WORKER_SERVICE_KEY 配置');
+}
+
+export const runtime = 'nodejs';
 
 /**
  * GET /api/answers
- * 查询答案记录
- *
- * 权限链：user → session → child → ownership
- * 允许通过 session_id 或 child_id 查询
+ * 查询答案记录（支持 session_id 或 child_id）
  */
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const sessionId = searchParams.get('session_id');
-  const childId = searchParams.get('child_id');
+export async function GET(req: NextRequest) {
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ data: [] });
+	}
 
-  // 必须传 session_id 或 child_id 之一
-  if (!sessionId && !childId) {
-    return NextResponse.json({ error: 'session_id or child_id required' }, { status: 400 });
-  }
+	try {
+		const { searchParams } = new URL(req.url);
+		const sessionId = searchParams.get('session_id');
+		const childId = searchParams.get('child_id');
 
-  let targetChildId: string;
+		if (!sessionId && !childId) {
+			return NextResponse.json({ error: 'session_id or child_id required' }, { status: 400 });
+		}
 
-  if (sessionId) {
-    // 通过 session_id 访问：走 session → child 权限链
-    const auth = await requireSessionOwnership(sessionId);
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
-    targetChildId = auth.childId;
-  } else {
-    // 通过 child_id 访问：直接校验 child 归属
-    const auth = await requireChildOwnership(childId!);
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
-    targetChildId = auth.childId;
-  }
+		const params = new URLSearchParams();
+		if (sessionId) params.set('session_id', sessionId);
+		if (childId) params.set('child_id', childId);
 
-  const supabase = getSupabaseClient();
+		const res = await fetch(`${WORKER_BASE_URL}/v1/answers?${params.toString()}`, {
+			method: 'GET',
+			headers: {
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			cache: 'no-store',
+		});
 
-  try {
-    let query = supabase
-      .from('test_answers')
-      .select('*')
-      .order('created_at', { ascending: true });
-
-    if (sessionId) {
-      query = query.eq('session_id', sessionId);
-    } else {
-      // 通过 child_id + join session 来过滤（保证数据属于该 child）
-      // 但 test_answers 没有 child_id 字段，所以通过 session_id 关联
-      // 先拿该 child 的所有 session_id
-      const { data: sessions } = await supabase
-        .from('test_sessions')
-        .select('id')
-        .eq('child_id', targetChildId);
-
-      if (!sessions || sessions.length === 0) {
-        return NextResponse.json({ data: [] });
-      }
-
-      const sessionIds = sessions.map(s => s.id);
-      query = query.in('session_id', sessionIds);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-    return NextResponse.json({ data });
-  } catch (error: any) {
-    console.error('[answers/GET] error:', error);
-    return NextResponse.json({ error: 'Failed to fetch answers' }, { status: 500 });
-  }
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (err) {
+		console.error('[answers GET] worker error:', err);
+		return NextResponse.json({ error: 'Failed to fetch answers' }, { status: 500 });
+	}
 }
 
 /**
  * POST /api/answers
  * 提交答题记录（支持单条或批量）
  *
- * 单条格式：
- * { session_id, question_id, part, answer, is_correct, reaction_time_ms, question_content }
+ * 单条格式：{ session_id, question_id?, question_content, part, selected_answer/answer, is_correct, reaction_time_ms }
+ * 批量格式：{ session_id, answers: [ ... ] }
  *
- * 批量格式（用于正式测试 fulltest）：
- * { answers: [ { question_id?, question_content, part, is_correct, reaction_time_ms?, answer? }, ... ] , session_id }
- *
- * 权限链：user → session → child → ownership
- * 必须校验 session_id 对应的 child 属于当前用户
+ * Worker 侧已实现同样的单条/批量兼容逻辑。
  */
-export async function POST(request: NextRequest) {
-  try {
-    // 鉴权优先：先验证用户身份（在 body 解析之前
-    const user = await getCurrentUser(request.headers.get('x-session') || '');
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+export async function POST(req: NextRequest) {
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ error: '开发模式请开启 Worker' }, { status: 500 });
+	}
 
-    const body = await request.json();
-    const supabase = getSupabaseClient();
+	try {
+		const body = await req.json();
 
-    // ===== 批量提交模式（fulltest 正式测试）=====
-    if (Array.isArray(body.answers) && body.session_id) {
-      const { session_id, answers } = body;
+		const res = await fetch(`${WORKER_BASE_URL}/v1/answers`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			body: JSON.stringify(body),
+		});
 
-      if (!session_id || answers.length === 0) {
-        return NextResponse.json({ error: 'session_id and non-empty answers array required' }, { status: 400 });
-      }
-
-      // 校验 session 归属
-      const auth = await requireSessionOwnership(session_id);
-      if (!auth.ok) {
-        return NextResponse.json({ error: auth.error }, { status: auth.status });
-      }
-
-      // 构造批量插入数据
-      const rows = answers.map((a: any) => ({
-        session_id,
-        question_id: a.question_id || null,
-        question_content: a.question_content || null,
-        part: a.part || null,
-        selected_answer: a.selected_answer ?? a.answer ?? null,
-        is_correct: a.is_correct ?? null,
-        reaction_time_ms: a.reaction_time_ms || null,
-      }));
-
-      const { data, error } = await supabase
-        .from('test_answers')
-        .insert(rows)
-        .select();
-
-      if (error) throw error;
-
-      return NextResponse.json({ data, count: data?.length || 0 }, { status: 201 });
-    }
-
-    // ===== 单条提交模式（sampling 趣味闯关 / 旧接口兼容）=====
-    const { session_id, question_id, question_content, part, answer, selected_answer, is_correct, reaction_time_ms } = body;
-
-    if (!session_id) {
-      return NextResponse.json({ error: 'session_id required' }, { status: 400 });
-    }
-    // 正式测试（fulltest）允许 question_id 为空，用 question_content 标识
-    if (!question_id && !question_content) {
-      return NextResponse.json({ error: 'question_id or question_content required' }, { status: 400 });
-    }
-
-    // 关键：通过 session_id 校验权限，确保 child 属于当前用户
-    const auth = await requireSessionOwnership(session_id);
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
-    }
-
-    const { data, error } = await supabase
-      .from('test_answers')
-      .insert({
-        session_id,
-        question_id: question_id || null,
-        question_content: question_content || null,
-        part: part || null,
-        selected_answer: selected_answer ?? answer ?? null,
-        is_correct: is_correct ?? null,
-        reaction_time_ms: reaction_time_ms || null,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return NextResponse.json({ data }, { status: 201 });
-  } catch (error: any) {
-    console.error('[answers/POST] error:', error);
-    return NextResponse.json({ error: 'Failed to submit answer' }, { status: 500 });
-  }
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (err) {
+		console.error('[answers POST] worker error:', err);
+		return NextResponse.json({ error: 'Failed to submit answer' }, { status: 500 });
+	}
 }
