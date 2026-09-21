@@ -18,6 +18,10 @@ import {
 } from "./session";
 import { handleGetGrowthMap } from "./growth-map";
 import { handleV1ChildrenGet, handleV1ChildrenPost, handleV1ChildPatch } from "./children";
+import { handleGetQuestions } from "./questions";
+import { handleV1SessionsGet, handleV1SessionsPost, handleV1SessionPatch } from "./sessions";
+import { handleV1AnswersGet, handleV1AnswersPost } from "./answers";
+import { handleV1ResultsGet, handleV1ResultsPost } from "./results";
 
 import type { Env } from "./types";
 
@@ -889,6 +893,47 @@ export default {
 			const childPatchMatch = path.match(/^\/v1\/children\/([^/]+)$/);
 			if (childPatchMatch && request.method === "PATCH") {
 				return handleV1ChildPatch(request, env, childPatchMatch[1]);
+			}
+
+			// GET /v1/questions — 题库查询（Service Key 外层已校验，公开读）
+			if (path === "/v1/questions" && request.method === "GET") {
+				return handleGetQuestions(request, env);
+			}
+
+			// GET /v1/sessions — 会话列表（需要登录 Session + child 归属）
+			if (path === "/v1/sessions" && request.method === "GET") {
+				return handleV1SessionsGet(request, env);
+			}
+
+			// POST /v1/sessions — 创建会话（需要登录 Session + child 归属）
+			if (path === "/v1/sessions" && request.method === "POST") {
+				return handleV1SessionsPost(request, env);
+			}
+
+			// PATCH /v1/sessions/:id — 更新会话（需要登录 Session + session 归属）
+			const sessionPatchMatch = path.match(/^\/v1\/sessions\/([^/]+)$/);
+			if (sessionPatchMatch && request.method === "PATCH") {
+				return handleV1SessionPatch(request, env, sessionPatchMatch[1]);
+			}
+
+			// GET /v1/answers — 答题记录（需要登录 Session）
+			if (path === "/v1/answers" && request.method === "GET") {
+				return handleV1AnswersGet(request, env);
+			}
+
+			// POST /v1/answers — 提交答题（需要登录 Session）
+			if (path === "/v1/answers" && request.method === "POST") {
+				return handleV1AnswersPost(request, env);
+			}
+
+			// GET /v1/results — 测试结果（需要登录 Session）
+			if (path === "/v1/results" && request.method === "GET") {
+				return handleV1ResultsGet(request, env);
+			}
+
+			// POST /v1/results — 计算并保存结果（需要登录 Session）
+			if (path === "/v1/results" && request.method === "POST") {
+				return handleV1ResultsPost(request, env);
 			}
 
 			// v1 404
