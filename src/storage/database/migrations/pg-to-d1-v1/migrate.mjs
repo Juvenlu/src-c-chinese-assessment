@@ -14,7 +14,7 @@
  * - 2 historical custom_books skipped
  * - confirmed_level = NULL
  * - difficulty = NULL
- * - level_tier = NULL (master story)
+ * - level_tier = 'SRC500' (master story default)
  * - generator_version = NULL
  * - audit_passed = 0 (placeholder, NOT audit failure)
  * - book_entitlements: allocated=10, used=0
@@ -249,14 +249,14 @@ async function migrateBookEpisodes() {
           id, series_name, series_id, episode_number, episode_title,
           page_count, level_tier, status, cover_image_url, description,
           total_words, created_at, updated_at
-        ) VALUES (?, ?, 1, ?, ?, ?, NULL, ?, NULL, NULL, ?, ?, ?)`,
+        ) VALUES (?, ?, 1, ?, ?, ?, 'SRC500', ?, NULL, NULL, ?, ?, ?)`,
         [
           row.id,
           row.series_name,
           row.episode_number,
           row.episode_title,
           row.page_count,
-          row.status,
+          row.status === 'completed' ? 'published' : row.status,
           totalWords,
           tsToUnix(row.created_at),
           row.updated_at ? tsToUnix(row.updated_at) : tsToUnix(row.created_at),
