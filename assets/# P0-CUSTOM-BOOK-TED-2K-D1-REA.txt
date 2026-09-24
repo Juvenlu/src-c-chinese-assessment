@@ -1,0 +1,1337 @@
+# P0-CUSTOM-BOOK-TED-2K-D1-READ-API-PRECHECK-RO
+
+## 目标
+
+基于已经完成并通过的：
+
+* P0-CUSTOM-BOOK-TED-2A-READING-PROFILE-RO
+* P0-CUSTOM-BOOK-TED-2B-FRONTIER-RO
+* P0-CUSTOM-BOOK-TED-2C-FRONTIER-PLAN-RO
+* P0-CUSTOM-BOOK-TED-2D-LLM-PRECHECK-RO
+* P0-CUSTOM-BOOK-TED-2E-LLM-REWRITE-DRAFT
+* P0-CUSTOM-BOOK-TED-2F-HUMAN-REVIEW-PACKAGE-RO
+* P0-CUSTOM-BOOK-TED-2G-FINALIZE-PRECHECK-RO
+* P0-CUSTOM-BOOK-TED-2G-FINALIZE
+* P0-CUSTOM-BOOK-TED-2H-BOOK-VISIBILITY-RO
+* P0-CUSTOM-BOOK-TED-2I-D1-SCHEMA-RO
+* P0-CUSTOM-BOOK-TED-2J-READ-CHAIN-RO
+
+现在进行：
+
+**P0-CUSTOM-BOOK-TED-2K-D1-READ-API-PRECHECK-RO**
+
+目标不是执行迁移，而是只读确认下一阶段“Legacy Rewrite #24 → D1 → Worker → Vercel → Ted”的最小实施方案。
+
+---
+
+# 一、最高优先级架构规则
+
+SRC Production 唯一正式数据链路：
+
+```text
+Vercel
+  ↓
+Cloudflare Worker
+  ↓
+Production D1
+```
+
+Production 唯一数据库：
+
+```text
+src-primary-database
+D1 ID:
+519f117f-88b6-49c7-9d1c-dd9284ac10a4
+```
+
+GitHub：
+
+```text
+Juvenlu/src-c-chinese-assessment
+branch: main
+```
+
+Worker：
+
+```text
+src-primary-api
+https://src-primary-api.quweizhongwen.workers.dev
+```
+
+Vercel：
+
+```text
+https://src-c-chinese-assessment.vercel.app/
+```
+
+禁止把 Supabase / Legacy PG 继续作为孩子端 Production 主读取链路。
+
+Legacy PG 只作为本次迁移的历史数据来源。
+
+---
+
+# 二、沙箱能力检查
+
+本任务原则上全部属于：
+
+* Git 仓库只读代码检查
+* Legacy PG 只读查询
+* Production D1 只读查询
+* Worker / Vercel 代码结构只读检查
+
+这些属于沙箱可以执行的范围。
+
+因此：
+
+**沙箱可执行。**
+
+但是：
+
+如果某个具体检查需要：
+
+* Vercel Dashboard UI
+* Cloudflare Dashboard UI
+* 真实浏览器交互
+* Sandbox 无法访问的 Production 网络
+* 用户本人手动操作
+
+必须立即标记：
+
+**沙箱不可执行**
+
+然后说明需要用户浏览器/手动操作。
+
+**不要让 Agent 反复尝试不可执行操作。**
+
+---
+
+# 三、严格只读
+
+本阶段绝对禁止：
+
+* INSERT
+* UPDATE
+* DELETE
+* ALTER TABLE
+* Schema 修改
+* Migration
+* 修改任何代码
+* Commit
+* Push
+* Deploy
+* Publish
+* Assign
+* Finalize
+* Reject
+* LLM 调用
+* 重新生成 Rewrite
+* 修改 Rewrite #24
+* 创建 custom_books
+* 修改 Production 数据
+* 修改 Legacy PG 数据
+
+允许：
+
+* git status
+* git log
+* git grep
+* grep
+* cat/read
+* TypeScript/route 代码静态分析
+* Legacy PG SELECT
+* Production D1 SELECT
+* Wrangler D1 read-only 查询
+* 现有 API / Worker 路由只读分析
+* JSON 字段只读核验
+
+**本阶段不执行任何写操作。**
+
+---
+
+# 四、已确认事实
+
+以下内容已经通过前序步骤确认。
+
+## 4.1 Ted
+
+```text
+child_id:
+49ef4c55-558a-4e9a-b63b-ed888c9f8058
+```
+
+Ted：
+
+* age = 8
+* Grade 3
+* Canada
+* bilingual
+* active
+
+当前动态 confirmed level：
+
+```text
+SRC300
+```
+
+stable_char_count：
+
+```text
+317
+```
+
+stable_vocab_count：
+
+```text
+346
+```
+
+---
+
+## 4.2 Master Episode
+
+Production D1：
+
+```text
+book_episodes.id = 2
+```
+
+标题：
+
+```text
+大家都叫他孙悟空
+```
+
+系列：
+
+```text
+西游记
+```
+
+episode_number：
+
+```text
+1
+```
+
+page_count：
+
+```text
+10
+```
+
+level_tier：
+
+```text
+SRC500
+```
+
+status：
+
+```text
+published
+```
+
+Master pages：
+
+```text
+10
+```
+
+Master Text / Image 已锁定。
+
+R2 Master Images 已验证，没有修改。
+
+---
+
+## 4.3 Rewrite #24
+
+Legacy PG 中：
+
+```text
+rewrite_id = 24
+episode_id = 2
+child_id = 49ef4c55-558a-4e9a-b63b-ed888c9f8058
+target_level = SRC500
+status = final
+version = 1
+```
+
+Rewrite #24：
+
+* 10 pages
+* 402 Chinese characters
+* frontiers：
+
+  * 孙悟空
+  * 特别
+  * 一定
+  * 遇到
+
+Human review 已完成。
+
+Finalization 已完成：
+
+```text
+status = final
+finalized_by = admin
+finalized_at != NULL
+```
+
+Rewrite #24 当前仍位于 Legacy PG。
+
+---
+
+# 五、2J 已确认的关键架构事实
+
+2J 已确认：
+
+### 当前孩子端读取
+
+```text
+/book-select
+    ↓
+/api/books/custom
+    ↓
+Supabase custom_books
+```
+
+详情：
+
+```text
+/api/books/custom/[id]
+    ↓
+Supabase custom_books + book_episodes
+```
+
+阅读内容目前来自：
+
+```text
+custom_books.pages_json
+```
+
+页面使用：
+
+```text
+page.image_url
+page.adapted_text || page.text
+```
+
+---
+
+# 六、2J 已确认 D1 Schema
+
+Production D1 已有：
+
+```text
+book_rewrite_versions
+custom_books
+reading_records
+book_entitlements
+book_episodes
+book_episode_pages
+children
+```
+
+其中：
+
+### D1 book_rewrite_versions
+
+已经存在 `pages_json`：
+
+```text
+pages_json TEXT NOT NULL
+```
+
+其他关键字段包括：
+
+```text
+id
+episode_id
+target_level
+pages_json
+frontier_targets_json
+status
+version
+generation_params_json
+validation_result_json
+retry_count
+failure_reason
+child_id
+created_at
+finalized_at
+finalized_by
+total_chars
+unique_chars
+max_page_chars
+audit_result_json
+audit_passed
+generator_version
+```
+
+Legacy → D1 已确认：
+
+```text
+JSONB → TEXT
+TIMESTAMPTZ → INTEGER/unix
+```
+
+字段名：
+
+```text
+frontier_targets
+→ frontier_targets_json
+
+generation_params
+→ generation_params_json
+
+validation_result
+→ validation_result_json
+```
+
+Rewrite #24：
+
+```text
+Legacy id=24
+```
+
+已经确认：
+
+**可以直接保留 id=24。**
+
+原因：
+
+* D1 `book_rewrite_versions` 当前 0 rows
+* 没有 id=24 冲突
+* episode_id=2 存在
+* Ted child_id 存在
+* FK 可以满足
+
+---
+
+# 七、2J 已确认 custom_books
+
+D1 `custom_books`：
+
+必填字段：
+
+```text
+id
+child_id
+rewrite_id
+episode_id
+level_tier
+is_free
+status
+created_at
+```
+
+默认：
+
+```text
+is_free = 0
+status = active
+```
+
+存在 UNIQUE 约束。
+
+存在 3 个 FK：
+
+```text
+child_id → children.id
+rewrite_id → book_rewrite_versions.id
+episode_id → book_episodes.id
+```
+
+D1 `custom_books`：
+
+**没有 `pages_json`。**
+
+因此本项目当前原则：
+
+## 不修改 Schema。
+
+不要提出“现在就 ALTER TABLE 增加 pages_json”。
+
+---
+
+# 八、本阶段重点
+
+现在需要回答一个核心问题：
+
+> 在不修改 D1 Schema 的前提下，如何用最少的代码，把 Rewrite #24 迁入 D1，并让 Ted 的 `/book-select` 和阅读页通过 Worker → D1 正常读取？
+
+重点验证：
+
+```text
+Legacy PG Rewrite #24
+        ↓
+D1 book_rewrite_versions
+        ↓
+D1 custom_books
+        ↓
+Worker API
+        ↓
+Vercel API
+        ↓
+/book-select
+        ↓
+/book/[id]
+        ↓
+Ted
+```
+
+---
+
+# 九、任务 1：核验 D1 Rewrite 写入方案
+
+只读检查现有代码中：
+
+* D1 `book_rewrite_versions` INSERT / repository / store
+* Worker 中是否已经存在 rewrite repository
+* 是否已经存在 book rewrite CRUD
+* 是否存在可复用的 D1 insert/update helper
+* D1 bindings 获取方式
+* JSON TEXT 字段现有处理方式
+* timestamp / unix 时间现有处理方式
+
+重点寻找：
+
+```text
+book_rewrite_versions
+```
+
+相关：
+
+* SQL
+* repository
+* Worker service
+* types
+* helper
+* route
+
+回答：
+
+1. 是否已有 D1 Rewrite 写入代码？
+2. 如果没有，最少需要新增哪个 Worker 文件/函数？
+3. Rewrite #24 需要 INSERT 的准确字段列表是什么？
+4. 哪些字段可以依赖 DEFAULT？
+5. 哪些字段必须从 Legacy PG 转换？
+6. `pages_json` 应如何转换？
+7. `frontier_targets` 应如何转换？
+8. `generation_params` 应如何转换？
+9. `validation_result` 应如何转换？
+10. TIMESTAMPTZ → unix 的现有项目标准是什么？
+11. `total_chars / unique_chars / max_page_chars / audit_result_json / audit_passed / generator_version` 应该如何处理？
+
+特别确认：
+
+**不能因为这些字段存在 DEFAULT，就无条件覆盖成 0。**
+
+如果 Legacy 数据可以推导真实值，请明确说明。
+
+---
+
+# 十、任务 2：完整核验 Rewrite #24 实际数据
+
+只读读取 Legacy PG Rewrite #24。
+
+同时读取 D1 Schema。
+
+制作：
+
+```text
+Legacy #24
+      ↓
+D1 book_rewrite_versions
+```
+
+逐字段映射表。
+
+至少包括：
+
+```text
+id
+episode_id
+target_level
+pages_json
+frontier_targets_json
+status
+version
+generation_params_json
+validation_result_json
+retry_count
+failure_reason
+child_id
+created_at
+finalized_at
+finalized_by
+total_chars
+unique_chars
+max_page_chars
+audit_result_json
+audit_passed
+generator_version
+```
+
+对每一项标记：
+
+```text
+DIRECT
+CONVERT
+DEFAULT
+NULL
+DERIVE
+UNKNOWN
+```
+
+并说明原因。
+
+特别核验：
+
+### Rewrite #24 的 pages_json
+
+确认：
+
+* 10 pages
+* 每页字段
+* 是否包含 image_url
+* 是否包含 text
+* 是否包含 adapted_text
+* 是否包含 frontier
+* 是否包含 original_text
+* JSON 是否可以直接 JSON.stringify 后写入 D1
+
+**不要修改 pages_json。**
+
+---
+
+# 十一、任务 3：核验 custom_books 的最小关联方案
+
+只读检查现有代码中：
+
+```text
+custom_books
+```
+
+是否已经存在：
+
+* Worker repository
+* D1 query
+* D1 insert helper
+* TypeScript type
+* route
+* API
+
+如果存在，报告文件路径和函数。
+
+如果不存在，报告：
+
+> 最少需要新增什么？
+
+Ted 的关联记录理论上应包含：
+
+```text
+child_id
+rewrite_id
+episode_id
+level_tier
+is_free
+status
+created_at
+```
+
+但不要 INSERT。
+
+重点确认：
+
+### custom_books.id
+
+需要核验：
+
+* 当前项目是否 UUID
+* 是否 INTEGER
+* 是否自动生成
+* 是否必须手工生成
+* 是否存在现有 ID helper
+
+不要猜。
+
+---
+
+# 十二、任务 4：核验 Worker 孩子端 API
+
+重点检查是否已有：
+
+```text
+/v1/books/custom
+/v1/books/custom/:id
+```
+
+或者类似路由。
+
+搜索：
+
+```text
+custom_books
+books/custom
+book-select
+book/[id]
+```
+
+确认：
+
+1. Worker 是否已经有 custom books API？
+2. 如果没有，最少需要新增哪些 Worker endpoint？
+3. 列表 API 应该查询哪些 D1 表？
+4. 详情 API 应该查询哪些 D1 表？
+5. 页面内容应该从哪里读取？
+
+目标结构应该验证是否可以采用：
+
+```text
+custom_books
+      ↓
+book_rewrite_versions
+      ↓
+pages_json
+```
+
+而不是：
+
+```text
+custom_books.pages_json
+```
+
+即：
+
+```sql
+SELECT
+    cb.id,
+    cb.child_id,
+    cb.rewrite_id,
+    cb.episode_id,
+    cb.level_tier,
+    cb.is_free,
+    cb.status,
+    br.pages_json,
+    br.frontier_targets_json,
+    be.title,
+    be.series_id,
+    be.episode_number
+FROM custom_books cb
+JOIN book_rewrite_versions br
+  ON br.id = cb.rewrite_id
+JOIN book_episodes be
+  ON be.id = cb.episode_id
+WHERE cb.child_id = ?
+  AND cb.status = 'active'
+```
+
+**注意：**
+
+上面的 SQL 只是核验目标结构的示例。
+
+不要直接执行 INSERT/UPDATE。
+
+如果实际 Schema 或代码关系不同，以实际代码为准。
+
+---
+
+# 十三、任务 5：核验孩子归属与 Auth
+
+当前孩子端必须保持安全：
+
+```text
+当前登录 Parent
+        ↓
+验证 child_id 属于该 Parent
+        ↓
+读取 custom_books
+```
+
+检查当前项目已经存在的：
+
+```text
+verifyChildOwnership
+auth
+session
+parent_id
+child_id
+```
+
+确认：
+
+1. Worker 是否已有 `verifyChildOwnership()`？
+2. 能否直接复用？
+3. `/v1/books/custom` 是否需要 child_id？
+4. `/v1/books/custom/:id` 如何防止一个家长读取其他孩子的 custom_book？
+5. 最少需要哪些 Auth 代码改动？
+
+**不要修改 Auth。**
+
+---
+
+# 十四、任务 6：核验 Vercel API 最小修改
+
+当前：
+
+```text
+/api/books/custom
+/api/books/custom/[id]
+```
+
+检查：
+
+* 当前 route 文件
+* 当前 Supabase import
+* 当前 response JSON shape
+* 前端是否依赖固定字段名
+
+重点确认：
+
+### `/book-select`
+
+是否只依赖：
+
+```text
+custom_book.id
+title
+series
+episode
+level
+pages / metadata
+```
+
+### `/book/[id]`
+
+是否只依赖：
+
+```text
+pages_json
+image_url
+adapted_text
+text
+frontier
+```
+
+确认：
+
+**如果 Worker 返回与当前 API 相同的 JSON shape，前端是否可以零修改。**
+
+这是本阶段非常重要的目标。
+
+---
+
+# 十五、任务 7：核验 API Response Contract
+
+必须把当前 Supabase API 返回 JSON 与计划中的 D1/Worker API 返回 JSON 做对照。
+
+输出：
+
+```text
+当前 Supabase response
+        ↓
+Worker D1 response
+        ↓
+Vercel response
+        ↓
+前端实际使用字段
+```
+
+逐字段标记：
+
+```text
+保持不变
+需要映射
+需要新增
+前端需要修改
+```
+
+重点：
+
+**尽量保持现有前端 contract 不变。**
+
+如果可以做到：
+
+```text
+后端数据源改变
+API contract 不变
+前端 /book-select 不改
+前端 /book/[id] 不改
+```
+
+请明确标记为：
+
+**推荐最小改动方案**
+
+---
+
+# 十六、任务 8：确认是否真的需要迁移 book_episodes
+
+当前已知：
+
+D1：
+
+```text
+book_episodes.id = 2
+book_episode_pages = 10
+```
+
+所以本阶段必须确认：
+
+* `/api/books/custom`
+* `/api/books/custom/[id]`
+
+到底需要哪些 `book_episodes` 字段。
+
+如果 D1 Episode #2 已经完整满足孩子端展示需要：
+
+**不要提出重复迁移 Episode #2。**
+
+明确回答：
+
+```text
+Episode #2 是否已经足够？
+PASS / FAIL
+```
+
+---
+
+# 十七、任务 9：确认是否需要 reading_records / entitlements
+
+本阶段不是开发阅读记录，也不是开发订阅系统。
+
+只读检查：
+
+* `/book-select`
+* `/book/[id]`
+
+是否在“打开绘本”阶段强制依赖：
+
+```text
+reading_records
+book_entitlements
+```
+
+如果不是：
+
+**不要扩大范围。**
+
+只报告：
+
+> 当前打开绘本 MVP 不依赖该表。
+
+如果依赖，则明确指出具体代码位置和阻塞关系。
+
+---
+
+# 十八、任务 10：输出最终最小实施图
+
+根据全部只读结果，给出一个**最小实施方案**。
+
+目标：
+
+```text
+Legacy PG Rewrite #24
+        │
+        │ 一次性迁移
+        ▼
+D1 book_rewrite_versions
+        │
+        │ rewrite_id = 24
+        ▼
+D1 custom_books
+        │
+        │ child_id = Ted
+        ▼
+Worker /v1/books/custom
+        │
+        ▼
+Vercel /api/books/custom
+        │
+        ▼
+/book-select
+        │
+        ▼
+Worker /v1/books/custom/:id
+        │
+        ▼
+D1 custom_books
+        JOIN
+D1 book_rewrite_versions
+        │
+        ▼
+pages_json
+        │
+        ▼
+/book/[id]
+        │
+        ▼
+Ted
+```
+
+如果实际代码结构不同，请以实际代码为准。
+
+---
+
+# 十九、重点：确认是否需要 Schema Change
+
+本阶段必须给出明确结论：
+
+```text
+Schema Change：
+PASS / FAIL
+```
+
+预期核验方向：
+
+**不需要 Schema Change。**
+
+原因：
+
+```text
+book_rewrite_versions.pages_json
+```
+
+已经可以保存 Rewrite 内容。
+
+因此：
+
+```text
+custom_books
+```
+
+只承担：
+
+```text
+child ↔ rewrite
+```
+
+关联关系。
+
+阅读 API 通过 JOIN：
+
+```text
+custom_books
++
+book_rewrite_versions
+```
+
+取得 `pages_json`。
+
+如果实际代码证明这一方案不可行，必须具体说明为什么。
+
+**禁止仅因为“Supabase custom_books 有 pages_json”就要求修改 D1 Schema。**
+
+---
+
+# 二十、必须检查 Legacy PG → D1 是否存在隐藏风险
+
+特别检查：
+
+1. `id=24` 是否已经被其他 D1 数据占用
+2. `episode_id=2` 是否存在
+3. Ted child_id 是否存在
+4. `status=final` 是否被 D1 API 接受
+5. `target_level=SRC500` 是否被 D1 API 接受
+6. pages_json JSON 格式是否有效
+7. frontier_targets_json 是否有效
+8. generation_params_json 是否有效
+9. validation_result_json 是否有效
+10. finalized_at unix 转换是否一致
+11. created_at / updated_at 是否存在并符合 D1 类型
+12. D1 FK 是否启用并满足
+13. custom_books UNIQUE 是否可能发生冲突
+14. Rewrite #24 的 10 页是否完整
+15. 是否存在任何必须迁移但 D1 无对应字段的数据
+
+---
+
+# 二十一、不要重新调查已经确定的问题
+
+以下内容不要重复做大范围调查：
+
+* Ted Reading Profile
+* Frontier Selection
+* LLM 生成质量
+* Human Review
+* Finalization
+* Master Story 内容
+* Master Image
+* R2
+* Formal Test
+* Growth Map
+* Children CRUD
+* D1 Schema V2.1 总体审计
+
+这些已经完成。
+
+本阶段只聚焦：
+
+**D1 Rewrite → custom_books → Worker → Vercel → child reading API**
+
+---
+
+# 二十二、最终报告格式
+
+必须严格使用以下结构：
+
+# P0-CUSTOM-BOOK-TED-2K-D1-READ-API-PRECHECK-RO
+
+## 0. 前提检查
+
+| 前提                | 状态                | 说明 |
+| ----------------- | ----------------- | -- |
+| Git main 可读       | PASS/FAIL/UNKNOWN |    |
+| Legacy PG 可只读     | PASS/FAIL/UNKNOWN |    |
+| Production D1 可只读 | PASS/FAIL/UNKNOWN |    |
+| Worker 代码可读       | PASS/FAIL/UNKNOWN |    |
+| Vercel API 代码可读   | PASS/FAIL/UNKNOWN |    |
+| 沙箱能力              | PASS/FAIL         |    |
+
+---
+
+## A. Rewrite #24 → D1
+
+### A1. 总体
+
+```text
+Legacy → D1：
+PASS / FAIL / UNKNOWN
+```
+
+### A2. 字段映射
+
+用表格：
+
+| Legacy | D1 | 处理方式 | 状态 | 备注 |
+| ------ | -- | ---- | -- | -- |
+
+### A3. pages_json
+
+* 页数：
+* JSON 有效性：
+* 字段：
+* 是否可直接 JSON.stringify：
+* 状态：
+
+### A4. id=24
+
+```text
+PASS / FAIL
+```
+
+原因：
+
+---
+
+## B. D1 custom_books
+
+### B1. Schema
+
+* 必填：
+* 默认：
+* UNIQUE：
+* FK：
+
+### B2. Ted + Rewrite #24
+
+```text
+PASS / FAIL
+```
+
+需要字段：
+
+```text
+child_id =
+rewrite_id =
+episode_id =
+level_tier =
+is_free =
+status =
+created_at =
+```
+
+**注意：不要 INSERT。**
+
+---
+
+## C. Worker API
+
+### C1. 当前是否已有 API
+
+```text
+/v1/books/custom
+/v1/books/custom/:id
+```
+
+状态：
+
+```text
+PASS / FAIL
+```
+
+### C2. 最小新增/修改文件
+
+逐项列出：
+
+```text
+worker/...
+src/app/api/...
+```
+
+### C3. D1 查询
+
+说明：
+
+```text
+custom_books
+JOIN
+book_rewrite_versions
+JOIN
+book_episodes
+```
+
+是否足够。
+
+---
+
+## D. Vercel API
+
+### D1. `/api/books/custom`
+
+当前：
+
+* 数据源：
+* 最小修改：
+
+### D2. `/api/books/custom/[id]`
+
+当前：
+
+* 数据源：
+* 最小修改：
+
+### D3. 前端
+
+```text
+/book-select
+/book/[id]
+```
+
+是否需要修改：
+
+```text
+YES / NO
+```
+
+如果 YES，只说明具体原因。
+
+---
+
+## E. Auth / Ownership
+
+* verifyChildOwnership：
+* 当前实现：
+* Worker 是否可复用：
+* 最小修改：
+
+---
+
+## F. Schema Change
+
+```text
+PASS / FAIL
+```
+
+说明：
+
+---
+
+## G. 最小实施链路
+
+用图表示：
+
+```text
+Legacy PG Rewrite #24
+        ↓
+D1 book_rewrite_versions
+        ↓
+D1 custom_books
+        ↓
+Worker
+        ↓
+Vercel API
+        ↓
+/book-select
+        ↓
+/book/[id]
+        ↓
+Ted
+```
+
+每层：
+
+```text
+PASS / FAIL / UNKNOWN
+```
+
+---
+
+## H. 实施步骤建议
+
+只列下一阶段真正需要执行的步骤，不执行。
+
+例如：
+
+```text
+1. Legacy Rewrite #24 → D1 book_rewrite_versions
+2. D1 创建 Ted → Rewrite #24 的 custom_books 关联
+3. Worker 新增/修改 custom books read API
+4. Vercel 两个 API 改为 Worker proxy
+5. Production E2E 验证 Ted /book-select → /book/[id]
+```
+
+如果实际检查发现顺序不同，以实际结果为准。
+
+---
+
+# I. 最终结论
+
+必须明确：
+
+### 当前状态
+
+```text
+PASS / FAIL / UNKNOWN
+```
+
+### 是否可以进入下一阶段
+
+```text
+YES / NO
+```
+
+### 是否需要 Schema Change
+
+```text
+YES / NO
+```
+
+### 最高优先级下一动作
+
+**只给一个。**
+
+不要执行。
+
+不要修改代码。
+
+不要迁移数据。
+
+不要 Commit。
+
+不要 Push。
+
+不要 Deploy。
+
+完成报告后立即停止。
