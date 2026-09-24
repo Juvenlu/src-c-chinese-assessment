@@ -1,0 +1,1332 @@
+# P0-CUSTOM-BOOK-TED-2L-REWRITE-MIGRATION-PRECHECK-RO
+
+## 任务性质
+
+这是 SRC-C Production Custom Book 链路的 **2L — Rewrite Migration 写入前只读预检查**。
+
+本阶段：
+
+**只读。**
+
+目标不是执行迁移，而是确认：
+
+> Legacy PostgreSQL `book_rewrite_versions.id=24` → Production D1 `book_rewrite_versions.id=24`
+
+这一笔一次性迁移在真正执行 INSERT 前的**精确实施方案、字段映射、数据转换、验证方案和风险**。
+
+---
+
+# 一、最高优先级规则
+
+严格遵守：
+
+```text
+前提检查
+↓
+能力预判
+↓
+只读核验
+↓
+PASS / FAIL / UNKNOWN
+↓
+输出报告
+↓
+停止
+```
+
+### 本阶段禁止：
+
+* INSERT
+* UPDATE
+* DELETE
+* ALTER TABLE
+* Schema Change
+* Migration Execute
+* D1 写入
+* Legacy PG 写入
+* Commit
+* Push
+* Deploy
+* Publish
+* 修改 Production 数据
+* 修改代码
+* 修改配置
+* 修改 Secrets
+* 自动执行下一阶段
+
+即使你认为某个写操作“安全”，也不得执行。
+
+如果发现需要写操作，只能：
+
+> 说明需要什么写操作、为什么需要、预计影响什么、执行前需要什么授权。
+
+然后停止。
+
+---
+
+# 二、Sandbox 能力预判
+
+开始调查之前，首先判断本任务需要的能力：
+
+### 本阶段理论上需要：
+
+* GitHub repository 代码只读
+* Worker 代码只读
+* Legacy PostgreSQL 只读
+* Production D1 只读
+* wrangler D1 remote read
+* SQL SELECT
+* JSON 数据只读检查
+* TypeScript / SQL / repository 代码只读分析
+
+### 本阶段不应该需要：
+
+* Vercel Dashboard UI
+* Cloudflare Dashboard UI
+* 真实浏览器
+* 用户本地 Windows UI
+* Production 写入权限
+
+如果当前 Agent 沙箱无法安全完成上述只读能力：
+
+明确输出：
+
+> **沙箱不可执行**
+
+并说明具体缺失能力。
+
+不要尝试写操作来“测试权限”。
+
+如果只读能力全部具备，再继续。
+
+---
+
+# 三、固定 Production 架构
+
+不要改变或重新设计架构。
+
+## GitHub
+
+```text
+Juvenlu/src-c-chinese-assessment
+branch: main
+```
+
+## Vercel
+
+```text
+https://src-c-chinese-assessment.vercel.app/
+```
+
+## Worker
+
+```text
+src-primary-api
+https://src-primary-api.quweizhongwen.workers.dev
+```
+
+## Production D1
+
+```text
+src-primary-database
+
+D1 ID:
+519f117f-88b6-49c7-9d1c-dd9284ac10a4
+```
+
+## Cloudflare Account
+
+```text
+a99cb263154947ea7b7a5e508bba09a0
+```
+
+Production 正式链路必须保持：
+
+```text
+Vercel
+  ↓
+Cloudflare Worker
+  ↓
+Production D1
+```
+
+本任务的数据迁移目标是：
+
+```text
+Legacy PostgreSQL
+        ↓
+Production D1
+```
+
+不是：
+
+```text
+Vercel → D1
+```
+
+也不是：
+
+```text
+Vercel → Supabase
+```
+
+---
+
+# 四、固定迁移对象
+
+本次只研究：
+
+```text
+Legacy PostgreSQL
+book_rewrite_versions
+id = 24
+```
+
+目标：
+
+```text
+Production D1
+book_rewrite_versions
+id = 24
+```
+
+Rewrite #24 已经 Final。
+
+已知：
+
+```text
+rewrite_id = 24
+episode_id = 2
+child_id = 49ef4c55-558a-4e9a-b63b-ed888c9f8058
+target_level = SRC500
+status = final
+version = 1
+```
+
+对应：
+
+```text
+Ted
+Episode #2
+《大家都叫他孙悟空》
+```
+
+不要重新生成 Rewrite。
+
+不要修改 Rewrite。
+
+不要重新进行 Frontier Selection。
+
+不要重新进行 AI generation。
+
+---
+
+# 五、已知 D1 Schema 基线
+
+D1 Schema：
+
+```text
+D1 Schema V2.1 FINAL / FROZEN
+```
+
+禁止 Schema Change。
+
+D1：
+
+```text
+book_rewrite_versions
+```
+
+已经存在：
+
+```text
+pages_json TEXT NOT NULL
+frontier_targets_json TEXT
+generation_params_json TEXT
+validation_result_json TEXT
+```
+
+并有其他字段：
+
+```text
+id
+episode_id
+target_level
+status
+version
+retry_count
+failure_reason
+child_id
+created_at
+finalized_at
+finalized_by
+total_chars
+unique_chars
+max_page_chars
+audit_result_json
+audit_passed
+generator_version
+```
+
+不要增加：
+
+```text
+custom_books.pages_json
+```
+
+不要修改任何表。
+
+---
+
+# 六、2L 核心问题
+
+请只读回答以下问题：
+
+## A. Legacy Rewrite #24 最终数据核验
+
+从 Legacy PostgreSQL 只读查询：
+
+```text
+book_rewrite_versions.id = 24
+```
+
+确认：
+
+1. 所有实际字段和值；
+2. 数据类型；
+3. JSONB 字段的完整结构；
+4. pages_json 实际页数；
+5. 每页字段；
+6. created_at；
+7. finalized_at；
+8. finalized_by；
+9. child_id；
+10. episode_id；
+11. target_level；
+12. status；
+13. version；
+14. retry_count；
+15. failure_reason；
+16. generation_params；
+17. validation_result；
+18. frontier_targets。
+
+不要只报告“存在”。
+
+必须尽可能报告实际值或经过脱敏后的结构。
+
+---
+
+# 七、Pages JSON 精确核验
+
+重点核验：
+
+```text
+pages_json
+```
+
+要求确认：
+
+### 1. JSON 是否有效
+
+确认：
+
+```text
+JSON.parse(...)
+```
+
+逻辑上可成功。
+
+### 2. 页数
+
+应确认：
+
+```text
+10 pages
+```
+
+但不要直接相信上下文。
+
+必须从 Legacy 实际数据读取确认。
+
+### 3. 每页字段
+
+重点确认是否包含：
+
+```text
+page
+text
+frontier
+image_url
+original_text
+```
+
+以及是否还有其他字段。
+
+### 4. 前端关键字段
+
+必须确认：
+
+```text
+image_url
+text
+```
+
+是否存在于所有需要显示的页面。
+
+### 5. 页面顺序
+
+确认 page 编号是否：
+
+```text
+1 → 10
+```
+
+或者实际采用其他编号方式。
+
+### 6. 文本内容
+
+计算：
+
+```text
+total_chars
+max_page_chars
+unique_chars
+```
+
+必须说明计算规则。
+
+---
+
+# 八、字符统计必须精确
+
+D1 有：
+
+```text
+total_chars
+unique_chars
+max_page_chars
+```
+
+请不要简单使用 Legacy 记录中的其他统计字段。
+
+从 `pages_json` 实际计算并报告：
+
+### total_chars
+
+明确说明：
+
+```text
+所有页面 text 字段长度之和
+```
+
+是否：
+
+* 包含标点？
+* 包含空格？
+* 包含换行？
+* 是否排除 HTML？
+* 是否存在 emoji / 特殊字符？
+
+不要自行修改统计规则。
+
+如果项目已有统一统计 helper，优先找到并说明其规则。
+
+### unique_chars
+
+确认项目现有算法。
+
+如果没有统一算法：
+
+只报告建议算法，不执行写入。
+
+### max_page_chars
+
+确认：
+
+```text
+max(text.length)
+```
+
+还是项目中已有其他定义。
+
+---
+
+# 九、JSONB → D1 TEXT 转换
+
+逐项核验：
+
+```text
+frontier_targets
+        ↓
+frontier_targets_json
+
+generation_params
+        ↓
+generation_params_json
+
+validation_result
+        ↓
+validation_result_json
+
+pages_json
+        ↓
+pages_json
+```
+
+确认：
+
+```text
+JSON.stringify(...)
+```
+
+是否足够。
+
+必须检查：
+
+* 中文字符是否保持
+* 数组是否保持
+* object 是否保持
+* null 是否保持
+* boolean 是否保持
+* nested object 是否保持
+* URL 是否保持
+* 不发生 `[object Object]`
+* 不发生 `[object Object]` 或 `[object Object]` 类错误转换
+
+如果现有 repository/helper 已经规定 JSON 序列化方式，优先采用现有方式。
+
+---
+
+# 十、TIMESTAMPTZ → D1 INTEGER
+
+核验：
+
+Legacy：
+
+```text
+created_at TIMESTAMPTZ
+finalized_at TIMESTAMPTZ
+```
+
+D1：
+
+```text
+created_at INTEGER
+finalized_at INTEGER
+```
+
+确认项目现有 Unix timestamp 标准。
+
+重点确认：
+
+```text
+Math.floor(date.getTime() / 1000)
+```
+
+是否与项目已有代码一致。
+
+分别计算并报告：
+
+```text
+created_at → unix
+finalized_at → unix
+```
+
+不要执行 INSERT。
+
+---
+
+# 十一、D1 默认字段核验
+
+确认以下字段在 Legacy #24 中不存在或为空时，D1 应如何处理：
+
+```text
+audit_result_json
+audit_passed
+generator_version
+total_chars
+unique_chars
+max_page_chars
+```
+
+特别确认：
+
+### audit_passed
+
+如果 D1 DEFAULT：
+
+```text
+0
+```
+
+必须判断这是否符合当前 Rewrite #24 的真实业务状态。
+
+不要自行将：
+
+```text
+audit_passed = 1
+```
+
+除非 Legacy 明确存在等价、可信的 audit PASS 数据并且现有项目逻辑要求如此。
+
+### generator_version
+
+确认是否存在可可靠映射的 Legacy 值。
+
+没有则保持：
+
+```text
+NULL
+```
+
+不要虚构。
+
+---
+
+# 十二、ID / FK / UNIQUE 只读验证
+
+确认：
+
+```text
+D1 book_rewrite_versions
+```
+
+当前：
+
+```text
+id = 24
+```
+
+不存在。
+
+使用 SELECT 验证。
+
+同时确认：
+
+```text
+episode_id = 2
+```
+
+在：
+
+```text
+book_episodes
+```
+
+存在。
+
+确认：
+
+```text
+child_id = 49ef4c55-558a-4e9a-b63b-ed888c9f8058
+```
+
+在：
+
+```text
+children
+```
+
+存在。
+
+确认当前：
+
+```text
+book_rewrite_versions
+```
+
+没有：
+
+```text
+id = 24
+```
+
+冲突。
+
+不要执行任何 INSERT。
+
+---
+
+# 十三、寻找现有 Migration / Repository
+
+只读搜索 GitHub/main 工作区代码：
+
+重点寻找：
+
+```text
+book_rewrite_versions
+```
+
+以及：
+
+```text
+INSERT INTO book_rewrite_versions
+```
+
+以及：
+
+```text
+custom_books
+```
+
+以及：
+
+```text
+pages_json
+```
+
+以及可能存在的：
+
+```text
+rewrite repository
+migration helper
+D1 repository
+```
+
+目标：
+
+判断是否已经存在可以复用的：
+
+```text
+D1 Rewrite repository
+D1 insert helper
+migration utility
+JSON serialization helper
+timestamp helper
+```
+
+如果存在：
+
+报告：
+
+```text
+文件路径
+函数名
+作用
+是否适合本次 #24 migration
+```
+
+如果不存在：
+
+只报告：
+
+> 当前没有可直接复用的现有迁移 helper。
+
+不要创建代码。
+
+不要修改代码。
+
+---
+
+# 十四、确认 INSERT 最小字段集合
+
+根据实际 D1 Schema 和代码，确定：
+
+> 如果未来获得明确写入授权，Rewrite #24 最少需要 INSERT 哪些字段？
+
+输出一个明确表格：
+
+| D1 field              | source       | conversion     | required? | proposed value |
+| --------------------- | ------------ | -------------- | --------- | -------------- |
+| id                    | Legacy id    | direct         | YES       | 24             |
+| episode_id            | Legacy       | direct         | YES       | 2              |
+| target_level          | Legacy       | direct         | YES       | SRC500         |
+| pages_json            | Legacy JSONB | JSON.stringify | YES       | 10 pages       |
+| frontier_targets_json | Legacy JSONB | JSON.stringify | ...       | ...            |
+| ...                   | ...          | ...            | ...       | ...            |
+
+注意：
+
+这里的：
+
+```text
+proposed value
+```
+
+只是**计划值**。
+
+不是执行。
+
+---
+
+# 十五、设计写入后只读验证方案
+
+虽然本阶段禁止写入，但必须设计未来执行后的验证方案。
+
+至少包括：
+
+## D1 row verification
+
+```sql
+SELECT ...
+FROM book_rewrite_versions
+WHERE id = 24;
+```
+
+## Page count
+
+从：
+
+```text
+pages_json
+```
+
+验证：
+
+```text
+10 pages
+```
+
+## FK verification
+
+确认：
+
+```text
+episode_id = 2
+child_id = Ted
+```
+
+## Status verification
+
+确认：
+
+```text
+status = final
+target_level = SRC500
+version = 1
+```
+
+## Character statistics
+
+重新计算：
+
+```text
+total_chars
+unique_chars
+max_page_chars
+```
+
+与迁移前一致。
+
+## JSON integrity
+
+验证：
+
+```text
+pages_json
+frontier_targets_json
+generation_params_json
+validation_result_json
+```
+
+可以正常解析。
+
+## Critical content integrity
+
+至少验证：
+
+```text
+page count
+image_url
+text
+frontier
+```
+
+迁移前后不发生丢失。
+
+---
+
+# 十六、禁止提前做 Custom Books
+
+本任务虽然会确认：
+
+```text
+custom_books.rewrite_id = 24
+```
+
+但：
+
+**不要 INSERT custom_books。**
+
+不要执行：
+
+```text
+INSERT INTO custom_books
+```
+
+本任务只研究：
+
+```text
+Legacy Rewrite #24
+        ↓
+D1 book_rewrite_versions #24
+```
+
+下一阶段才处理：
+
+```text
+D1 custom_books
+```
+
+---
+
+# 十七、禁止提前开发 Worker API
+
+本阶段不要修改：
+
+```text
+worker/src/index.ts
+```
+
+不要创建：
+
+```text
+worker/src/books-custom.ts
+```
+
+不要修改：
+
+```text
+src/app/api/books/custom/route.ts
+src/app/api/books/custom/[id]/route.ts
+```
+
+2K 已经确认这些是后续工作。
+
+2L 只负责：
+
+> Rewrite #24 Migration 的写入前准备。
+
+---
+
+# 十八、关于 /api/books/rewrites
+
+2K 已发现：
+
+```text
+/api/books/rewrites
+```
+
+可能仍读取 Legacy PG。
+
+本任务：
+
+**只确认，不迁移。**
+
+请只读判断：
+
+* `/api/books/rewrites` 是否确实存在；
+* 是否确实读取 Legacy `book_rewrite_versions`；
+* 是否与本次 Rewrite #24 → D1 migration 存在直接依赖；
+* 是否会阻塞 Ted Custom Book MVP。
+
+不要因此扩大本任务范围。
+
+如果它不阻塞核心：
+
+```text
+/book-select
+→ /api/books/custom
+→ /book/[id]
+```
+
+则标记为：
+
+```text
+Deferred / Non-blocking
+```
+
+---
+
+# 十九、最终输出格式
+
+请严格按照以下结构输出：
+
+# P0-CUSTOM-BOOK-TED-2L-REWRITE-MIGRATION-PRECHECK-RO
+
+## 0. 总结
+
+给出：
+
+```text
+PASS / FAIL / UNKNOWN
+```
+
+以及一句话结论。
+
+---
+
+## 1. Sandbox Capability
+
+| Capability | PASS/FAIL/UNKNOWN | Evidence |
+| ---------- | ----------------- | -------- |
+
+如果无法执行：
+
+明确：
+
+> **沙箱不可执行**
+
+---
+
+## 2. Legacy Rewrite #24
+
+报告：
+
+```text
+id
+episode_id
+child_id
+target_level
+status
+version
+created_at
+finalized_at
+finalized_by
+retry_count
+failure_reason
+```
+
+---
+
+## 3. Pages JSON
+
+报告：
+
+```text
+page_count
+page fields
+page numbering
+image_url coverage
+text coverage
+frontier coverage
+original_text coverage
+```
+
+---
+
+## 4. Character Statistics
+
+报告：
+
+```text
+total_chars
+unique_chars
+max_page_chars
+```
+
+并说明计算规则。
+
+---
+
+## 5. JSON Conversion
+
+报告：
+
+```text
+pages_json
+frontier_targets_json
+generation_params_json
+validation_result_json
+```
+
+逐项：
+
+```text
+source type
+target type
+conversion method
+PASS/FAIL/UNKNOWN
+```
+
+---
+
+## 6. Timestamp Conversion
+
+报告：
+
+```text
+created_at
+finalized_at
+```
+
+以及：
+
+```text
+conversion rule
+```
+
+---
+
+## 7. D1 FK / ID / Conflict Check
+
+至少确认：
+
+```text
+D1 book_rewrite_versions id=24
+D1 episode id=2
+D1 child id=Ted
+```
+
+---
+
+## 8. Existing Repository / Migration Helper
+
+列出：
+
+```text
+file
+function
+reusable?
+```
+
+如果没有：
+
+```text
+NONE FOUND
+```
+
+---
+
+## 9. Proposed D1 INSERT Mapping
+
+完整表格：
+
+```text
+D1 field
+source
+conversion
+required
+proposed value
+```
+
+注意：
+
+**只提出计划，不执行。**
+
+---
+
+## 10. Post-Migration Read-Only Verification Plan
+
+列出未来 INSERT 后必须执行的 SELECT / integrity checks。
+
+---
+
+## 11. `/api/books/rewrites` Dependency
+
+只报告：
+
+```text
+Blocking / Non-blocking / UNKNOWN
+```
+
+不要扩大任务。
+
+---
+
+# 二十、最终结论必须明确回答
+
+最后必须回答：
+
+### Q1
+
+Rewrite #24 是否可以安全映射到：
+
+```text
+D1 book_rewrite_versions.id=24
+```
+
+回答：
+
+```text
+PASS / FAIL / UNKNOWN
+```
+
+### Q2
+
+是否需要 Schema Change？
+
+预期：
+
+```text
+NO
+```
+
+### Q3
+
+是否存在 ID / FK 冲突？
+
+回答：
+
+```text
+PASS / FAIL / UNKNOWN
+```
+
+### Q4
+
+是否已经找到现有可复用的 D1 Rewrite migration helper？
+
+回答：
+
+```text
+YES / NO / UNKNOWN
+```
+
+### Q5
+
+未来真正执行 INSERT 前，还缺什么？
+
+只列真正必要项目。
+
+---
+
+# 二十一、绝对停止条件
+
+完成以上只读核验后：
+
+**立即停止。**
+
+不要：
+
+* INSERT Rewrite #24
+* INSERT custom_books
+* 修改 Worker
+* 修改 Vercel
+* Commit
+* Push
+* Deploy
+* 测试孩子端
+* 修改 Production
+* 自动开始 2M
+
+最终只告诉我：
+
+```text
+2L = PASS / FAIL / UNKNOWN
+```
+
+以及：
+
+> 下一步是什么。
+
+**不要自行执行下一步。**
+
+---
+
+# 二十二、重要历史上下文
+
+以下事实已经确认，不要重新调查或推翻，除非本次只读证据直接发现矛盾：
+
+### Ted
+
+```text
+child_id =
+49ef4c55-558a-4e9a-b63b-ed888c9f8058
+```
+
+```text
+dynamic confirmed_level = SRC300
+stable_char_count = 317
+stable_vocab_count = 346
+```
+
+### Episode
+
+```text
+episode_id = 2
+title = 大家都叫他孙悟空
+series = 西游记
+episode_number = 1
+page_count = 10
+status = published
+level_tier = SRC500
+```
+
+### Rewrite
+
+```text
+rewrite_id = 24
+target_level = SRC500
+status = final
+version = 1
+```
+
+Frontiers：
+
+```text
+孙悟空
+特别
+一定
+遇到
+```
+
+Rewrite：
+
+```text
+10 pages
+402 Chinese characters
+```
+
+### D1
+
+```text
+book_rewrite_versions = 0 rows
+custom_books = 0 rows
+reading_records = 0 rows
+book_entitlements = 0 rows
+```
+
+### Schema
+
+```text
+D1 Schema V2.1 FINAL / FROZEN
+```
+
+不要修改 Schema。
+
+### 核心原则
+
+```text
+Rewrite Final ≠ Child Visibility
+
+D1 book_rewrite_versions ≠ custom_books
+
+Frontier Selection ≠ i+1 Selection
+
+custom_books 不复制 pages_json
+
+Vercel → Worker → D1
+```
+
+### MVP 原则
+
+当前目标：
+
+> **尽快跑起来。**
+
+不要因为 Rewrite #24 的 402 字或语言难度问题重新生成。
+
+后续人工 review 可以继续进行。
+
+当前只解决：
+
+```text
+Ted
+→ Custom Book
+→ 阅读
+```
+
+不要扩大到完整反馈系统、Question Bank、Reading Analytics 或其他非阻塞功能。
+
+---
+
+## 任务结束
+
+现在开始执行：
+
+**P0-CUSTOM-BOOK-TED-2L-REWRITE-MIGRATION-PRECHECK-RO**
+
+严格只读。
+
+完成报告后立即停止。
