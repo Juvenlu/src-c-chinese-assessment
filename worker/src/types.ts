@@ -6,6 +6,7 @@ export interface Env {
 	DB: D1Database;
 	SRC_WORKER_SERVICE_KEY: string;
 	SESSION_SECRET: string;
+	ADMIN_PASSWORD: string;
 }
 
 export type Level = 'SRC100' | 'SRC300' | 'SRC500' | 'SRC800';

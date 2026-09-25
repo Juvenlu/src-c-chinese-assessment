@@ -23,6 +23,7 @@ import { handleV1SessionsGet, handleV1SessionsPost, handleV1SessionPatch } from 
 import { handleV1AnswersGet, handleV1AnswersPost } from "./answers";
 import { handleV1ResultsGet, handleV1ResultsPost } from "./results";
 import { handleV1CustomBooksList, handleV1CustomBookDetail } from "./custom-books";
+import { handleV1AdminRewriteFinalize } from "./admin-rewrites";
 
 import type { Env } from "./types";
 
@@ -946,6 +947,12 @@ export default {
 			const customBookMatch = path.match(/^\/v1\/books\/custom\/([^/]+)$/);
 			if (customBookMatch && request.method === "GET") {
 				return handleV1CustomBookDetail(request, env, customBookMatch[1]);
+			}
+
+			// POST /v1/admin/rewrite/:id/finalize — Admin Finalize + 自动发布 custom_books
+			const adminFinalizeMatch = path.match(/^\/v1\/admin\/rewrite\/([^/]+)\/finalize$/);
+			if (adminFinalizeMatch && request.method === "POST") {
+				return handleV1AdminRewriteFinalize(request, env, adminFinalizeMatch[1]);
 			}
 
 			// v1 404
