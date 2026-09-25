@@ -22,6 +22,7 @@ import { handleGetQuestions } from "./questions";
 import { handleV1SessionsGet, handleV1SessionsPost, handleV1SessionPatch } from "./sessions";
 import { handleV1AnswersGet, handleV1AnswersPost } from "./answers";
 import { handleV1ResultsGet, handleV1ResultsPost } from "./results";
+import { handleV1CustomBooksList, handleV1CustomBookDetail } from "./custom-books";
 
 import type { Env } from "./types";
 
@@ -934,6 +935,17 @@ export default {
 			// POST /v1/results — 计算并保存结果（需要登录 Session）
 			if (path === "/v1/results" && request.method === "POST") {
 				return handleV1ResultsPost(request, env);
+			}
+
+			// GET /v1/books/custom — 孩子定制绘本列表（需要登录 Session + child 归属）
+			if (path === "/v1/books/custom" && request.method === "GET") {
+				return handleV1CustomBooksList(request, env);
+			}
+
+			// GET /v1/books/custom/:id — 孩子定制绘本详情（需要登录 Session + 归属校验）
+			const customBookMatch = path.match(/^\/v1\/books\/custom\/([^/]+)$/);
+			if (customBookMatch && request.method === "GET") {
+				return handleV1CustomBookDetail(request, env, customBookMatch[1]);
 			}
 
 			// v1 404

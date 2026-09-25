@@ -1,99 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { getCurrentUser } from "@/lib/auth-utils";
 
-// GET: list custom books for a child (must belong to current parent)
-export async function GET(request: NextRequest) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
+/**
+ * Custom Books List — Worker Proxy
+ *
+ * GET /api/books/custom?child_id=xxx  → GET /v1/books/custom?child_id=xxx
+ *
+ * 所有请求通过 X-SRC-Service-Key 鉴权后，
+ * Worker 内部再用 HMAC Session 校验登录态 + child ownership。
+ *
+ * Production 必须走 Worker，绝不 fallback 到 Supabase。
+ */
 
-    const { searchParams } = new URL(request.url);
-    const childId = searchParams.get("child_id");
-    if (!childId) {
-      return NextResponse.json({ error: '缺少 child_id 参数' }, { status: 400 });
-    }
+const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
-    const supabase = getSupabaseClient();
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const WORKER_ENABLED =
+	process.env.WORKER_GUEST_API_ENABLED === 'true' ||
+	process.env.WORKER_CHILDREN_ENABLED === 'true' ||
+	IS_PRODUCTION;
 
-    // 校验 child 归属：该 child_id 必须属于当前登录家长
-    const { data: child, error: childError } = await supabase
-      .from('children')
-      .select('id, nickname')
-      .eq('id', childId)
-      .eq('parent_id', user.id)
-      .eq('status', 'active')
-      .single();
+if (IS_PRODUCTION && (!WORKER_BASE_URL || !SERVICE_KEY)) {
+	console.error('[books/custom] Production 缺少 WORKER_BASE_URL 或 SRC_WORKER_SERVICE_KEY 配置');
+}
 
-    if (childError || !child) {
-      return NextResponse.json({ error: '无权访问该孩子的数据' }, { status: 403 });
-    }
+export const runtime = 'nodejs';
 
-    // 两步查询替代 RPC（原 RPC 函数 get_custom_books 中 c.name 字段名错误，children 表实际为 nickname）
-    // custom_books 表与 book_episodes 的 Supabase 关系名不稳定，改用独立查询 + 手动拼接
-    const { data: booksData, error: booksError } = await supabase
-      .from('custom_books')
-      .select('*')
-      .eq('child_id', childId)
-      .order('created_at', { ascending: false });
+/**
+ * GET /api/books/custom?child_id=xxx
+ */
+export async function GET(req: NextRequest) {
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ data: [] });
+	}
 
-    if (booksError) {
-      console.error('custom_books query error:', booksError);
-      throw booksError;
-    }
+	try {
+		const { searchParams } = new URL(req.url);
+		const childId = searchParams.get('child_id');
 
-    // 批量获取 episode 信息
-    let episodesMap: Record<string, any> = {};
-    if (booksData && booksData.length > 0) {
-      const episodeIds = [...new Set(booksData.map((b: any) => b.episode_id).filter(Boolean))];
-      if (episodeIds.length > 0) {
-        const { data: epsData, error: epsError } = await supabase
-          .from('book_episodes')
-          .select('id, series_name, episode_number, episode_title')
-          .in('id', episodeIds);
-        if (!epsError && epsData) {
-          epsData.forEach((ep: any) => {
-            episodesMap[ep.id] = ep;
-          });
-        }
-      }
-    }
+		if (!childId) {
+			return NextResponse.json({ error: 'child_id required' }, { status: 400 });
+		}
 
-    // 组装返回数据（保持与原 RPC 返回结构一致）
-    const childName = child.nickname;
-    const transformedData = (booksData || []).map((item: any) => {
-      const ep = episodesMap[item.episode_id] || {};
-      return {
-        id: item.id,
-        child_id: item.child_id,
-        episode_id: item.episode_id,
-        level_tier: item.level_tier,
-        initial_char_count: item.initial_char_count,
-        new_chars: item.new_chars,
-        cumulative_chars: item.cumulative_chars,
-        version: item.version,
-        status: item.status,
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        series_name: ep.series_name,
-        episode_number: ep.episode_number,
-        episode_title: ep.episode_title,
-        child_name: childName,
-        episodes: {
-          series_name: ep.series_name,
-          episode_number: ep.episode_number,
-          episode_title: ep.episode_title,
-        },
-        children: {
-          name: childName,
-        },
-      };
-    });
-    
-    return NextResponse.json({ data: transformedData });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
+		const res = await fetch(`${WORKER_BASE_URL}/v1/books/custom?child_id=${encodeURIComponent(childId)}`, {
+			method: 'GET',
+			headers: {
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			cache: 'no-store',
+		});
+
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (e: any) {
+		console.error('[books/custom] proxy error:', e);
+		return NextResponse.json({ error: '网络错误' }, { status: 502 });
+	}
 }

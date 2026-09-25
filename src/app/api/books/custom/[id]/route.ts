@@ -1,78 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { getCurrentUser } from "@/lib/auth-utils";
 
-// GET: get a single custom book with pages (must belong to current parent's child)
+/**
+ * Custom Book Detail — Worker Proxy
+ *
+ * GET /api/books/custom/:id  → GET /v1/books/custom/:id
+ *
+ * 返回含 pages_json 的单本绘本详情。
+ * Worker 端做 Session + ownership 校验。
+ *
+ * Production 必须走 Worker，绝不 fallback 到 Supabase。
+ */
+
+const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const WORKER_ENABLED =
+	process.env.WORKER_GUEST_API_ENABLED === 'true' ||
+	process.env.WORKER_CHILDREN_ENABLED === 'true' ||
+	IS_PRODUCTION;
+
+if (IS_PRODUCTION && (!WORKER_BASE_URL || !SERVICE_KEY)) {
+	console.error('[books/custom/[id]] Production 缺少 WORKER_BASE_URL 或 SRC_WORKER_SERVICE_KEY 配置');
+}
+
+export const runtime = 'nodejs';
+
+/**
+ * GET /api/books/custom/:id
+ */
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+	req: NextRequest,
+	{ params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: '未登录' }, { status: 401 });
-    }
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ error: 'Book not found' }, { status: 404 });
+	}
 
-    const { id } = await params;
-    const supabase = getSupabaseClient();
+	try {
+		const { id } = await params;
 
-    // 先取绘本详情，拿到 child_id 做归属校验
-    const { data: book, error: bookError } = await supabase
-      .from('custom_books')
-      .select('*')
-      .eq('id', parseInt(id))
-      .single();
+		const res = await fetch(`${WORKER_BASE_URL}/v1/books/custom/${encodeURIComponent(id)}`, {
+			method: 'GET',
+			headers: {
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			cache: 'no-store',
+		});
 
-    if (bookError || !book) {
-      return NextResponse.json({ error: "绘本不存在" }, { status: 404 });
-    }
-
-    // 校验 child 归属当前家长
-    const { data: child, error: childError } = await supabase
-      .from('children')
-      .select('id, nickname')
-      .eq('id', book.child_id)
-      .eq('parent_id', user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (childError || !child) {
-      return NextResponse.json({ error: '无权访问该绘本' }, { status: 403 });
-    }
-
-    // 两步查询替代 RPC（原 RPC 函数 c.name 字段名错误，children 表实际为 nickname）
-    // 获取 episode 信息
-    let epData: any = {};
-    if (book.episode_id) {
-      const { data: ep, error: epError } = await supabase
-        .from('book_episodes')
-        .select('id, series_name, episode_number, episode_title')
-        .eq('id', book.episode_id)
-        .single();
-      if (!epError && ep) {
-        epData = ep;
-      }
-    }
-
-    // 组装返回数据（保持与原 RPC 返回结构兼容）
-    const result = {
-      ...book,
-      series_name: epData.series_name,
-      episode_number: epData.episode_number,
-      episode_title: epData.episode_title,
-      child_name: child.nickname,
-      episodes: {
-        series_name: epData.series_name,
-        episode_number: epData.episode_number,
-        episode_title: epData.episode_title,
-      },
-      children: {
-        name: child.nickname,
-      },
-    };
-
-    return NextResponse.json({ data: result });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (e: any) {
+		console.error('[books/custom/[id]] proxy error:', e);
+		return NextResponse.json({ error: '网络错误' }, { status: 502 });
+	}
 }
