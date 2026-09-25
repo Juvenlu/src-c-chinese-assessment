@@ -24,6 +24,7 @@ import { handleV1AnswersGet, handleV1AnswersPost } from "./answers";
 import { handleV1ResultsGet, handleV1ResultsPost } from "./results";
 import { handleV1CustomBooksList, handleV1CustomBookDetail } from "./custom-books";
 import { handleV1AdminRewriteFinalize } from "./admin-rewrites";
+import { handleV1AdminChildren } from "./admin-children";
 
 import type { Env } from "./types";
 
@@ -947,6 +948,11 @@ export default {
 			const customBookMatch = path.match(/^\/v1\/books\/custom\/([^/]+)$/);
 			if (customBookMatch && request.method === "GET") {
 				return handleV1CustomBookDetail(request, env, customBookMatch[1]);
+			}
+
+			// GET /v1/admin/children — Admin 全量孩子列表（D1）
+			if (path === "/v1/admin/children" && request.method === "GET") {
+				return handleV1AdminChildren(request, env);
 			}
 
 			// POST /v1/admin/rewrite/:id/finalize — Admin Finalize + 自动发布 custom_books

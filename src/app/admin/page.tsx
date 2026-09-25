@@ -18,6 +18,8 @@ function AdminContent() {
   const [questionPage, setQuestionPage] = useState(1);
   const PAGE_SIZE = 50;
   const [selectedChildId, setSelectedChildId] = useState<string>('');
+  const [d1Children, setD1Children] = useState<Child[]>([]);
+  const [d1ChildrenLoading, setD1ChildrenLoading] = useState(false);
   const [charLibData, setCharLibData] = useState<Record<string, string[]>>({});
   
   // Book-related states
@@ -115,6 +117,7 @@ function AdminContent() {
     if (tab === 'books') {
       fetchEpisodes();
       fetchCustomBooks();
+      fetchD1Children();
     }
   }, [tab]);
 
@@ -146,6 +149,24 @@ function AdminContent() {
     const res = await fetch('/api/books/custom?child_id=all');
     const data = await res.json();
     setCustomBooks(data.data || []);
+  };
+
+  const fetchD1Children = async () => {
+    setD1ChildrenLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/children');
+      const data = await res.json();
+      if (data.children && Array.isArray(data.children)) {
+        setD1Children(data.children);
+      } else {
+        setD1Children([]);
+      }
+    } catch (err) {
+      console.error('fetch D1 children error:', err);
+      setD1Children([]);
+    } finally {
+      setD1ChildrenLoading(false);
+    }
   };
 
   const handleSeedQuestions = async () => {
@@ -1237,12 +1258,12 @@ function AdminContent() {
                       <select
                         className="w-full px-3 py-2 border rounded-lg text-sm"
                         onChange={(e) => {
-                          const child = children.find((c) => String(c.id) === e.target.value);
+                          const child = d1Children.find((c) => String(c.id) === e.target.value);
                           if (child) setSelectedChildId(child.id);
                         }}
                       >
                         <option value="">请选择</option>
-                        {children.map((c) => (
+                        {d1Children.map((c) => (
                           <option key={String(c.id)} value={String(c.id)}>{c.nickname} ({c.age}岁)</option>
                         ))}
                       </select>
@@ -1350,7 +1371,7 @@ function AdminContent() {
                           onChange={(e) => setRewriteChildId(e.target.value)}
                         >
                           <option value="">不指定孩子（通用版本）</option>
-                          {children.map((c) => (
+                          {d1Children.map((c) => (
                             <option key={String(c.id)} value={String(c.id)}>
                               {c.nickname} ({c.age}岁)
                             </option>
