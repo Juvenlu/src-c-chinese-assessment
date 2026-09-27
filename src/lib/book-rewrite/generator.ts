@@ -7,7 +7,6 @@
  */
 
 import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
-import { Client as WorkloadIdentityClient } from '@coze/workload-identity';
 import type { Level } from '../types';
 import type { RewritePage } from './types';
 import { getLevelRulesPrompt } from './level-rules';
@@ -269,14 +268,7 @@ export async function generateRewrite(
   childProfile?: ChildReadingProfile,
   headers?: Headers,
 ): Promise<GenerateResult> {
-  // Workload Identity Token Exchange — 获取 JWT Access Token
-  // 用于 Coze Integration API (integration.coze.cn) 鉴权
-  const wiClient = new WorkloadIdentityClient();
-  const accessToken = await wiClient.getAccessToken();
-
-  const config = new Config({
-    apiKey: accessToken,
-  });
+  const config = new Config();
 
   const customHeaders = headers
     ? HeaderUtils.extractForwardHeaders(headers as any)
