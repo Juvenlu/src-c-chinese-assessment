@@ -284,7 +284,7 @@ export async function generateRewrite(
   ];
 
   const response = await client.invoke(messages as any, {
-    model: 'doubao-seed-2-0-pro-260215',
+    model: 'doubao-seed-2-1-pro-260915',
     temperature: 0.7,
   });
 

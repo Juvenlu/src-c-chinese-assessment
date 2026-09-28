@@ -290,7 +290,7 @@ export async function POST(request: Request) {
       pages: result.pages,
       frontierTargets: frontiers,
       generationParams: {
-        model: 'doubao-seed-2-0-pro-260215',
+        model: 'doubao-seed-2-1-pro-260915',
         prompt_version: 'v1.2',
         generation_mode: mode,
         child_id: child_id || null,
