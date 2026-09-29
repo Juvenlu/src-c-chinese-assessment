@@ -25,6 +25,13 @@ import { handleV1ResultsGet, handleV1ResultsPost } from "./results";
 import { handleV1CustomBooksList, handleV1CustomBookDetail } from "./custom-books";
 import { handleV1AdminRewriteFinalize } from "./admin-rewrites";
 import { handleV1AdminChildren } from "./admin-children";
+import {
+	handleV1AdminManualDraft,
+	handleV1AdminRewriteDetail,
+	handleV1AdminRewritePatch,
+	handleV1AdminRewriteReject,
+	handleV1AdminEpisodeRewrites,
+} from "./admin-book-writer";
 
 import type { Env } from "./types";
 
@@ -955,10 +962,38 @@ export default {
 				return handleV1AdminChildren(request, env);
 			}
 
+			// POST /v1/admin/rewrite/manual — 绘本写手：人工创建初稿（从 Master Pages）
+			if (path === "/v1/admin/rewrite/manual" && request.method === "POST") {
+				return handleV1AdminManualDraft(request, env);
+			}
+
+			// GET /v1/admin/rewrite/:id — Admin 读取单条 rewrite 详情（D1）
+			const adminRewriteMatch = path.match(/^\/v1\/admin\/rewrite\/([^/]+)$/);
+			if (adminRewriteMatch && request.method === "GET") {
+				return handleV1AdminRewriteDetail(request, env, adminRewriteMatch[1]);
+			}
+
+			// PATCH /v1/admin/rewrite/:id — Admin 编辑 rewrite pages / status
+			if (adminRewriteMatch && request.method === "PATCH") {
+				return handleV1AdminRewritePatch(request, env, adminRewriteMatch[1]);
+			}
+
 			// POST /v1/admin/rewrite/:id/finalize — Admin Finalize + 自动发布 custom_books
 			const adminFinalizeMatch = path.match(/^\/v1\/admin\/rewrite\/([^/]+)\/finalize$/);
 			if (adminFinalizeMatch && request.method === "POST") {
 				return handleV1AdminRewriteFinalize(request, env, adminFinalizeMatch[1]);
+			}
+
+			// POST /v1/admin/rewrite/:id/reject — Admin 驳回 rewrite
+			const adminRejectMatch = path.match(/^\/v1\/admin\/rewrite\/([^/]+)\/reject$/);
+			if (adminRejectMatch && request.method === "POST") {
+				return handleV1AdminRewriteReject(request, env, adminRejectMatch[1]);
+			}
+
+			// GET /v1/admin/episodes/:id/rewrites — Admin 列出某 episode 的所有 rewrite
+			const adminEpRewritesMatch = path.match(/^\/v1\/admin\/episodes\/([^/]+)\/rewrites$/);
+			if (adminEpRewritesMatch && request.method === "GET") {
+				return handleV1AdminEpisodeRewrites(request, env, adminEpRewritesMatch[1]);
 			}
 
 			// v1 404

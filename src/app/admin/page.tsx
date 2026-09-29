@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { BookWriter } from '@/components/admin/book-writer';
 import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
 
 type AdminTab = 'results' | 'charlib' | 'users' | 'questions' | 'books';
@@ -49,6 +50,7 @@ function AdminContent() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [bookView, setBookView] = useState<'writer' | 'workshop'>('writer');
   const [importJson, setImportJson] = useState('');
   const [importing, setImporting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -1050,6 +1052,43 @@ function AdminContent() {
             {/* Books Tab */}
             {tab === 'books' && (
               <div className="space-y-6">
+                {/* View Toggle */}
+                <div className="flex gap-2 border-b border-gray-200 pb-3">
+                  <button
+                    onClick={() => setBookView('writer')}
+                    className={`px-5 py-2 rounded-lg text-sm font-display transition-colors ${
+                      bookView === 'writer'
+                        ? 'bg-[var(--color-src-primary)] text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    ✏️ 绘本写手
+                  </button>
+                  <button
+                    onClick={() => setBookView('workshop')}
+                    className={`px-5 py-2 rounded-lg text-sm font-display transition-colors ${
+                      bookView === 'workshop'
+                        ? 'bg-[var(--color-src-primary)] text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    🏭 绘本工坊
+                  </button>
+                </div>
+
+                {/* Book Writer View */}
+                {bookView === 'writer' && (
+                  <BookWriter
+                    childList={d1Children}
+                    episodes={episodes}
+                    adminFetch={adminFetch}
+                    ADMIN_PASSWORD={ADMIN_PASSWORD}
+                  />
+                )}
+
+                {/* Workshop View (existing content) */}
+                {bookView === 'workshop' && (
+                  <>
                 {/* Create Episode */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h2 className="font-display text-xl text-gray-800 mb-4">创建新绘本集</h2>
@@ -1612,6 +1651,8 @@ function AdminContent() {
                     {customBooks.length === 0 && <div className="text-gray-500">暂无已生成绘本</div>}
                   </div>
                 </div>
+                  </>
+                )}
               </div>
             )}
           </>
