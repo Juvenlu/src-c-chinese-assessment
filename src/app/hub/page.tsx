@@ -63,7 +63,16 @@ export default function HubPage() {
     coverColor: string;
   } | null>(null);
   const [todayStoryLoading, setTodayStoryLoading] = useState(true);
-  const [todayStoryHref, setTodayStoryHref] = useState("/book-select");
+  // 今日故事空状态时跳转到绘本图书馆（带 childId）
+  const bookSelectHref = activeChild?.id
+    ? `/book-select?childId=${activeChild.id}`
+    : "/book-select";
+  const [todayStoryHref, setTodayStoryHref] = useState(bookSelectHref);
+
+  // 当 activeChild 变化时，更新默认跳转链接（空状态 fallback）
+  useEffect(() => {
+    setTodayStoryHref(bookSelectHref);
+  }, [bookSelectHref]);
 
   useEffect(() => {
     if (!activeChild?.id) return;
@@ -94,12 +103,12 @@ export default function HubPage() {
             pages: "即将开始",
             coverColor: "#FFE66D",
           });
-          setTodayStoryHref("/book-select");
+          setTodayStoryHref(bookSelectHref);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setTodayStoryHref("/book-select");
+          setTodayStoryHref(bookSelectHref);
         }
       })
       .finally(() => {

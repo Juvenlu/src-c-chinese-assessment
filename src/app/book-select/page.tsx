@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft, BookOpen } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 const SERIES = [
   { id: "xiyouji", name: "西游记系列", icon: "🐵", color: "from-orange-400 to-red-400" },
@@ -12,7 +13,9 @@ const SERIES = [
 function BookSelectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const childId = searchParams.get("childId") || "";
+  const { activeChild } = useAuth();
+  const queryChildId = searchParams.get("childId") || "";
+  const childId = activeChild?.id || queryChildId || "";
   const [child, setChild] = useState<any>(null);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [customBooks, setCustomBooks] = useState<any[]>([]);
