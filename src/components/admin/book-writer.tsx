@@ -106,7 +106,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
       const res = await adminFetch('/api/admin/episodes');
       if (res.ok) {
         const data = await res.json();
-        setEpisodes((data as Episode[]) || []);
+        setEpisodes((data.data as Episode[]) || []);
         setEpisodesLoaded(true);
       }
     } catch (err) {
@@ -132,7 +132,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
       const res = await adminFetch(`/api/admin/children/${childId}`);
       if (res.ok) {
         const data = await res.json();
-        setReadingProfile(data);
+        setReadingProfile(data.data);
       }
     } catch (err) {
       console.error('加载孩子信息失败:', err);
@@ -159,10 +159,9 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
     try {
       const res = await adminFetch(`/api/admin/episodes/${ep.id}/pages`);
       const data = await res.json();
-      if (data && Array.isArray(data)) {
-        setEpisodePages(data as EpisodePage[]);
-      } else if (data.data) {
-        setEpisodePages(data.data as EpisodePage[]);
+      const pages = data?.data?.pages;
+      if (pages && Array.isArray(pages)) {
+        setEpisodePages(pages as EpisodePage[]);
       } else {
         setEpisodePages([]);
       }

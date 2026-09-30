@@ -501,6 +501,9 @@ export async function handleV1AdminChildDetail(
 	env: Env,
 	childId: string,
 ): Promise<Response> {
+	if (!verifyAdminPassword(request, env)) {
+		return jsonResponse({ error: "Unauthorized" }, 401);
+	}
 	try {
 		const childRow = await env.DB.prepare(
 			`SELECT id, parent_id, nickname, age, grade, country, home_language, confirmed_level, assessment_status, status
@@ -562,6 +565,9 @@ export async function handleV1AdminEpisodesList(
 	request: Request,
 	env: Env,
 ): Promise<Response> {
+	if (!verifyAdminPassword(request, env)) {
+		return jsonResponse({ error: "Unauthorized" }, 401);
+	}
 	try {
 		const url = new URL(request.url);
 		const status = url.searchParams.get("status");
@@ -604,6 +610,9 @@ export async function handleV1AdminEpisodePages(
 	env: Env,
 	episodeId: string,
 ): Promise<Response> {
+	if (!verifyAdminPassword(request, env)) {
+		return jsonResponse({ error: "Unauthorized" }, 401);
+	}
 	try {
 		const episodeRow = await env.DB.prepare(
 			`SELECT id, series_name, episode_title FROM book_episodes WHERE id = ?`
