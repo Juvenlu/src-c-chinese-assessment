@@ -29,7 +29,7 @@ import {
 
 // ===== 类型定义 =====
 
-interface GrowthMapData {
+export interface GrowthMapData {
 	childId: string;
 	confirmed_level: Level | null;
 	estimated_level: Level | null;
@@ -187,7 +187,7 @@ export async function handleGetGrowthMap(
 
 // ===== 核心计算 =====
 
-async function calculateGrowthMap(childId: string, env: Env): Promise<GrowthMapData> {
+export async function calculateGrowthMap(childId: string, env: Env): Promise<GrowthMapData> {
 	// ===== 1. 查询正式测试结果（test_results，仅 test_type = 'formal'）
 	// 不把 sampling 趣味闯关当作正式 confirmed test
 	const formalResultsResp = await env.DB.prepare(

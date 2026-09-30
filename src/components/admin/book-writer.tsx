@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Child {
   id: string | number;
@@ -52,7 +52,6 @@ interface RewritePage {
 
 interface BookWriterProps {
   childList: Child[];
-  episodes: Episode[];
   adminFetch: (url: string, options?: RequestInit) => Promise<Response>;
   ADMIN_PASSWORD: string;
 }
@@ -73,12 +72,15 @@ const STATUS_COLOR: Record<string, string> = {
   failed: 'bg-gray-100 text-gray-700',
 };
 
-export function BookWriter({ childList, episodes, adminFetch }: BookWriterProps) {
+export function BookWriter({ childList, adminFetch }: BookWriterProps) {
   // Step 1: Child
   const [selectedChildId, setSelectedChildId] = useState<string>('');
   const [childLoading, setChildLoading] = useState(false);
 
-  // Step 2: Episode
+  // Step 2: Episode (self-fetched from D1 via admin endpoint)
+  const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [episodesLoading, setEpisodesLoading] = useState(false);
+  const [episodesLoaded, setEpisodesLoaded] = useState(false);
   const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
   const [episodePages, setEpisodePages] = useState<EpisodePage[]>([]);
   const [pagesLoading, setPagesLoading] = useState(false);
@@ -93,16 +95,41 @@ export function BookWriter({ childList, episodes, adminFetch }: BookWriterProps)
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [targetLevel, setTargetLevel] = useState<string>('SRC300');
 
-  // Reading profile（从 quick results 取最新一条）
+  // Reading profile（从 admin children detail 读取）
   const [readingProfile, setReadingProfile] = useState<any>(null);
+
+  // 加载 Master Story 列表（D1 数据源）
+  const loadEpisodes = async () => {
+    if (episodesLoaded) return;
+    setEpisodesLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/episodes');
+      if (res.ok) {
+        const data = await res.json();
+        setEpisodes((data as Episode[]) || []);
+        setEpisodesLoaded(true);
+      }
+    } catch (err) {
+      console.error('加载绘本集列表失败:', err);
+    } finally {
+      setEpisodesLoading(false);
+    }
+  };
+
+  // Step 2 区域展开时才加载（懒加载）
+  useEffect(() => {
+    if (selectedChildId && !episodesLoaded) {
+      loadEpisodes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChildId]);
 
   const loadChildProfile = async (childId: string) => {
     setChildLoading(true);
     setReadingProfile(null);
     try {
-      // 尝试从 Worker /v1/children/xxx/quick-results?limit=1 读取最新测评
-      // 若不存在，退回展示基础信息
-      const res = await adminFetch(`/api/children/${childId}`);
+      // 从 Admin Reading Profile 读取（Worker /v1/admin/children/:id → D1）
+      const res = await adminFetch(`/api/admin/children/${childId}`);
       if (res.ok) {
         const data = await res.json();
         setReadingProfile(data);
@@ -130,7 +157,7 @@ export function BookWriter({ childList, episodes, adminFetch }: BookWriterProps)
   const loadEpisodePages = async (ep: Episode) => {
     setPagesLoading(true);
     try {
-      const res = await fetch(`/api/books/episodes/${ep.id}/pages`);
+      const res = await adminFetch(`/api/admin/episodes/${ep.id}/pages`);
       const data = await res.json();
       if (data && Array.isArray(data)) {
         setEpisodePages(data as EpisodePage[]);
@@ -353,6 +380,7 @@ export function BookWriter({ childList, episodes, adminFetch }: BookWriterProps)
           <span className="w-8 h-8 rounded-full bg-[var(--color-src-primary)] text-white flex items-center justify-center font-bold text-sm">2</span>
           <h2 className="font-display text-xl text-gray-800">选择 Master Story</h2>
         </div>
+        {episodesLoading && <div className="text-sm text-gray-400 mb-4">加载中...</div>}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
           {episodes.map((ep) => (
             <div

@@ -11,6 +11,8 @@
  */
 
 import type { Env } from "./types";
+import { calculateGrowthMap } from "./growth-map";
+import type { GrowthMapData } from "./growth-map";
 
 function jsonResponse(data: unknown, status: number = 200): Response {
 	return new Response(JSON.stringify(data), {
@@ -485,6 +487,159 @@ export async function handleV1AdminManualDraft(request: Request, env: Env): Prom
 		console.error("[admin-rewrites] manual draft error:", error);
 		return jsonResponse({
 			error: "Create manual draft failed",
+			message: error instanceof Error ? error.message : "Unknown error",
+		}, 500);
+	}
+}
+
+// ============================================================
+// Admin: Child Detail with Reading Profile
+// ============================================================
+
+export async function handleV1AdminChildDetail(
+	request: Request,
+	env: Env,
+	childId: string,
+): Promise<Response> {
+	try {
+		const childRow = await env.DB.prepare(
+			`SELECT id, parent_id, nickname, age, grade, country, home_language, confirmed_level, assessment_status, status
+			 FROM children WHERE id = ?`
+		).bind(childId).first() as {
+			id: string; parent_id: string; nickname: string; age: number;
+			grade: string; country: string; home_language: string;
+			confirmed_level: string | null; assessment_status: string | null;
+			status: string;
+		} | null;
+
+		if (!childRow) {
+			return jsonResponse({ error: "Child not found" }, 404);
+		}
+
+		let growthMap: GrowthMapData | null = null;
+		try {
+			growthMap = await calculateGrowthMap(childId, env);
+		} catch (gmError) {
+			console.warn("[admin-child] growth-map calculation skipped:", gmError);
+		}
+
+		return jsonResponse({
+			success: true,
+			data: {
+				child: {
+					id: childRow.id,
+					nickname: childRow.nickname,
+					age: childRow.age,
+					grade: childRow.grade,
+					country: childRow.country,
+					home_language: childRow.home_language,
+					status: childRow.status,
+				},
+				confirmed_level: growthMap?.confirmed_level ?? childRow.confirmed_level,
+				stable_char_count:
+					(growthMap as any)?.srcMastery?.mastered ?? null,
+				stable_vocab_count:
+					(growthMap as any)?.vocabularyMastery?.mastered ?? null,
+				assessment_status:
+					growthMap?.assessment_status ?? childRow.assessment_status ?? "not_started",
+				growth_map: growthMap,
+			},
+		}, 200);
+	} catch (error) {
+		console.error("[admin-child] detail error:", error);
+		return jsonResponse({
+			error: "Failed to get child detail",
+			message: error instanceof Error ? error.message : "Unknown error",
+		}, 500);
+	}
+}
+
+// ============================================================
+// Admin: Episodes List (Master Story)
+// ============================================================
+
+export async function handleV1AdminEpisodesList(
+	request: Request,
+	env: Env,
+): Promise<Response> {
+	try {
+		const url = new URL(request.url);
+		const status = url.searchParams.get("status");
+
+		let sql = `SELECT id, series_name, episode_number, episode_title, page_count,
+		                  level_tier, status, cover_image_url, description, total_words,
+		                  created_at, updated_at
+		           FROM book_episodes`;
+		const params: (string | number)[] = [];
+
+		if (status) {
+			sql += ` WHERE status = ?`;
+			params.push(status);
+		}
+
+		sql += ` ORDER BY id DESC LIMIT 100`;
+
+		const { results } = await env.DB.prepare(sql).bind(...params).all();
+
+		return jsonResponse({
+			success: true,
+			data: results,
+			total: results?.length ?? 0,
+		}, 200);
+	} catch (error) {
+		console.error("[admin-episodes] list error:", error);
+		return jsonResponse({
+			error: "Failed to list episodes",
+			message: error instanceof Error ? error.message : "Unknown error",
+		}, 500);
+	}
+}
+
+// ============================================================
+// Admin: Episode Pages (Master Pages)
+// ============================================================
+
+export async function handleV1AdminEpisodePages(
+	request: Request,
+	env: Env,
+	episodeId: string,
+): Promise<Response> {
+	try {
+		const episodeRow = await env.DB.prepare(
+			`SELECT id, series_name, episode_title FROM book_episodes WHERE id = ?`
+		).bind(episodeId).first() as { id: number; series_name: string; episode_title: string } | null;
+
+		if (!episodeRow) {
+			return jsonResponse({ error: "Episode not found" }, 404);
+		}
+
+		const { results } = await env.DB.prepare(
+			`SELECT id, page_number, image_url, original_text,
+			        new_chars_json, total_chars, unique_chars
+			 FROM book_episode_pages
+			 WHERE episode_id = ?
+			 ORDER BY page_number ASC`
+		).bind(episodeId).all();
+
+		const pages = (results || []).map((p: any) => ({
+			page: p.page_number,
+			text: p.original_text,
+			original_text: p.original_text,
+			image_url: p.image_url,
+			frontier: [],
+		}));
+
+		return jsonResponse({
+			success: true,
+			data: {
+				episode: episodeRow,
+				pages,
+			},
+		}, 200);
+	} catch (error) {
+		console.error("[admin-episodes] pages error:", error);
+		return jsonResponse({
+			error: "Failed to get episode pages",
 			message: error instanceof Error ? error.message : "Unknown error",
 		}, 500);
 	}

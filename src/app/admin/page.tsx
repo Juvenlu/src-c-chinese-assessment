@@ -1080,7 +1080,6 @@ function AdminContent() {
                 {bookView === 'writer' && (
                   <BookWriter
                     childList={d1Children}
-                    episodes={episodes}
                     adminFetch={adminFetch}
                     ADMIN_PASSWORD={ADMIN_PASSWORD}
                   />

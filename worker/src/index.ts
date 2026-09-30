@@ -31,6 +31,9 @@ import {
 	handleV1AdminRewritePatch,
 	handleV1AdminRewriteReject,
 	handleV1AdminEpisodeRewrites,
+	handleV1AdminChildDetail,
+	handleV1AdminEpisodesList,
+	handleV1AdminEpisodePages,
 } from "./admin-book-writer";
 
 import type { Env } from "./types";
@@ -995,6 +998,23 @@ export default {
 			if (adminEpRewritesMatch && request.method === "GET") {
 				return handleV1AdminEpisodeRewrites(request, env, adminEpRewritesMatch[1]);
 			}
+
+				// GET /v1/admin/children/:id — Admin 查看孩子详情 + Reading Profile
+				const adminChildMatch = path.match(/^\/v1\/admin\/children\/([^/]+)$/);
+				if (adminChildMatch && request.method === "GET") {
+					return handleV1AdminChildDetail(request, env, adminChildMatch[1]);
+				}
+
+				// GET /v1/admin/episodes — Admin Master Story 列表
+				if (path === "/v1/admin/episodes" && request.method === "GET") {
+					return handleV1AdminEpisodesList(request, env);
+				}
+
+				// GET /v1/admin/episodes/:id/pages — Admin Master Pages
+				const adminEpPagesMatch = path.match(/^\/v1\/admin\/episodes\/([^/]+)\/pages$/);
+				if (adminEpPagesMatch && request.method === "GET") {
+					return handleV1AdminEpisodePages(request, env, adminEpPagesMatch[1]);
+				}
 
 			// v1 404
 			return jsonResponse({ error: "Not found", path }, 404);
