@@ -14,7 +14,6 @@ function BookSelectContent() {
   const router = useRouter();
   const childId = searchParams.get("childId") || "";
   const [child, setChild] = useState<any>(null);
-  const [episodes, setEpisodes] = useState<any[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [customBooks, setCustomBooks] = useState<any[]>([]);
   const [aiRewrites, setAiRewrites] = useState<any[]>([]);
@@ -25,11 +24,10 @@ function BookSelectContent() {
       fetch(`/api/books/custom?child_id=${childId}`).then(r => r.json()).then(d => setCustomBooks(d.data || []));
       fetch(`/api/books/rewrites?child_id=${childId}&status=final`).then(r => r.json()).then(d => setAiRewrites(d.rewrites || []));
     }
-    fetch("/api/books/episodes").then(r => r.json()).then(d => setEpisodes(d.data || []));
   }, [childId]);
 
-  const filteredEpisodes = selectedSeries
-    ? episodes.filter((ep) => ep.series_name === SERIES.find((s) => s.id === selectedSeries)?.name)
+  const filteredCustomBooks = selectedSeries
+    ? customBooks.filter((book) => book.episodes?.series_name === SERIES.find((s) => s.id === selectedSeries)?.name)
     : [];
 
   return (
@@ -134,18 +132,29 @@ function BookSelectContent() {
               </h2>
             </div>
             <div className="space-y-3">
-              {filteredEpisodes.map((ep) => (
-                <div key={ep.id} className="bg-white rounded-xl p-4 shadow flex items-center justify-between">
-                  <div>
-                    <div className="font-bold">第{ep.episode_number}集</div>
-                    <div className="text-sm text-gray-500">{ep.episode_title}</div>
+              {filteredCustomBooks.map((book) => (
+                <a
+                  key={book.id}
+                  href={`/book/${book.id}`}
+                  className="block bg-white rounded-xl p-4 shadow hover:shadow-md transition"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold">
+                        {book.episodes?.series_name} 第{book.episodes?.episode_number}集
+                      </div>
+                      <div className="text-sm text-gray-500">{book.episodes?.episode_title}</div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {book.level_tier} · v{book.version} · {new Date(book.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div className="bg-orange-500 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                      <BookOpen size={16} /> 阅读
+                    </div>
                   </div>
-                  <button className="bg-orange-500 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                    <BookOpen size={16} /> 阅读
-                  </button>
-                </div>
+                </a>
               ))}
-              {filteredEpisodes.length === 0 && (
+              {filteredCustomBooks.length === 0 && (
                 <div className="text-center text-gray-500 py-8">
                   该系列暂无绘本，请联系管理员添加
                 </div>
