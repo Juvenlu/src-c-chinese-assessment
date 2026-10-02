@@ -16,14 +16,21 @@ export async function GET(
       return NextResponse.json({ success: false, message: 'Database client not found' }, { status: 500 });
     }
 
+    // 1. 优先按 id 精确匹配
     let result = await db.prepare('SELECT * FROM custom_books WHERE id = ?').bind(bookId).all();
 
+    // 2. 若未查到，尝试匹配 custom_id 或 book_id
     if (!result.results || result.results.length === 0) {
-      result = await db.prepare('SELECT * FROM custom_books LIMIT 1').all();
+      result = await db.prepare('SELECT * FROM custom_books WHERE custom_id = ? OR book_id = ?').bind(bookId, bookId).all();
+    }
+
+    // 3. 兜底逻辑：获取第一条可用记录
+    if (!result.results || result.results.length === 0) {
+      result = await db.prepare('SELECT * FROM custom_books ORDER BY id ASC LIMIT 1').all();
     }
 
     if (result.results && result.results.length > 0) {
-      const bookData = result.results[0];
+      const bookData: any = result.results[0];
 
       if (typeof bookData.pages === 'string') {
         try {
