@@ -10,7 +10,7 @@ interface EpisodePage {
 
 export default function BookReaderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const customBookId = parseInt(id, 10);
+  const bookId = parseInt(id, 10);
 
   const [book, setBook] = useState<any>(null);
   const [pages, setPages] = useState<EpisodePage[]>([]);
@@ -20,13 +20,12 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
 
   const lastSavedPageRef = useRef<number>(1);
 
-  // 1. 加载 Custom Book 详情与当前用户孩子信息
   useEffect(() => {
     async function initBook() {
       try {
         setLoading(true);
 
-        // 获取当前激活的孩子 ID
+        // 1. 获取当前激活的孩子 ID
         const activeChildRes = await fetch('/api/children');
         const activeChildData = await activeChildRes.json();
         let currentChildId = null;
@@ -35,25 +34,40 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
           setChildId(currentChildId);
         }
 
-        // 统一从 /api/books/custom/[customBookId] 获取绘本详情
-        const res = await fetch(`/api/books/custom/${customBookId}`);
-        const data = await res.json();
+        // 2. 优先尝试从 Custom 路径加载；若非 Custom 则从 Episode 路径加载
+        let bookData = null;
+        let isCustom = false;
 
-        if (data.success && data.data) {
-          setBook(data.data);
-          const parsedPages = typeof data.data.pages_json === 'string'
-            ? JSON.parse(data.data.pages_json)
-            : data.data.pages_json || [];
+        const customRes = await fetch(`/api/books/custom/${bookId}`);
+        const customData = await customRes.json();
+
+        if (customData.success && customData.data) {
+          bookData = customData.data;
+          isCustom = true;
+        } else {
+          // Fallback: 尝试 Episode 路由
+          const episodeRes = await fetch(`/api/books/episodes/${bookId}`);
+          const episodeData = await episodeRes.json();
+          if (episodeData.success && episodeData.data) {
+            bookData = episodeData.data;
+          }
+        }
+
+        if (bookData) {
+          setBook(bookData);
+          const parsedPages = typeof bookData.pages_json === 'string'
+            ? JSON.parse(bookData.pages_json)
+            : bookData.pages_json || bookData.pages || [];
           setPages(parsedPages);
 
-          // 获取或初始化阅读记录 (恢复历史进度)
+          // 3. 读取或初始化阅读记录 (恢复历史进度)
           if (currentChildId) {
             const recordRes = await fetch('/api/reading-records', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 child_id: currentChildId,
-                custom_book_id: customBookId,
+                custom_book_id: bookId,
                 total_pages: parsedPages.length || 10,
               }),
             });
@@ -72,12 +86,12 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       }
     }
 
-    if (customBookId) {
+    if (bookId) {
       initBook();
     }
-  }, [customBookId]);
+  }, [bookId]);
 
-  // 2. 翻页时保存进度
+  // 4. 翻页时保存进度
   const handlePageChange = async (newPage: number) => {
     if (newPage < 1 || newPage > pages.length) return;
     setCurrentPage(newPage);
@@ -86,9 +100,8 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
 
     const isCompleted = newPage === pages.length;
 
-    // 向后端保存进度
     try {
-      await fetch(`/api/reading-records/${customBookId}`, {
+      await fetch(`/api/reading-records/${bookId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
