@@ -25,7 +25,6 @@ export async function GET(
     if (result.results && result.results.length > 0) {
       const bookData: any = result.results[0];
 
-      // 解析 pages JSON
       let parsedPages: any[] = [];
       if (typeof bookData.pages === 'string') {
         try {
@@ -37,7 +36,7 @@ export async function GET(
         parsedPages = bookData.pages;
       }
 
-      // 如果数据库里 pages 为空，注入默认示例页面（防止前端无数据展示）
+      // 数据库 pages 为空时，注入测试页面数据
       if (parsedPages.length === 0) {
         parsedPages = [
           {
