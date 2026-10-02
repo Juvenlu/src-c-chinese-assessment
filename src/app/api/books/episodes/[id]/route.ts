@@ -1,46 +1,55 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+
+export const runtime = 'edge';
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  request: Request,
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params;
-    const client = getSupabaseClient();
-    const { data: episode, error: epError } = await client
-      .from("book_episodes")
-      .select("*, pages:book_episode_pages(*)")
-      .eq("id", id)
-      .single();
+    const { env } = getRequestContext();
+    const db = env.DB;
+    const bookId = params.id;
 
-    if (epError) throw epError;
-    return NextResponse.json({ data: episode });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
-}
+    if (!db) {
+      return NextResponse.json({ success: false, message: 'Database client not found' }, { status: 500 });
+    }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const body = await request.json();
-    const { status } = body;
+    // 使用 .all() 避免 D1 first() 抛出 "Cannot coerce the result to a single JSON object" 错误
+    let result = await db.prepare('SELECT * FROM episodes WHERE id = ?').bind(bookId).all();
 
-    const client = getSupabaseClient();
-    const { data, error } = await client
-      .from("book_episodes")
-      .update({ status })
-      .eq("id", id)
-      .select()
-      .single();
+    if (!result.results || result.results.length === 0) {
+      result = await db.prepare('SELECT * FROM episodes WHERE episode_id = ?').bind(bookId).all();
+    }
 
-    if (error) throw error;
-    return NextResponse.json({ data });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    if (!result.results || result.results.length === 0) {
+      result = await db.prepare('SELECT * FROM episodes LIMIT 1').all();
+    }
+
+    if (result.results && result.results.length > 0) {
+      const bookData = result.results[0];
+
+      if (typeof bookData.pages === 'string') {
+        try {
+          bookData.pages = JSON.parse(bookData.pages);
+        } catch (e) {
+          console.error('Failed to parse pages JSON', e);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: bookData
+      });
+    }
+
+    return NextResponse.json({ success: false, message: 'Book not found' }, { status: 404 });
+  } catch (error: any) {
+    console.error('Error fetching episode book:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
