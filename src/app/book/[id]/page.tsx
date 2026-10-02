@@ -10,23 +10,12 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   const [pages, setPages] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState(true);
-  const [childId, setChildId] = useState<number | null>(null);
 
   useEffect(() => {
     async function initBook() {
       try {
         setLoading(true);
 
-        // 1. 获取激活的孩子 ID
-        const activeChildRes = await fetch('/api/children');
-        const activeChildData = await activeChildRes.json();
-        let currentChildId = null;
-        if (activeChildData.success && activeChildData.data?.length > 0) {
-          currentChildId = activeChildData.data[0].id;
-          setChildId(currentChildId);
-        }
-
-        // 2. 获取 Episode 绘本详情
         const episodeRes = await fetch(`/api/books/episodes/${bookId}`);
         const episodeData = await episodeRes.json();
 
@@ -34,8 +23,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
           const bookData = episodeData.data;
           setBook(bookData);
 
-          // 安全解析 pages
-          let rawPages = bookData.pages || bookData.pages_json || bookData.content_json || [];
+          let rawPages = bookData.pages || bookData.pages_json || [];
           if (typeof rawPages === 'string') {
             try {
               rawPages = JSON.parse(rawPages);
@@ -61,7 +49,6 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
     return <div className="flex justify-center items-center h-screen text-gray-600">绘本加载中...</div>;
   }
 
-  // 仅仅在整条 book 记录完全不存在时，才显示未找到
   if (!book) {
     return (
       <div className="flex flex-col justify-center items-center h-screen gap-4">
