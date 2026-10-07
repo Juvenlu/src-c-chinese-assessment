@@ -1,57 +1,61 @@
-import { NextResponse } from 'next/server';
-import { getRequestContext } from '@cloudflare/next-on-pages';
+import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = 'edge';
+/**
+ * Custom Book Detail — Worker Proxy
+ *
+ * GET /api/books/custom/:id  → GET /v1/books/custom/:id
+ *
+ * 返回含 pages_json 的单本定制绘本详情。
+ * Worker 端做 Session + child ownership 校验。
+ *
+ * Production 必须走 Worker，绝不 fallback 到 Supabase / 直连 D1。
+ */
 
+const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const WORKER_ENABLED =
+	process.env.WORKER_GUEST_API_ENABLED === 'true' ||
+	process.env.WORKER_CHILDREN_ENABLED === 'true' ||
+	IS_PRODUCTION;
+
+if (IS_PRODUCTION && (!WORKER_BASE_URL || !SERVICE_KEY)) {
+	console.error('[books/custom/[id]] Production 缺少 WORKER_BASE_URL 或 SRC_WORKER_SERVICE_KEY 配置');
+}
+
+export const runtime = 'nodejs';
+
+/**
+ * GET /api/books/custom/:id
+ */
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+	req: NextRequest,
+	{ params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { env } = getRequestContext();
-    const db = env.DB;
-    const bookId = params.id;
+	if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+		if (IS_PRODUCTION) {
+			return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
+		}
+		return NextResponse.json({ error: 'Book not found' }, { status: 404 });
+	}
 
-    if (!db) {
-      return NextResponse.json({ success: false, message: 'Database client not found' }, { status: 500 });
-    }
+	try {
+		const { id } = await params;
 
-    // 1. 优先按 id 精确匹配
-    let result = await db.prepare('SELECT * FROM custom_books WHERE id = ?').bind(bookId).all();
+		const res = await fetch(`${WORKER_BASE_URL}/v1/books/custom/${encodeURIComponent(id)}`, {
+			method: 'GET',
+			headers: {
+				Cookie: req.headers.get('cookie') || '',
+				'X-SRC-Service-Key': SERVICE_KEY,
+			},
+			cache: 'no-store',
+		});
 
-    // 2. 若未查到，尝试匹配 custom_id 或 book_id
-    if (!result.results || result.results.length === 0) {
-      result = await db.prepare('SELECT * FROM custom_books WHERE custom_id = ? OR book_id = ?').bind(bookId, bookId).all();
-    }
-
-    // 3. 兜底逻辑：获取第一条可用记录
-    if (!result.results || result.results.length === 0) {
-      result = await db.prepare('SELECT * FROM custom_books ORDER BY id ASC LIMIT 1').all();
-    }
-
-    if (result.results && result.results.length > 0) {
-      const bookData: any = result.results[0];
-
-      if (typeof bookData.pages === 'string') {
-        try {
-          bookData.pages = JSON.parse(bookData.pages);
-        } catch (e) {
-          console.error('Failed to parse pages JSON', e);
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: bookData
-      });
-    }
-
-    return NextResponse.json({ success: false, message: 'Custom book not found' }, { status: 404 });
-  } catch (error: any) {
-    console.error('Error fetching custom book:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Internal Server Error' },
-      { status: 500 }
-    );
-  }
+		const data = await res.json();
+		return NextResponse.json(data, { status: res.status });
+	} catch (e: any) {
+		console.error('[books/custom/[id]] proxy error:', e);
+		return NextResponse.json({ error: '网络错误' }, { status: 502 });
+	}
 }
