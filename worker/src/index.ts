@@ -23,6 +23,7 @@ import { handleV1SessionsGet, handleV1SessionsPost, handleV1SessionPatch } from 
 import { handleV1AnswersGet, handleV1AnswersPost } from "./answers";
 import { handleV1ResultsGet, handleV1ResultsPost } from "./results";
 import { handleV1CustomBooksList, handleV1CustomBookDetail } from "./custom-books";
+import { handleReadingRecords } from "./reading-records";
 import { handleV1AdminRewriteFinalize } from "./admin-rewrites";
 import { handleV1AdminChildren } from "./admin-children";
 import {
@@ -958,6 +959,18 @@ export default {
 			const customBookMatch = path.match(/^\/v1\/books\/custom\/([^/]+)$/);
 			if (customBookMatch && request.method === "GET") {
 				return handleV1CustomBookDetail(request, env, customBookMatch[1]);
+			}
+
+			// Reading Records — 绘本阅读进度（Session + child 归属，见 reading-records）
+			// POST /v1/reading-records — 获取或初始化
+			if (path === "/v1/reading-records" && request.method === "POST") {
+				return handleReadingRecords(request, env);
+			}
+			// PATCH /v1/reading-records/:id — 更新进度/完成
+			// POST  /v1/reading-records/:id — 兼容 sendBeacon
+			const readingRecordMatch = path.match(/^\/v1\/reading-records\/([^/]+)$/);
+			if (readingRecordMatch && (request.method === "PATCH" || request.method === "POST")) {
+				return handleReadingRecords(request, env);
 			}
 
 			// GET /v1/admin/children — Admin 全量孩子列表（D1）
