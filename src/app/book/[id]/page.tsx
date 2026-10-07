@@ -16,14 +16,17 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       try {
         setLoading(true);
 
-        const episodeRes = await fetch(`/api/books/episodes/${bookId}`);
-        const episodeData = await episodeRes.json();
+        // `/book/:id` 中的 id 是 custom_books.id，必须请求 custom book API，
+        // 而不是 Master Episode API（它会因无匹配 id 返回 data=null → "未找到绘本内容"）。
+        const res = await fetch(`/api/books/custom/${bookId}`);
+        const responseData = await res.json();
 
-        if (episodeData.data) {
-          const bookData = episodeData.data;
+        // 逐层解包，兼容 {data:{...}} / {book:{...}} / 直接对象。
+        const bookData = responseData?.data ?? responseData?.book ?? responseData;
+        if (res.ok && bookData) {
           setBook(bookData);
 
-          let rawPages = bookData.pages || bookData.pages_json || [];
+          let rawPages = bookData.pages_json ?? bookData.pages ?? [];
           if (typeof rawPages === 'string') {
             try {
               rawPages = JSON.parse(rawPages);
@@ -34,7 +37,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
           setPages(Array.isArray(rawPages) ? rawPages : []);
         }
       } catch (err) {
-        console.error('Failed to load book:', err);
+        console.error('Failed to load custom book:', err);
       } finally {
         setLoading(false);
       }
