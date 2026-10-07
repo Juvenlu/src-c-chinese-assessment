@@ -408,8 +408,8 @@ export async function handleV1AdminManualDraft(request: Request, env: Env): Prom
 			return jsonResponse({ error: "Episode has no pages" }, 404);
 		}
 
-		// 2. 构建初始 pages_json（每页 text = original_text，后续管理员编辑）
-		const pagesJson: RewritePage[] = masterPages.map((p) => ({
+		// 2. 默认 seed：每页 text = original_text（同三元组无历史版本时使用）
+		let pagesJson: RewritePage[] = masterPages.map((p) => ({
 			page: p.page_number,
 			text: p.original_text || "",
 			frontier: [],
@@ -434,7 +434,69 @@ export async function handleV1AdminManualDraft(request: Request, env: Env): Prom
 			}
 		}
 
-		const uniqueChars = uniqueCharsSet.size;
+		let uniqueChars = uniqueCharsSet.size;
+		let frontierTargetsJson = JSON.stringify([]);
+		let basedOnVersion: number | null = null;
+		let basedOnRewriteId: number | null = null;
+
+		const childId = body.child_id?.trim() || null;
+
+		// 4. child_id 有值时，优先继承同 (child + episode + target_level) 最新版本，
+		//    完整保留人工编辑后的 text / frontier，绝不静默回 Master 丢稿。
+		//    查询严格限定三元组：首次建 SRC300 不会继承已存在的 SRC500。
+		if (childId) {
+			const prior = await env.DB.prepare(
+				`SELECT id, version, pages_json, frontier_targets_json,
+				        total_chars, unique_chars, max_page_chars
+				   FROM book_rewrite_versions
+				  WHERE child_id = ? AND episode_id = ? AND target_level = ?
+				  ORDER BY version DESC, id DESC
+				  LIMIT 1`
+			)
+				.bind(childId, episodeId, targetLevel)
+				.first<{
+					id: number;
+					version: number;
+					pages_json: string;
+					frontier_targets_json: string | null;
+					total_chars: number;
+					unique_chars: number;
+					max_page_chars: number;
+				}>();
+
+			if (prior) {
+				// 损坏 / 非数组：明确失败并停止，绝不静默回 Master（否则仍会丢人工编辑）
+				let inherited: unknown;
+				try {
+					inherited = JSON.parse(prior.pages_json);
+				} catch {
+					return jsonResponse(
+						{
+							error: "Previous same-level rewrite pages_json is corrupted; aborting draft creation",
+							based_on_rewrite_id: prior.id,
+						},
+						422
+					);
+				}
+				if (!Array.isArray(inherited)) {
+					return jsonResponse(
+						{
+							error: "Previous same-level rewrite pages_json is not an array; aborting draft creation",
+							based_on_rewrite_id: prior.id,
+						},
+						422
+					);
+				}
+
+				pagesJson = inherited as RewritePage[];
+				frontierTargetsJson = prior.frontier_targets_json ?? JSON.stringify([]);
+				totalChars = prior.total_chars;
+				uniqueChars = prior.unique_chars;
+				maxPageChars = prior.max_page_chars;
+				basedOnVersion = prior.version;
+				basedOnRewriteId = prior.id;
+			}
+		}
 
 		// 4. 计算当前最大 version 号
 		const versionRow = await env.DB.prepare(
@@ -447,6 +509,8 @@ export async function handleV1AdminManualDraft(request: Request, env: Env): Prom
 		const generationParams = {
 			source: "manual",
 			tool: "book-writer",
+			based_on_version: basedOnVersion,
+			based_on_rewrite_id: basedOnRewriteId,
 			created_at: new Date(nowTs * 1000).toISOString(),
 		};
 
@@ -463,11 +527,11 @@ export async function handleV1AdminManualDraft(request: Request, env: Env): Prom
 			episodeId,
 			targetLevel,
 			JSON.stringify(pagesJson),
-			JSON.stringify([]),
+			frontierTargetsJson,
 			JSON.stringify(generationParams),
 			null,
 			nextVersion,
-			body.child_id || null,
+			childId,
 			totalChars,
 			uniqueChars,
 			maxPageChars,
