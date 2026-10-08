@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, use } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
 const SAVE_THROTTLE_MS = 5000;
+const RESTORE_RETRY_LIMIT = 3;   // 首次 + 最多 2 次重试
+const RESTORE_RETRY_BACKOFF_MS = 800; // 退避基数
 
 export default function BookReaderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -16,6 +18,9 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [recordReady, setRecordReady] = useState(false);
+  // 恢复状态：'restoring'（内容+身份+进度就绪前不渲染正文）| 'done' | 'error'（可重试失败）
+  const [restoreState, setRestoreState] = useState<'restoring' | 'done' | 'error'>('restoring');
+  const [restoreAttempt, setRestoreAttempt] = useState(0); // 用于强制重试恢复
 
   // ===== Refs：请求隔离 / 节流 / 乱序保护 =====
   const initializedKeyRef = useRef<string>(''); // `${bookId}:${childId}`，防重复初始化
@@ -75,25 +80,33 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       recordReadyRef.current = false;
       navigatedRef.current = false;
       initializedKeyRef.current = '';
+      setRestoreState('restoring');
       mountStartRef.current = Date.now();
       initBook();
     }
   }, [bookId]);
 
-  // ===== Reading Record 初始化：内容 + 身份就绪后执行 =====
+  // ===== Reading Record 初始化：内容 + 身份就绪后执行（恢复完成前不渲染正文）=====
   useEffect(() => {
-    if (authLoading) return;
-    if (!bookId || pages.length === 0) return;
+    // 身份或内容未就绪：保持恢复中，不渲染正文
+    if (authLoading || loading) return;
 
     const childId = activeChild?.id;
-    if (!childId) return; // 未登录/无孩子：跳过进度功能，不影响阅读
+    // 无需恢复：未登录/无孩子，或内容不可用（无书/空页）→ 放行正文，由渲染层呈现对应状态
+    if (!childId || !bookId || !book || pages.length === 0) {
+      setRestoreState('done');
+      return;
+    }
 
     const key = `${bookId}:${childId}`;
     if (initializedKeyRef.current === key) return;
     initializedKeyRef.current = key;
 
     let cancelled = false;
-    (async () => {
+    let attemptNo = 0;
+
+    const doRestore = async (): Promise<'ok' | 'retry' | 'stale'> => {
+      if (cancelled || initializedKeyRef.current !== key) return 'stale';
       try {
         const res = await fetch('/api/reading-records', {
           method: 'POST',
@@ -102,8 +115,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
         });
         const result = await res.json();
 
-        if (cancelled || initializedKeyRef.current !== key) return;
-
+        if (cancelled || initializedKeyRef.current !== key) return 'stale';
         if (res.ok && result?.success) {
           recordReadyRef.current = true;
           setRecordReady(true);
@@ -115,17 +127,53 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
               setCurrentPage(Math.min(saved, pages.length));
             }
           }
+          setRestoreState('done');
+          return 'ok';
         }
-        // 初始化失败：静默降级，阅读不受影响
+        // 业务失败：可重试
+        console.warn('[reading-records] restore non-ok:', result);
+        return 'retry';
+      } catch (err) {
+        // 网络错误：可重试；保留诊断信息
+        console.warn('[reading-records] restore error:', key, err);
+        return 'retry';
+      }
+    };
+
+    (async () => {
+      setRestoreState('restoring');
+      try {
+        for (attemptNo = 0; attemptNo <= RESTORE_RETRY_LIMIT; attemptNo++) {
+          const outcome = await doRestore();
+          if (outcome === 'ok' || outcome === 'stale') return;
+          // retry：短暂退避后再试
+          await new Promise((r) => setTimeout(r, RESTORE_RETRY_BACKOFF_MS * (attemptNo + 1)));
+          if (cancelled || initializedKeyRef.current !== key) return;
+        }
+        // 重试耗尽：进入可重试错误态，不得静默显示第 1 页并保存
+        if (!cancelled && initializedKeyRef.current === key) {
+          recordReadyRef.current = false;
+          setRecordReady(false);
+          setRestoreState('error');
+        }
       } catch {
-        // 网络错误：静默降级
+        // 退避被中断（如卸载）
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [bookId, pages.length, activeChild, authLoading]);
+  }, [bookId, pages.length, activeChild, authLoading, loading, restoreAttempt]);
+
+  // 恢复失败后的手动重试：重置初始化标记并重新触发恢复 effect
+  const retryRestore = () => {
+    initializedKeyRef.current = '';
+    recordReadyRef.current = false;
+    setRecordReady(false);
+    setRestoreState('restoring');
+    setRestoreAttempt((n) => n + 1);
+  };
 
   // ===== 实际发送一次进度（串行排队，保证旧请求不会后到覆盖新页码）=====
   const flushPage = (page: number) => {
@@ -227,8 +275,25 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
     setCurrentPage(page);
   };
 
-  if (loading) {
+  const restorePending = loading || authLoading || restoreState === 'restoring';
+
+  if (restorePending) {
     return <div className="flex justify-center items-center h-screen text-gray-600">绘本加载中...</div>;
+  }
+
+  if (restoreState === 'error') {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen gap-4 text-center">
+        <p className="text-gray-700 font-medium">阅读进度恢复失败，无法安全恢复到上次位置。</p>
+        <p className="text-sm text-gray-500">为避免进度错乱，暂未打开正文。</p>
+        <button
+          onClick={retryRestore}
+          className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-md font-medium"
+        >
+          重试恢复
+        </button>
+      </div>
+    );
   }
 
   if (!book) {
