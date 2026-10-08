@@ -144,32 +144,24 @@ async function handleCreate(request: Request, env: Env): Promise<Response> {
     return json({ success: false, error: 'Forbidden' }, 403);
   }
 
-  // 先查后插：避免重复记录；命中则直接复用（不覆盖已有进度）
-  const existing = await getRecord(env, childId, customBookId);
-  if (existing) {
-    return json({ success: true, data: existing }, 200);
-  }
-
+  // 原子条件插入：单条写事务内完成“不存在才插入”判定，
+  // 依赖 D1 对写事务的串行化，避免并发初始化产生重复记录。
   const now = Math.floor(Date.now() / 1000);
   const insertResult = await env.DB.prepare(
     `INSERT INTO reading_records
        (child_id, custom_book_id, start_time, duration_seconds,
         pages_read, total_pages, completed, created_at)
-     VALUES (?1, ?2, ?3, 0, 1, ?4, 0, ?5)`,
+     SELECT ?1, ?2, ?3, 0, 1, ?4, 0, ?5
+      WHERE NOT EXISTS (
+        SELECT 1 FROM reading_records
+         WHERE child_id = ?1 AND custom_book_id = ?2
+      )`,
   ).bind(childId, customBookId, now, book.page_count, now).run();
 
-  const recordId = Number(insertResult.meta.last_row_id);
-  const created = await env.DB.prepare(
-    `SELECT * FROM reading_records WHERE id = ?1`,
-  ).bind(recordId).first<ReadingRecordRow>();
-
-  // 并发兜底：若并发请求已抢先插入，删除本行后返回已有记录，保持每 child+book 单条
-  if (!created) {
-    const raced = await getRecord(env, childId, customBookId);
-    return json({ success: true, data: raced }, 200);
-  }
-
-  return json({ success: true, data: created }, 201);
+  // 插入后读取实际记录；meta.changes>0 表示真正新建（201），否则是复用已有（200）
+  const created = await getRecord(env, childId, customBookId);
+  const isNew = Number(insertResult.meta.changes) > 0;
+  return json({ success: true, data: created }, isNew ? 201 : 200);
 }
 
 /**
