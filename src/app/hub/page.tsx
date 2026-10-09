@@ -35,9 +35,20 @@ export default function HubPage() {
   const currentLevel = assessmentStatus?.current_level || 'SRC100';
   const currentLevelNum = parseInt(currentLevel.replace('SRC', ''), 10) || 100;
 
-  // 推荐测试/阅读等级（reading_base 对应），用于今日故事推荐难度
+  // 推荐测试等级（reading_base 对应），用于今日故事推荐难度与"下一测试目标"
+  // 有 formal confirmed_level：
+  //   - SRC800（next_level 为 null，已封顶）→ 下一目标显示 SRC1200（待开放），仅文案，不开放测试
+  //   - 其余 → 用 next_level
+  // 无 formal → 回落 recommended_test_level（Quick/默认 SRC100）
   const recommendedLevel = assessmentStatus?.recommended_test_level || 'SRC100';
-  const recommendedLevelNum = parseInt(recommendedLevel.replace('SRC', ''), 10) || 100;
+  const nextTestLevel =
+    assessmentStatus?.confirmed_level
+      ? assessmentStatus.confirmed_level === 'SRC800'
+        ? 'SRC1200（待开放）'
+        : assessmentStatus.next_level || recommendedLevel
+      : recommendedLevel;
+  // 推荐阅读基础：有 formal confirmed_level → 用 confirmed_level；否则回落 recommended_test_level
+  const readingBaseLevel = assessmentStatus?.confirmed_level || recommendedLevel;
 
   // 词语水平：正式测试优先（取 formal 的词语掌握率+词汇量），其次 Quick Assessment
   // ⚠️ 识字水平和词语水平是两个独立指标，禁止用 currentLevel 直接推导词语等级
@@ -275,7 +286,7 @@ export default function HubPage() {
               我的SRC旅程
             </h3>
             <p className="mb-4 text-sm text-muted-foreground">
-              推荐测试：<span className="font-semibold text-foreground">{recommendedLevel}</span>
+              下一测试目标：<span className="font-semibold text-foreground">{nextTestLevel}</span>
               <span className="mx-2">·</span>
               点击任意等级开始测试
             </p>
@@ -284,7 +295,7 @@ export default function HubPage() {
                 const levelKey = `SRC${level}` as const;
                 const isCompleted = currentLevelNum >= level;
                 const isCurrent = currentLevelNum >= level && currentLevelNum < (level === 800 ? 1200 : [300, 500, 800, 1200][i]);
-                const isRecommended = recommendedLevel === levelKey;
+                const isRecommended = nextTestLevel === levelKey;
                 return (
                   <button
                     key={level}
@@ -420,7 +431,7 @@ export default function HubPage() {
                     className="text-2xl font-bold"
                     style={{ fontFamily: "var(--font-heading)", color: "#6366f1" }}
                   >
-                    {recommendedLevel}
+                    {readingBaseLevel}
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
