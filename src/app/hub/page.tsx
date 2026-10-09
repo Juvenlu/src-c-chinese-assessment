@@ -110,7 +110,9 @@ export default function HubPage() {
           setTodayStory({
             id: 0,
             title: "探索你的第一本中文故事",
-            level: recommendedLevel,
+            // 无真实 Final Rewrite：故事等级优先 confirmed_level（即 readingBaseLevel），
+            // 无 formal 时 readingBaseLevel 内部已回落 recommended_test_level/默认 SRC100
+            level: readingBaseLevel,
             pages: "即将开始",
             coverColor: "#FFE66D",
           });
@@ -126,7 +128,7 @@ export default function HubPage() {
         if (!cancelled) setTodayStoryLoading(false);
       });
     return () => { cancelled = true; };
-  }, [activeChild?.id, recommendedLevel]);
+  }, [activeChild?.id, readingBaseLevel]);
 
   // 今日闯关（暂时不开放）
   const gameDisabled = true;
@@ -213,7 +215,7 @@ export default function HubPage() {
                 className="rounded-full px-2 py-0.5 font-medium"
                 style={{ backgroundColor: "var(--color-primary, #FF6B35)22", color: "var(--color-primary, #FF6B35)" }}
               >
-                推荐 {todayStory?.level || recommendedLevel}
+                推荐 {todayStory?.level || readingBaseLevel}
               </span>
               <span>{todayStory?.pages || "约10页"}</span>
             </div>
