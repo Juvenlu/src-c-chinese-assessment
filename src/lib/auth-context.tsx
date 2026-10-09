@@ -46,7 +46,7 @@ interface AuthContextValue {
     error?: string;
   }>;
   verifyOtp: (email: string, code: string) => Promise<{ success: boolean; isNewUser?: boolean; children?: ChildInfo[]; error?: string }>;
-  logout: () => Promise<void>;
+  logout: () => Promise<boolean>;
   refreshUser: () => Promise<void>;
   createChild: (data: CreateChildData) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
   updateChild: (childId: string, data: Partial<CreateChildData>) => Promise<{ success: boolean; child?: ChildInfo; error?: string }>;
@@ -498,20 +498,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshUser]);
 
-  // 退出登录
-  const logout = useCallback(async () => {
+  // 退出登录：返回是否确认成功。
+  // 成功（Logout API 返回 2xx 且 success===true）才清理前端身份状态；
+  // 任何失败（网络异常 / 非 2xx / 无 success 标识）都返回 false，且不清空身份状态，供调用方提示并可重试。
+  // 设备级孩子选择偏好 src_active_child::<parentId> 保留（非认证凭证）。
+  const logout = useCallback(async (): Promise<boolean> => {
+    let success = false;
     try {
-      await authFetch('/api/auth/logout', { method: 'POST' });
+      const res = await authFetch('/api/auth/logout', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        success = !!(data && typeof data === 'object' && (data as { success?: boolean }).success === true);
+      }
     } catch {
-      // 忽略
+      success = false;
     }
+
+    if (!success) return false;
+
     localStorage.removeItem('src_session');
     setUser(null);
     setKids([]);
     setActiveChildId(null);
     setLatestResult(null);
     setAssessmentStatus(null);
-  }, []);
+    return true;
+  }, [authFetch]);
 
   // 修改密码
   const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {

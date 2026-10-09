@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -28,16 +28,35 @@ export function AppHeader() {
   const router = useRouter();
   const { user, children: kids, activeChild, setActiveChild, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  // 同步 ref 防护：logout 的 await 期间 state 尚未提交时也拒绝重复点击，杜绝并发 Logout 请求
+  const loggingOutRef = useRef(false);
+  const [logoutError, setLogoutError] = useState(false);
 
   const isActive = (path: string) => pathname?.startsWith(path);
 
-  const handleLogout = () => {
-    if (isLoggingOut) return;
+  const handleLogout = async () => {
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
     setIsLoggingOut(true);
-    // 立即清除本地 session 并跳转，不等待后端响应
-    logout();
-    // 使用 window.location.href 强制刷新，确保所有状态重置
-    window.location.href = "/";
+    setLogoutError(false);
+
+    try {
+      const ok = await logout();
+      // 只有收到明确成功结果才导航；失败不导航、不假报成功
+      if (ok) {
+        // 使用 window.location.href 强制刷新，确保所有状态重置
+        window.location.href = "/";
+        return;
+      }
+    } catch {
+      // 兜底：视为失败，不导航
+      setLogoutError(true);
+    }
+
+    // 失败/异常：恢复可点击状态，允许重试
+    loggingOutRef.current = false;
+    setIsLoggingOut(false);
+    setLogoutError(true);
   };
 
   const handleSwitchChild = (childId: string) => {
@@ -172,6 +191,9 @@ export function AppHeader() {
               </div>
 
               <div className="border-t border-border p-2">
+                {logoutError && !isLoggingOut && (
+                  <p className="mb-2 px-2 text-xs font-medium text-red-500">退出登录失败，请重试</p>
+                )}
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
