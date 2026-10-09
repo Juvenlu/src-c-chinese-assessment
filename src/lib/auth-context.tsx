@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react';
 
 // ============== 类型 ==============
 export interface UserInfo {
@@ -132,6 +132,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 严格递增的 activeChild 加载序列号：旧/错孩子的 growth-map 响应不得覆盖当前孩子
+  const activeChildSeqRef = useRef(0);
+  // 是否已确定身份（用于让同步 effect 与身份就绪绑定，避免依赖 loading 造成循环）
+  const identityReadyRef = useRef(false);
+
   // 带身份的 fetch
   const authFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers || {});
@@ -141,13 +146,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return fetch(url, { ...options, headers });
   }, [sessionToken]);
 
-  // 获取当前用户
+  // 获取当前用户（仅身份 + 孩子列表 + 确定 activeChild；测评状态由独立 effect 同步）
   const refreshUser = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const res = await authFetch('/api/auth/me');
       if (res.status === 401) {
+        identityReadyRef.current = false;
         setUser(null);
         setKids([]);
         setActiveChildId(null);
@@ -157,81 +163,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (!res.ok) throw new Error('获取用户信息失败');
       const data = await res.json();
+      identityReadyRef.current = true;
       setUser(data.user);
-      const childList = data.children || [];
+      const childList: ChildInfo[] = data.children || [];
       setKids(childList);
-      // 默认选第一个孩子作为 activeChild
-      if (childList.length > 0 && !activeChildId) {
-        setActiveChildId(childList[0].id);
-      } else if (childList.length === 0) {
-        setActiveChildId(null);
-      }
-      // 加载当前孩子的测评状态（统一来源：成长地图 API）
-      // ⚠️ 前端不做 Level 计算，只读取后端返回的架构字段
-      if (childList.length > 0) {
-        const firstChildId = activeChildId || childList[0].id;
-        try {
-          const gres = await authFetch(`/api/growth-map?child_id=${firstChildId}`);
-          if (gres.ok) {
-            const gdata = await gres.json();
-            if (gdata.success && gdata.data) {
-              const d = gdata.data;
-              // 从后端返回的统一字段中提取测评状态
-              // ⚠️ 前端不做 Level 计算，所有等级直接读取后端语义化字段
-              // ⚠️ estimated_level = Quick Assessment 估算等级（character_level_u 推导）
-              // ⚠️ current_level = confirmed优先，estimated兜底
-              // ⚠️ recommended_test_level = 推荐正式测试起点（reading_base 推导）
-              setAssessmentStatus({
-                confirmed_level: d.confirmed_level,
-                estimated_level: d.estimated_level,
-                recommended_test_level: d.recommended_test_level,
-                assessment_status: d.assessment_status,
-                current_level: d.current_level,
-                next_level: d.next_level,
-                // quickResult 仅保留后端原始字段，前端不再自行推算
-                quickResult: d.assessmentType !== 'formal' && d.quickConfidence
-                  ? {
-                      reading_base: d.recommended_test_level === 'SRC100' ? 100 : d.recommended_test_level === 'SRC300' ? 300 : d.recommended_test_level === 'SRC500' ? 500 : 800,
-                      // 从 Growth Map API 读取真实 Quick Assessment 等级字段
-                      character_level_l: d.quick_char_level ?? 0,
-                      character_level_u: d.quick_char_level_u ?? 0,
-                      word_level_l: d.quick_word_level_l ?? 0,
-                      word_level_u: d.quick_word_level_u ?? 0,
-                      confidence: d.quickConfidence,
-                    }
-                  : null,
-                formalResult: d.assessmentType === 'formal'
-                  ? {
-                      level: d.currentLevel,
-                      character_mastery_rate: d.srcMastery.masteryRate,
-                      vocab_mastery_rate: d.vocabMastery.masteryRate,
-                      stable_char_count: d.srcMastery.mastered,
-                      stable_vocab_count: d.vocabMastery.mastered,
-                      total_char_tested: d.srcMastery.tested ?? 0,
-                      total_vocab_tested: d.vocabMastery.tested ?? 0,
-                      created_at: '',
-                    }
-                  : null,
-              });
-              // 兼容旧字段 latestResult
-              // ⚠️ 兼容层保留，但 Hub 应优先使用 assessmentStatus.current_level
-              if (d.assessment_status === 'estimated' && d.estimated_level) {
-                const el = d.estimated_level;
-                setLatestResult({
-                  reading_base: el === 'SRC100' ? 100 : el === 'SRC300' ? 300 : el === 'SRC500' ? 500 : 800,
-                  character_level_l: d.quick_char_level ?? 0,
-                  character_level_u: d.quick_char_level_u ?? 0,
-                  word_level_l: d.quick_word_level_l ?? 0,
-                  word_level_u: d.quick_word_level_u ?? 0,
-                  confidence: d.quickConfidence || 'medium',
-                });
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('[Auth] load assessment status failed:', e);
-        }
-      }
+
+      // 确定当前 active child。
+      // 关键：用已 set 的 childList 直接判定，不依赖 React 本轮尚未更新的 state，
+      // 避免首挂载读到上一轮闭包里的 null/旧值而错选孩子。
+      setActiveChildId((prevId) => {
+        if (childList.length === 0) return null;
+        if (prevId && childList.some((c) => c.id === prevId)) return prevId;
+        return childList[0].id;
+      });
     } catch (err) {
       console.error('[Auth] refresh error:', err);
       setUser(null);
@@ -242,12 +186,114 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [activeChildId]);
+  }, [authFetch]);
 
   // 初始化时加载
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
+
+  // ===== 测评状态严格跟随 activeChildId：切换孩子即重新拉取，旧响应由序列号拦截 =====
+  // useLayoutEffect：切换孩子时在浏览器绘制前同步置 loading=true，避免画出上一孩子的等级
+  useLayoutEffect(() => {
+    // 身份/孩子尚未确定：不放行，避免错显
+    if (!identityReadyRef.current) return;
+    if (!activeChildId) {
+      setAssessmentStatus(null);
+      setLatestResult(null);
+      setLoading(false);
+      return;
+    }
+
+    const seq = ++activeChildSeqRef.current;
+    let cancelled = false;
+    // 同步门控：在绘制前进入加载，Hub 不会显示上一孩子的旧等级
+    setLoading(true);
+
+    (async () => {
+      try {
+        const gres = await authFetch(`/api/growth-map?child_id=${activeChildId}`);
+
+        // 旧/错孩子的响应（已切换或卸载）：丢弃，不得覆盖当前状态
+        if (cancelled || seq !== activeChildSeqRef.current) return;
+
+        if (!gres.ok) {
+          // 请求失败：清空，绝不沿用上一孩子或旧数据作为当前孩子结果
+          setAssessmentStatus(null);
+          setLatestResult(null);
+          return;
+        }
+
+        const gdata = await gres.json();
+        if (cancelled || seq !== activeChildSeqRef.current) return;
+
+        if (gdata.success && gdata.data) {
+          const d = gdata.data;
+          setAssessmentStatus({
+            confirmed_level: d.confirmed_level,
+            estimated_level: d.estimated_level,
+            recommended_test_level: d.recommended_test_level,
+            assessment_status: d.assessment_status,
+            current_level: d.current_level,
+            next_level: d.next_level,
+            quickResult: d.assessmentType !== 'formal' && d.quickConfidence
+              ? {
+                  reading_base: d.recommended_test_level === 'SRC100' ? 100 : d.recommended_test_level === 'SRC300' ? 300 : d.recommended_test_level === 'SRC500' ? 500 : 800,
+                  character_level_l: d.quick_char_level ?? 0,
+                  character_level_u: d.quick_char_level_u ?? 0,
+                  word_level_l: d.quick_word_level_l ?? 0,
+                  word_level_u: d.quick_word_level_u ?? 0,
+                  confidence: d.quickConfidence,
+                }
+              : null,
+            formalResult: d.assessmentType === 'formal'
+              ? {
+                  level: d.currentLevel,
+                  character_mastery_rate: d.srcMastery.masteryRate,
+                  vocab_mastery_rate: d.vocabMastery.masteryRate,
+                  stable_char_count: d.srcMastery.mastered,
+                  stable_vocab_count: d.vocabMastery.mastered,
+                  total_char_tested: d.srcMastery.tested ?? 0,
+                  total_vocab_tested: d.vocabMastery.tested ?? 0,
+                  created_at: '',
+                }
+              : null,
+          });
+
+          if (d.assessment_status === 'estimated' && d.estimated_level) {
+            const el = d.estimated_level;
+            setLatestResult({
+              reading_base: el === 'SRC100' ? 100 : el === 'SRC300' ? 300 : el === 'SRC500' ? 500 : 800,
+              character_level_l: d.quick_char_level ?? 0,
+              character_level_u: d.quick_char_level_u ?? 0,
+              word_level_l: d.quick_word_level_l ?? 0,
+              word_level_u: d.quick_word_level_u ?? 0,
+              confidence: d.quickConfidence || 'medium',
+            });
+          } else {
+            setLatestResult(null);
+          }
+        } else {
+          setAssessmentStatus(null);
+          setLatestResult(null);
+        }
+      } catch (e) {
+        if (cancelled || seq !== activeChildSeqRef.current) return;
+        // 网络失败：清空，不沿用旧孩子数据
+        console.warn('[Auth] growth-map sync failed:', e);
+        setAssessmentStatus(null);
+        setLatestResult(null);
+      } finally {
+        if (!cancelled && seq === activeChildSeqRef.current) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChildId, authFetch]);
 
   // 注册
   const signup = useCallback(async (data: SignupData) => {
