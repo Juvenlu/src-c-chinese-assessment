@@ -321,6 +321,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (childList.length > 0) {
         setActiveChildId(childList[0].id);
       }
+      // 身份已就绪（同 login）：确保注册成功后默认孩子的 growth-map 能正常触发
+      identityReadyRef.current = true;
       setLoading(false);
 
       return { success: true, child: result.child, children: childList };
@@ -356,6 +358,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setActiveChildId(data.children[0].id);
         }
       }
+      // 身份已就绪：否则 useLayoutEffect 的 identityReadyRef 门控会拦截默认孩子的 growth-map
+      // 首次登录请求，导致 /hub 回退显示 SRC100（与手动切换孩子时的行为不一致）。
+      identityReadyRef.current = true;
       setLoading(false);
 
       return { success: true, children: data.children || [] };
