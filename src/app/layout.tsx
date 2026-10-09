@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
+import { GlobalChildGate } from '@/components/GlobalChildGate';
 
 // 所有页面均依赖用户登录态与 searchParams，统一动态渲染避免 SSG 预渲染报错
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,9 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="antialiased min-h-screen bg-[var(--color-src-bg)]">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <GlobalChildGate>{children}</GlobalChildGate>
+        </AuthProvider>
       </body>
     </html>
   );

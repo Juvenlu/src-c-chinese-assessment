@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { AppHeader } from "@/components/AppHeader";
-import { ChildSelectGate } from "@/components/ChildSelectGate";
 import {
   BookOpen,
   Gamepad2,
@@ -24,7 +23,7 @@ import {
  */
 export default function HubPage() {
   const router = useRouter();
-  const { user, children: kids, activeChild, loading, latestResult, assessmentStatus, authFetch } = useAuth();
+  const { user, activeChild, loading, latestResult, assessmentStatus, authFetch } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -140,12 +139,8 @@ export default function HubPage() {
     );
   }
 
-  // P2：已登录但尚未选定孩子（无有效设备偏好 / 首次登录多孩子）→ 孩子选择门控
-  // 在选定前不加载任何孩子的测评数据（上游 activeChildId 为 null 会阻塞请求）
-  if (!activeChild && kids.length > 0) {
-    return <ChildSelectGate />;
-  }
-
+  // P2 全局门控由 GlobalChildGate 统一接管（多孩子未选时显示选择界面）。
+  // 此处仅处理零孩子账号的创建引导。
   if (!activeChild) {
     // 已登录但无任何孩子：走现有"创建孩子"提示流程
     return (
