@@ -65,7 +65,7 @@ export default function HubPage() {
   const readingBase = latestResult?.reading_base || 100;
   const confidence = latestResult?.confidence || "high";
 
-  // 今日故事：当前孩子最新 Final AI 定制绘本
+  // 今日故事：当前孩子最新 active Custom Book（Worker→D1）
   const [todayStory, setTodayStory] = useState<{
     id: number;
     title: string;
@@ -74,6 +74,8 @@ export default function HubPage() {
     coverColor: string;
   } | null>(null);
   const [todayStoryLoading, setTodayStoryLoading] = useState(true);
+  // 今日故事请求失败（区分“真实空列表”与“API 错误”，不得把失败当成无绘本）
+  const [todayStoryError, setTodayStoryError] = useState(false);
   // 今日故事空状态时跳转到绘本图书馆（带 childId）
   const bookSelectHref = activeChild?.id
     ? `/book-select?childId=${activeChild.id}`
@@ -88,29 +90,49 @@ export default function HubPage() {
   useEffect(() => {
     if (!activeChild?.id) return;
     let cancelled = false;
-    authFetch(`/api/books/rewrites?child_id=${activeChild.id}`)
-      .then((r) => r.json())
-      .then((data) => {
+    // 每次切换孩子：重置为当前孩子的初始状态，避免旧孩子数据残留
+    setTodayStory(null);
+    setTodayStoryError(false);
+    setTodayStoryLoading(true);
+    // 走 Worker→D1 的 Custom Book 列表（服务端做登录态 + 孩子归属校验，
+    // child_id 经归属校验，不信任客户端）。active 过滤 + created_at DESC 已在服务端完成。
+    authFetch(`/api/books/custom?child_id=${activeChild.id}`)
+      .then(async (r) => {
+        const body = await r.json().catch(() => null);
         if (cancelled) return;
-        const rewrites = data.rewrites || [];
-        if (rewrites.length > 0) {
-          const latest = rewrites[0];
-          const title = latest.episode_title
-            ? `${latest.series_name || "故事"}·${latest.episode_title}`
-            : `${latest.series_name || "故事"} 第${latest.episode_number}集`;
+        if (!r.ok || !body) {
+          // 请求失败：标记错误，不伪装成“没有绘本”；卡片兜底跳转绘本图书馆
+          setTodayStoryError(true);
+          setTodayStoryHref(bookSelectHref);
+          return;
+        }
+        const books: Array<{
+          id: number;
+          level_tier?: string | null;
+          target_level?: string | null;
+          episodes?: { series_name?: string | null; episode_title?: string | null; episode_number?: number | null };
+        }> = Array.isArray(body.data) ? body.data : [];
+        if (books.length > 0) {
+          // 服务端已 created_at DESC；仍不假设顺序，显式取首条最新记录
+          const latest = books[0];
+          const ep = latest.episodes;
+          const title = ep?.episode_title
+            ? `${ep.series_name || "故事"}·${ep.episode_title}`
+            : `${ep?.series_name || "故事"} 第${ep?.episode_number ?? ""}集`;
           setTodayStory({
             id: latest.id,
             title,
-            level: latest.target_level || recommendedLevel,
-            pages: `约${latest.page_count || 10}页`,
+            level: latest.target_level || latest.level_tier || readingBaseLevel,
+            pages: "约10页",
             coverColor: "#FFE66D",
           });
-          setTodayStoryHref(`/book-rewrite/${latest.id}`);
+          // 阅读入口走现有 Reader（/book/<custom_book.id>），沿用阅读进度恢复机制
+          setTodayStoryHref(`/book/${latest.id}`);
         } else {
           setTodayStory({
             id: 0,
             title: "探索你的第一本中文故事",
-            // 无真实 Final Rewrite：故事等级优先 confirmed_level（即 readingBaseLevel），
+            // 无 Custom Book：故事等级优先 confirmed_level（即 readingBaseLevel），
             // 无 formal 时 readingBaseLevel 内部已回落 recommended_test_level/默认 SRC100
             level: readingBaseLevel,
             pages: "即将开始",
@@ -121,6 +143,7 @@ export default function HubPage() {
       })
       .catch(() => {
         if (!cancelled) {
+          setTodayStoryError(true);
           setTodayStoryHref(bookSelectHref);
         }
       })
@@ -128,7 +151,7 @@ export default function HubPage() {
         if (!cancelled) setTodayStoryLoading(false);
       });
     return () => { cancelled = true; };
-  }, [activeChild?.id, readingBaseLevel]);
+  }, [activeChild?.id, readingBaseLevel, bookSelectHref]);
 
   // 今日闯关（暂时不开放）
   const gameDisabled = true;
@@ -210,14 +233,20 @@ export default function HubPage() {
                 todayStory?.title
               )}
             </h3>
-            <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
-              <span
-                className="rounded-full px-2 py-0.5 font-medium"
-                style={{ backgroundColor: "var(--color-primary, #FF6B35)22", color: "var(--color-primary, #FF6B35)" }}
-              >
-                推荐 {todayStory?.level || readingBaseLevel}
-              </span>
-              <span>{todayStory?.pages || "约10页"}</span>
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {todayStoryError ? (
+                <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">
+                  故事加载失败，请稍后重试
+                </span>
+              ) : (
+                <span
+                  className="rounded-full px-2 py-0.5 font-medium"
+                  style={{ backgroundColor: "var(--color-primary, #FF6B35)22", color: "var(--color-primary, #FF6B35)" }}
+                >
+                  推荐 {todayStory?.level || readingBaseLevel}
+                </span>
+              )}
+              {!todayStoryError && <span>{todayStory?.pages || "约10页"}</span>}
             </div>
             <div className="flex items-center gap-1 text-sm font-medium"
               style={{ color: "var(--color-primary, #FF6B35)" }}
