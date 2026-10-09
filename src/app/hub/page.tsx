@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { AppHeader } from "@/components/AppHeader";
+import { ChildSelectGate } from "@/components/ChildSelectGate";
 import {
   BookOpen,
   Gamepad2,
@@ -23,7 +24,7 @@ import {
  */
 export default function HubPage() {
   const router = useRouter();
-  const { user, activeChild, loading, latestResult, assessmentStatus, authFetch } = useAuth();
+  const { user, children: kids, activeChild, loading, latestResult, assessmentStatus, authFetch } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -131,10 +132,35 @@ export default function HubPage() {
   // 今日闯关（暂时不开放）
   const gameDisabled = true;
 
-  if (loading || !user || !activeChild) {
+  if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">加载中...</div>
+      </div>
+    );
+  }
+
+  // P2：已登录但尚未选定孩子（无有效设备偏好 / 首次登录多孩子）→ 孩子选择门控
+  // 在选定前不加载任何孩子的测评数据（上游 activeChildId 为 null 会阻塞请求）
+  if (!activeChild && kids.length > 0) {
+    return <ChildSelectGate />;
+  }
+
+  if (!activeChild) {
+    // 已登录但无任何孩子：走现有"创建孩子"提示流程
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4 text-center">
+        <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "var(--font-heading)" }}>
+          欢迎加入 SRC-C！
+        </h1>
+        <p className="text-muted-foreground">请先为小朋友创建档案，开启中文阅读之旅。</p>
+        <Link
+          href="/profile"
+          className="rounded-full px-8 py-3 text-base font-bold text-white transition-transform hover:scale-105"
+          style={{ backgroundColor: "var(--color-primary, #FF6B35)" }}
+        >
+          创建孩子档案
+        </Link>
       </div>
     );
   }

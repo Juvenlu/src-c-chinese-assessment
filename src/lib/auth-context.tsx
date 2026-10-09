@@ -119,6 +119,59 @@ export interface CreateChildData {
   guest_session_id?: string;
 }
 
+// ============== 设备级孩子选择偏好（P2） ==============
+// 同一家长账号在不同设备上独立记住「当前孩子」。
+// 存储：localStorage，按 parent_id 隔离键名，不存任何测评/成长数据副本。
+const ACTIVE_CHILD_PREF_PREFIX = 'src_active_child::';
+
+/** 某家长的设备级偏好键名 */
+function activeChildPrefKey(parentId: string): string {
+  return `${ACTIVE_CHILD_PREF_PREFIX}${parentId}`;
+}
+
+/** 读取本地偏好；SSR 或 localStorage 不可用/异常时返回 null（安全降级） */
+function readActiveChildPref(parentId: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(activeChildPrefKey(parentId));
+  } catch {
+    return null;
+  }
+}
+
+/** 写入本地偏好；写失败（隐私模式/配额）时静默降级，不影响功能 */
+function writeActiveChildPref(parentId: string, childId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(activeChildPrefKey(parentId), childId);
+  } catch {
+    // 降级：忽略，仍可正常使用（仅不记住下次选择）
+  }
+}
+
+/**
+ * 确定「初始化应选择的孩子」。
+ * 规则：
+ *  0 个孩子             → null（保留创建孩子流程）
+ *  1 个孩子             → 直接选中（无需门控）
+ *  多个孩子 且 本地偏好 在该家长孩子列表内 → 恢复偏好
+ *  多个孩子 且 无/失效偏好 → null（进入孩子选择门控）
+ *
+ * @param parentId    家长 id（当前登录身份，已覆盖 --pre 空值以回退）
+ * @param childList   服务端返回的、当前家长名下孩子列表（归属已验证）
+ * @param storedPref  本地读出的历史偏好（可能不属于 childList，须校验）
+ */
+function pickInitialChildId(
+  parentId: string | null,
+  childList: ChildInfo[],
+  storedPref: string | null,
+): string | null {
+  if (!parentId || childList.length === 0) return null;
+  if (childList.length === 1) return childList[0].id;
+  if (storedPref && childList.some((c) => c.id === storedPref)) return storedPref;
+  return null;
+}
+
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 // ============== Provider ==============
@@ -168,13 +221,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const childList: ChildInfo[] = data.children || [];
       setKids(childList);
 
-      // 确定当前 active child。
+      // 确定当前 active child（P2：设备级偏好恢复 + 归属校验 + 门控）。
       // 关键：用已 set 的 childList 直接判定，不依赖 React 本轮尚未更新的 state，
-      // 避免首挂载读到上一轮闭包里的 null/旧值而错选孩子。
+      // 并且只有在「当前家长名下且已存在」的孩子才可能被选中（归属安全）。
+      // 优先沿用当前已在用的孩子（避免刷新时跳变）；
+      // 否则走偏好恢复；无有效偏好时（多孩子）返回 null，交由选择门控决定。
       setActiveChildId((prevId) => {
-        if (childList.length === 0) return null;
         if (prevId && childList.some((c) => c.id === prevId)) return prevId;
-        return childList[0].id;
+        const dataUser = data.user as UserInfo | null;
+        return pickInitialChildId(
+          dataUser?.id ?? null,
+          childList,
+          dataUser?.id ? readActiveChildPref(dataUser.id) : null,
+        );
       });
     } catch (err) {
       console.error('[Auth] refresh error:', err);
@@ -192,6 +251,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
+
+  // P2：设备级偏好持久化。
+  // 仅当家长身份确认 && 存在有效选定孩子（且归属校验通过）后写入。
+  // 登出时不清除偏好（保留该家长的设备选择），仅清除 React 身份/孩子状态。
+  useEffect(() => {
+    if (!user || !activeChildId) return;
+    if (!kids.some((c) => c.id === activeChildId)) return; // 兜底归属校验
+    writeActiveChildPref(user.id, activeChildId);
+  }, [user, activeChildId, kids]);
 
   // ===== 测评状态严格跟随 activeChildId：切换孩子即重新拉取，旧响应由序列号拦截 =====
   // useLayoutEffect：切换孩子时在浏览器绘制前同步置 loading=true，避免画出上一孩子的等级
@@ -318,8 +386,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const childList: ChildInfo[] = result.children || (result.child ? [result.child] : []);
       setKids(childList);
-      if (childList.length > 0) {
-        setActiveChildId(childList[0].id);
+      // P2：注册成功后按「归属校验的偏好恢复」选定孩子（含绑定已有账户→孩子选择门控）
+      if (result.user) {
+        const parentId = (result.user as UserInfo)?.id ?? null;
+        setActiveChildId(
+          pickInitialChildId(
+            parentId,
+            childList,
+            parentId ? readActiveChildPref(parentId) : null,
+          ),
+        );
+      } else {
+        setActiveChildId(childList.length > 0 ? childList[0].id : null);
       }
       // 身份已就绪（同 login）：确保注册成功后默认孩子的 growth-map 能正常触发
       identityReadyRef.current = true;
@@ -354,9 +432,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (data.children && Array.isArray(data.children)) {
         setKids(data.children);
-        if (data.children.length > 0) {
-          setActiveChildId(data.children[0].id);
-        }
+        // P2：登录后按「归属校验的偏好恢复」选定孩子；无有效偏好（多孩子）→ 选择门控
+        const parentId = (data.user as UserInfo)?.id ?? null;
+        setActiveChildId(
+          pickInitialChildId(
+            parentId,
+            data.children,
+            parentId ? readActiveChildPref(parentId) : null,
+          ),
+        );
       }
       // 身份已就绪：否则 useLayoutEffect 的 identityReadyRef 门控会拦截默认孩子的 growth-map
       // 首次登录请求，导致 /hub 回退显示 SRC100（与手动切换孩子时的行为不一致）。
