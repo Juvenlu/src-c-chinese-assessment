@@ -26,6 +26,9 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
 
   // ===== Refs：请求隔离 / 节流 / 乱序保护 =====
   const initializedKeyRef = useRef<string>(''); // `${bookId}:${childId}`，防重复初始化
+  // 恢复代际号：每次实际发起恢复递增，用于区分「同一 key 被取消后重跑」的新旧请求，
+  // 使旧 POST 即使在 key 被重新占用后仍能被识别为 stale（防旧请求覆盖新状态）。
+  const restoreRunSeqRef = useRef(0);
   const navigatedRef = useRef<boolean>(false);  // 用户是否已手动翻页
   const lastFlushTsRef = useRef<number>(0);
   const pendingPageRef = useRef<number>(1);
@@ -103,12 +106,18 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
     const key = `${bookId}:${childId}`;
     if (initializedKeyRef.current === key) return;
     initializedKeyRef.current = key;
+    // 为本代恢复分配唯一 token
+    const runToken = ++restoreRunSeqRef.current;
 
     let cancelled = false;
+    // 标记本次恢复是否已到达终态（done/error）。
+    // 仅「尚未到达终态就被 cleanup 取消」时释放 key，避免 key 永久锁死导致永久 loading，
+    // 同时已成功/已失败的终态不释放，防止重复请求。
+    let reachedTerminal = false;
     let attemptNo = 0;
 
     const doRestore = async (): Promise<'ok' | 'retry' | 'stale'> => {
-      if (cancelled || initializedKeyRef.current !== key) return 'stale';
+      if (cancelled || restoreRunSeqRef.current !== runToken) return 'stale';
       try {
         const res = await fetch('/api/reading-records', {
           method: 'POST',
@@ -117,7 +126,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
         });
         const result = await res.json();
 
-        if (cancelled || initializedKeyRef.current !== key) return 'stale';
+        if (cancelled || restoreRunSeqRef.current !== runToken) return 'stale';
         if (res.ok && result?.success) {
           recordReadyRef.current = true;
           setRecordReady(true);
@@ -130,6 +139,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
             }
           }
           setRestoreState('done');
+          reachedTerminal = true;
           return 'ok';
         }
         // 业务失败：可重试
@@ -150,13 +160,14 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
           if (outcome === 'ok' || outcome === 'stale') return;
           // retry：短暂退避后再试
           await new Promise((r) => setTimeout(r, RESTORE_RETRY_BACKOFF_MS * (attemptNo + 1)));
-          if (cancelled || initializedKeyRef.current !== key) return;
+          if (cancelled || restoreRunSeqRef.current !== runToken) return;
         }
         // 重试耗尽：进入可重试错误态，不得静默显示第 1 页并保存
-        if (!cancelled && initializedKeyRef.current === key) {
+        if (!cancelled && restoreRunSeqRef.current === runToken) {
           recordReadyRef.current = false;
           setRecordReady(false);
           setRestoreState('error');
+          reachedTerminal = true;
         }
       } catch {
         // 退避被中断（如卸载）
@@ -165,12 +176,19 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
 
     return () => {
       cancelled = true;
+      // 仅在恢复尚未到达终态时释放锁，使随后重跑的 effect 能重新恢复（P3-B key-lock 修复）。
+      // 已到达终态（成功/重试耗尽）则保留锁，避免重复请求。
+      if (!reachedTerminal && initializedKeyRef.current === key) {
+        initializedKeyRef.current = '';
+      }
     };
   }, [bookId, pages.length, activeChild, authLoading, loading, restoreAttempt]);
 
   // 恢复失败后的手动重试：重置初始化标记并重新触发恢复 effect
   const retryRestore = () => {
     initializedKeyRef.current = '';
+    // 推进代际，使任何在途旧请求变为 stale
+    restoreRunSeqRef.current += 1;
     recordReadyRef.current = false;
     setRecordReady(false);
     setRestoreState('restoring');
