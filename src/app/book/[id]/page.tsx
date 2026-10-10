@@ -167,6 +167,44 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
           setServerCompleted(doneFlag === 1);
           if (doneFlag === 1) setCompletionState('completed');
 
+          // 已完成绘本：恢复已保存的兴趣/难度反馈，避免重开时重复要求填写。
+          // 独立 try/catch：反馈读取失败绝不阻断绘本恢复，也不误判为“尚未反馈”。
+          if (doneFlag === 1) {
+            const fbGen = uiAsyncGenRef.current;
+            try {
+              const fbRes = await fetch(
+                `/api/reading-feedback?child_id=${encodeURIComponent(childId)}&custom_book_id=${encodeURIComponent(String(bookId))}`
+              );
+              // 孩子/绘本已切换或恢复已取消：丢弃旧结果
+              if (cancelled || restoreRunSeqRef.current !== runToken || uiAsyncGenRef.current !== fbGen) {
+                return 'stale';
+              }
+              if (fbRes.ok) {
+                const fbJson = await fbRes.json();
+                const fb = fbJson?.data ?? null;
+                if (fb && (fb.interest != null || fb.difficulty != null)) {
+                  // 已有反馈：恢复并标记 saved，末页显示“完成”
+                  setInterest(fb.interest ?? null);
+                  setDifficulty(fb.difficulty ?? null);
+                  setFeedbackState('saved');
+                } else {
+                  // 完成但尚无反馈：保持未反馈态，末页正常收集
+                  setFeedbackState('idle');
+                }
+              } else {
+                // 读取失败：不置 saved，保留可识别错误态供重试（不阻断阅读）
+                setFeedbackState('error');
+                setFeedbackError('读取之前的反馈失败，可重试或重新选择');
+              }
+            } catch {
+              if (cancelled || restoreRunSeqRef.current !== runToken || uiAsyncGenRef.current !== fbGen) {
+                return 'stale';
+              }
+              setFeedbackState('error');
+              setFeedbackError('读取之前的反馈失败，可重试或重新选择');
+            }
+          }
+
           // 恢复上次页码；仅在用户尚未手动翻页时生效，避免覆盖用户操作
           if (!navigatedRef.current) {
             const saved = Number(result.data?.pages_read);
@@ -347,6 +385,38 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   // ===== 跳过反馈：完成不受影响 =====
   const skipFeedback = () => {
     setFeedbackState('saved');
+  };
+
+  // ===== 重试读取已保存反馈（读取失败后使用；不阻断阅读） =====
+  const retryLoadFeedback = () => {
+    const childId = activeChild?.id;
+    if (!childId || !bookId || completionState !== 'completed') return;
+
+    const gen = uiAsyncGenRef.current;
+    setFeedbackState('saving');
+    setFeedbackError('');
+
+    fetch(
+      `/api/reading-feedback?child_id=${encodeURIComponent(childId)}&custom_book_id=${encodeURIComponent(String(bookId))}`
+    )
+      .then(async (res) => {
+        if (uiAsyncGenRef.current !== gen) return;
+        if (!res.ok) throw new Error('bad status');
+        const fbJson = await res.json();
+        const fb = fbJson?.data ?? null;
+        if (fb && (fb.interest != null || fb.difficulty != null)) {
+          setInterest(fb.interest ?? null);
+          setDifficulty(fb.difficulty ?? null);
+          setFeedbackState('saved');
+        } else {
+          setFeedbackState('idle');
+        }
+      })
+      .catch(() => {
+        if (uiAsyncGenRef.current !== gen) return;
+        setFeedbackState('error');
+        setFeedbackError('读取之前的反馈失败，可重试或重新选择');
+      });
   };
 
   // 再读一次：回到第 1 页（服务端 completed 保持 1，不撤销）
@@ -655,7 +725,17 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
               </div>
 
               {feedbackState === 'error' && (
-                <p className="text-[#FF6B6B] font-medium text-sm">{feedbackError}</p>
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-[#FF6B6B] font-medium text-sm">{feedbackError}</p>
+                  {feedbackError.startsWith('读取之前的反馈失败') && (
+                    <button
+                      onClick={retryLoadFeedback}
+                      className="text-sm font-medium text-[#4ECDC4] hover:underline"
+                    >
+                      重试读取
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}

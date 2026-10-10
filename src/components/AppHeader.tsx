@@ -81,39 +81,45 @@ export function AppHeader() {
             <span className="text-lg font-bold text-foreground">SRC中文</span>
           </Link>
 
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav className="flex items-center gap-0.5 sm:gap-1">
             <Link
               href="/book-select"
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              title="故事"
+              aria-label="故事"
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors sm:px-3 ${
                 isActive("/book-select")
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               <BookOpen className="h-4 w-4" />
-              故事
+              <span className="hidden md:inline">故事</span>
             </Link>
             <Link
               href="/game"
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              title="闯关"
+              aria-label="闯关"
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors sm:px-3 ${
                 isActive("/game")
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               <Gamepad2 className="h-4 w-4" />
-              闯关
+              <span className="hidden md:inline">闯关</span>
             </Link>
             <Link
               href="/growth-map"
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              title="成长"
+              aria-label="成长"
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors sm:px-3 ${
                 isActive("/growth-map")
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               <Map className="h-4 w-4" />
-              成长
+              <span className="hidden md:inline">成长</span>
             </Link>
           </nav>
         </div>
