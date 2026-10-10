@@ -60,6 +60,9 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   const recordReadyRef = useRef<boolean>(false);
   // 完成请求防重复点击（串行排他，配合 saveChainRef）
   const completingRef = useRef<boolean>(false);
+  // UI 异步代际号：每次 child/book 切换递增。completeBook、反馈 GET/POST 发起时捕获，
+  // 返回后若代际已变则丢弃结果，确保旧孩子/旧绘本的异步请求不会覆盖新状态。
+  const uiAsyncGenRef = useRef(0);
 
   // ===== 绘本内容加载（逻辑保持不变）=====
   useEffect(() => {
@@ -106,6 +109,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       setRestoreState('restoring');
       mountStartRef.current = Date.now();
       // 重置完成 / 反馈临时状态（切书隔离）
+      uiAsyncGenRef.current += 1;
       completingRef.current = false;
       setServerCompleted(false);
       setCompletionState('idle');
@@ -239,6 +243,9 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
     setCompletionState('submitting');
     setCompleteError('');
 
+    // 捕获本次异步代际；若返回前 child/book 已切换则整体丢弃
+    const gen = uiAsyncGenRef.current;
+
     // 串行排队，避免与在途页码保存乱序
     saveChainRef.current = saveChainRef.current.then(async () => {
       try {
@@ -254,6 +261,9 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
         });
         const result = await res.json();
 
+        // 孩子/绘本已切换：丢弃旧结果，不更新任何 UI
+        if (uiAsyncGenRef.current !== gen) return;
+
         // 必须收到 Worker 成功确认才进入反馈；否则停留末页可重试
         if (res.ok && result?.success) {
           setServerCompleted(true);
@@ -264,6 +274,8 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
               `/api/reading-feedback?child_id=${encodeURIComponent(childId)}&custom_book_id=${bookId}`,
             );
             const fbJson = await fbRes.json();
+            // 二次守卫：回显 GET 返回前也可能已切换孩子
+            if (uiAsyncGenRef.current !== gen) return;
             if (fbRes.ok && fbJson?.success && fbJson.data) {
               setInterest(fbJson.data.interest ?? null);
               setDifficulty(fbJson.data.difficulty ?? null);
@@ -277,6 +289,8 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
           setCompleteError('完成保存失败，请再试一次');
         }
       } catch {
+        // 切换后发生的网络错误属于旧请求，不得覆盖新孩子状态
+        if (uiAsyncGenRef.current !== gen) return;
         completingRef.current = false;
         setCompletionState('idle');
         setCompleteError('网络出错了，请再试一次');
@@ -297,6 +311,8 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
     setFeedbackState('saving');
     setFeedbackError('');
 
+    const gen = uiAsyncGenRef.current;
+
     const payload: Record<string, unknown> = {
       child_id: childId,
       custom_book_id: bookId,
@@ -310,6 +326,8 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       body: JSON.stringify(payload),
     })
       .then(async (res) => {
+        // 孩子/绘本已切换：丢弃旧反馈结果
+        if (uiAsyncGenRef.current !== gen) return;
         const result = await res.json();
         if (res.ok && result?.success) {
           setFeedbackState('saved');
@@ -320,6 +338,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
         }
       })
       .catch(() => {
+        if (uiAsyncGenRef.current !== gen) return;
         setFeedbackState('error');
         setFeedbackError('网络出错了，请再试一次');
       });
@@ -340,17 +359,21 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   const prevChildIdRef = useRef<string>(activeChild?.id || '');
   useEffect(() => {
     const nextId = activeChild?.id || '';
-    if (prevChildIdRef.current !== nextId) {
-      prevChildIdRef.current = nextId;
-      completingRef.current = false;
-      setCompletionState(serverCompleted ? 'completed' : 'idle');
-      setCompleteError('');
-      setInterest(null);
-      setDifficulty(null);
-      setFeedbackState('idle');
-      setFeedbackError('');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (prevChildIdRef.current === nextId) return;
+    prevChildIdRef.current = nextId;
+
+    // 推进代际：使旧孩子在途的 completeBook / 反馈 GET/POST 结果全部失效
+    uiAsyncGenRef.current += 1;
+    // 完全重置为「新孩子未恢复」基线，绝不继承旧闭包的 serverCompleted。
+    // 新孩子的完成态只能由随后 reading-record 恢复 effect 的服务端记录写入。
+    completingRef.current = false;
+    setServerCompleted(false);
+    setCompletionState('idle');
+    setCompleteError('');
+    setInterest(null);
+    setDifficulty(null);
+    setFeedbackState('idle');
+    setFeedbackError('');
   }, [activeChild?.id]);
 
   // ===== 实际发送一次进度（串行排队，保证旧请求不会后到覆盖新页码）=====
