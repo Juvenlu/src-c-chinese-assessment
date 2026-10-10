@@ -38,7 +38,7 @@ function BookSelectContent() {
       {/* Header */}
       <div className="bg-white shadow-sm p-4">
         <div className="max-w-2xl mx-auto flex items-center gap-4">
-          <button onClick={() => router.back()} className="text-gray-600">
+          <button onClick={() => router.push('/hub')} className="text-gray-600">
             <ArrowLeft size={24} />
           </button>
           <h1 className="text-2xl font-display text-gray-800">📚 绘本图书馆</h1>
@@ -64,7 +64,6 @@ function BookSelectContent() {
                 <a
                   key={book.id}
                   href={`/book/${book.id}`}
-                  target="_blank"
                   className="block border rounded-xl p-4 hover:shadow-md transition"
                 >
                   <div className="font-bold">{book.episodes?.series_name} 第{book.episodes?.episode_number}集</div>
