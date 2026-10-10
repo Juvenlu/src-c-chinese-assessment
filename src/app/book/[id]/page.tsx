@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, use } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 
 const SAVE_THROTTLE_MS = 5000;
@@ -11,6 +12,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const bookId = parseInt(id, 10);
 
+  const router = useRouter();
   const { activeChild, loading: authLoading } = useAuth();
 
   const [book, setBook] = useState<any>(null);
@@ -301,7 +303,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       <div className="flex flex-col justify-center items-center h-screen gap-4">
         <p className="text-gray-500 font-medium">未找到绘本内容 (ID: {bookId})</p>
         <button
-          onClick={() => window.history.back()}
+          onClick={() => router.push('/book-select')}
           className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-sm"
         >
           返回书架
@@ -368,7 +370,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       )}
 
       <button
-        onClick={() => window.history.back()}
+        onClick={() => router.push('/book-select')}
         className="mt-6 px-4 py-2 text-sm text-gray-500 hover:text-gray-800"
       >
         ← 返回书架

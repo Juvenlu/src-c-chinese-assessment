@@ -83,9 +83,9 @@ export function AppHeader() {
 
           <nav className="hidden items-center gap-1 md:flex">
             <Link
-              href="/books"
+              href="/book-select"
               className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                isActive("/books")
+                isActive("/book-select")
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
