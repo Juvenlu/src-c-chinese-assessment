@@ -24,6 +24,7 @@ import { handleV1AnswersGet, handleV1AnswersPost } from "./answers";
 import { handleV1ResultsGet, handleV1ResultsPost } from "./results";
 import { handleV1CustomBooksList, handleV1CustomBookDetail } from "./custom-books";
 import { handleReadingRecords } from "./reading-records";
+import { handleReadingFeedback } from "./reading-feedback";
 import { handleV1AdminRewriteFinalize } from "./admin-rewrites";
 import { handleV1AdminChildren } from "./admin-children";
 import {
@@ -971,6 +972,13 @@ export default {
 			const readingRecordMatch = path.match(/^\/v1\/reading-records\/([^/]+)$/);
 			if (readingRecordMatch && (request.method === "PATCH" || request.method === "POST")) {
 				return handleReadingRecords(request, env);
+			}
+
+			// Reading Feedback — 绘本阅读反馈（兴趣/难度，Session + child 归属）
+			// GET  /v1/reading-feedback — 读取一组反馈
+			// POST /v1/reading-feedback — 新增 / 更新（upsert，支持部分更新）
+			if (path === "/v1/reading-feedback" && (request.method === "GET" || request.method === "POST")) {
+				return handleReadingFeedback(request, env);
 			}
 
 			// GET /v1/admin/children — Admin 全量孩子列表（D1）

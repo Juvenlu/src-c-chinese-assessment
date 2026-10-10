@@ -8,6 +8,9 @@ const SAVE_THROTTLE_MS = 5000;
 const RESTORE_RETRY_LIMIT = 3;   // 首次 + 最多 2 次重试
 const RESTORE_RETRY_BACKOFF_MS = 800; // 退避基数
 
+type InterestChoice = 'like' | 'neutral' | 'dislike';
+type DifficultyChoice = 'easy' | 'just_right' | 'hard';
+
 export default function BookReaderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const bookId = parseInt(id, 10);
@@ -23,6 +26,19 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   // 恢复状态：'restoring'（内容+身份+进度就绪前不渲染正文）| 'done' | 'error'（可重试失败）
   const [restoreState, setRestoreState] = useState<'restoring' | 'done' | 'error'>('restoring');
   const [restoreAttempt, setRestoreAttempt] = useState(0); // 用于强制重试恢复
+
+  // ===== 阅读完成确认 + 反馈 =====
+  // 完成状态：服务端 reading_records.completed（1=已完成，单向不撤销）
+  const [serverCompleted, setServerCompleted] = useState(false);
+  // 完成流程：idle（未点完成）| submitting（等待 Worker 确认）| completed（已确认）
+  const [completionState, setCompletionState] = useState<'idle' | 'submitting' | 'completed'>('idle');
+  const [completeError, setCompleteError] = useState('');
+  // 反馈选择（本地临时值；null 表示该项未选）
+  const [interest, setInterest] = useState<InterestChoice | null>(null);
+  const [difficulty, setDifficulty] = useState<DifficultyChoice | null>(null);
+  // 反馈提交：idle | saving | saved | error
+  const [feedbackState, setFeedbackState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [feedbackError, setFeedbackError] = useState('');
 
   // ===== Refs：请求隔离 / 节流 / 乱序保护 =====
   const initializedKeyRef = useRef<string>(''); // `${bookId}:${childId}`，防重复初始化
@@ -42,6 +58,8 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
   const pageRef = useRef<number>(1);
   const totalRef = useRef<number>(0);
   const recordReadyRef = useRef<boolean>(false);
+  // 完成请求防重复点击（串行排他，配合 saveChainRef）
+  const completingRef = useRef<boolean>(false);
 
   // ===== 绘本内容加载（逻辑保持不变）=====
   useEffect(() => {
@@ -87,6 +105,15 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       initializedKeyRef.current = '';
       setRestoreState('restoring');
       mountStartRef.current = Date.now();
+      // 重置完成 / 反馈临时状态（切书隔离）
+      completingRef.current = false;
+      setServerCompleted(false);
+      setCompletionState('idle');
+      setCompleteError('');
+      setInterest(null);
+      setDifficulty(null);
+      setFeedbackState('idle');
+      setFeedbackError('');
       initBook();
     }
   }, [bookId]);
@@ -130,6 +157,11 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
         if (res.ok && result?.success) {
           recordReadyRef.current = true;
           setRecordReady(true);
+
+          // 读取服务端完成状态（单向，不撤销）；驱动末页完成/反馈 UI
+          const doneFlag = Number(result.data?.completed);
+          setServerCompleted(doneFlag === 1);
+          if (doneFlag === 1) setCompletionState('completed');
 
           // 恢复上次页码；仅在用户尚未手动翻页时生效，避免覆盖用户操作
           if (!navigatedRef.current) {
@@ -195,12 +227,137 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
     setRestoreAttempt((n) => n + 1);
   };
 
+  // ===== 显式完成：发送 completed:true，等待 Worker 成功确认 =====
+  const completeBook = () => {
+    const childId = activeChild?.id;
+    if (!childId || !bookId) return;
+    // 防重复点击 / 异步竞争
+    if (completingRef.current) return;
+    if (completionState === 'submitting' || completionState === 'completed') return;
+
+    completingRef.current = true;
+    setCompletionState('submitting');
+    setCompleteError('');
+
+    // 串行排队，避免与在途页码保存乱序
+    saveChainRef.current = saveChainRef.current.then(async () => {
+      try {
+        const res = await fetch(`/api/reading-records/${bookId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            child_id: childId,
+            pages_read: pages.length,
+            duration_seconds: Math.floor((Date.now() - mountStartRef.current) / 1000),
+            completed: true,
+          }),
+        });
+        const result = await res.json();
+
+        // 必须收到 Worker 成功确认才进入反馈；否则停留末页可重试
+        if (res.ok && result?.success) {
+          setServerCompleted(true);
+          setCompletionState('completed');
+          // 拉取既有反馈用于回显（无反馈则保持未选）
+          try {
+            const fbRes = await fetch(
+              `/api/reading-feedback?child_id=${encodeURIComponent(childId)}&custom_book_id=${bookId}`,
+            );
+            const fbJson = await fbRes.json();
+            if (fbRes.ok && fbJson?.success && fbJson.data) {
+              setInterest(fbJson.data.interest ?? null);
+              setDifficulty(fbJson.data.difficulty ?? null);
+            }
+          } catch {
+            // 回显失败不阻断完成：反馈区仍可新填
+          }
+        } else {
+          completingRef.current = false;
+          setCompletionState('idle');
+          setCompleteError('完成保存失败，请再试一次');
+        }
+      } catch {
+        completingRef.current = false;
+        setCompletionState('idle');
+        setCompleteError('网络出错了，请再试一次');
+      }
+    });
+  };
+
+  // ===== 提交反馈（仅发送已选项；未选项不覆盖原值）=====
+  const submitFeedback = () => {
+    const childId = activeChild?.id;
+    if (!childId || !bookId) return;
+    // 两项均未选：等同跳过
+    if (!interest && !difficulty) {
+      setFeedbackState('saved');
+      return;
+    }
+
+    setFeedbackState('saving');
+    setFeedbackError('');
+
+    const payload: Record<string, unknown> = {
+      child_id: childId,
+      custom_book_id: bookId,
+    };
+    if (interest) payload.interest = interest;
+    if (difficulty) payload.difficulty = difficulty;
+
+    fetch('/api/reading-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(async (res) => {
+        const result = await res.json();
+        if (res.ok && result?.success) {
+          setFeedbackState('saved');
+        } else {
+          // 保留当前选择，允许重试
+          setFeedbackState('error');
+          setFeedbackError('保存失败，请再试一次');
+        }
+      })
+      .catch(() => {
+        setFeedbackState('error');
+        setFeedbackError('网络出错了，请再试一次');
+      });
+  };
+
+  // ===== 跳过反馈：完成不受影响 =====
+  const skipFeedback = () => {
+    setFeedbackState('saved');
+  };
+
+  // 再读一次：回到第 1 页（服务端 completed 保持 1，不撤销）
+  const rereadBook = () => {
+    navigatedRef.current = true;
+    setCurrentPage(1);
+  };
+
+  // ===== Ted/Sean 切换隔离：activeChild 变化时清掉旧孩子的临时反馈/完成状态 =====
+  const prevChildIdRef = useRef<string>(activeChild?.id || '');
+  useEffect(() => {
+    const nextId = activeChild?.id || '';
+    if (prevChildIdRef.current !== nextId) {
+      prevChildIdRef.current = nextId;
+      completingRef.current = false;
+      setCompletionState(serverCompleted ? 'completed' : 'idle');
+      setCompleteError('');
+      setInterest(null);
+      setDifficulty(null);
+      setFeedbackState('idle');
+      setFeedbackError('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChild?.id]);
+
   // ===== 实际发送一次进度（串行排队，保证旧请求不会后到覆盖新页码）=====
   const flushPage = (page: number) => {
     const childId = activeChild?.id;
     if (!childId || !recordReadyRef.current) return;
 
-    const total = totalRef.current;
     lastFlushTsRef.current = Date.now();
 
     const payload: Record<string, unknown> = {
@@ -208,10 +365,6 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
       pages_read: page,
       duration_seconds: Math.floor((Date.now() - mountStartRef.current) / 1000),
     };
-    // 到达最后一页：提交 completed=true（服务端单向保存，不会被翻回撤销）
-    if (total > 0 && page >= total) {
-      payload.completed = true;
-    }
 
     saveChainRef.current = saveChainRef.current.then(async () => {
       try {
@@ -268,9 +421,7 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
         child_id: cId,
         pages_read: page,
       };
-      if (total > 0 && page >= total) {
-        payload.completed = true;
-      }
+      // 不在离开时自动完成：completed 只能由「完成阅读」按钮显式触发。
 
       try {
         const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
@@ -387,6 +538,131 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
+      {/* ===== 末页：完成确认 → 反馈（到达末页不自动完成）===== */}
+      {pages.length > 0 && currentPage >= pages.length && (
+        <div className="w-full mt-8">
+          {/* 尚未完成 / 提交中：显示完成按钮 */}
+          {completionState !== 'completed' && (
+            <div className="flex flex-col items-center gap-3">
+              {serverCompleted && completionState !== 'submitting' && (
+                <p className="text-sm text-gray-500">这本绘本之前已经读完啦</p>
+              )}
+              <button
+                onClick={completeBook}
+                disabled={completionState === 'submitting'}
+                className="px-10 py-4 bg-[#FF6B35] hover:bg-[#ff7d4f] disabled:opacity-60 text-white text-xl font-bold rounded-full shadow-md transition-transform hover:scale-105"
+              >
+                {completionState === 'submitting' ? '保存中…' : '📖 完成阅读'}
+              </button>
+              {completeError && (
+                <p className="text-[#FF6B6B] font-medium text-sm">{completeError}</p>
+              )}
+            </div>
+          )}
+
+          {/* Worker 已确认完成：显示反馈或完成状态 */}
+          {completionState === 'completed' && feedbackState !== 'saved' && (
+            <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl border shadow-md p-6 flex flex-col items-center gap-5">
+              <p className="text-2xl font-bold text-[#2D3436]">读完啦！你的感受是？</p>
+
+              {/* 兴趣 */}
+              <div className="w-full">
+                <p className="text-center text-[#636E72] font-medium mb-2">你喜欢这个故事吗？</p>
+                <div className="flex justify-center gap-3">
+                  <FeedbackChoiceButton
+                    active={interest === 'like'}
+                    emoji="😊"
+                    label="喜欢"
+                    onClick={() => setInterest('like')}
+                  />
+                  <FeedbackChoiceButton
+                    active={interest === 'neutral'}
+                    emoji="😐"
+                    label="一般"
+                    onClick={() => setInterest('neutral')}
+                  />
+                  <FeedbackChoiceButton
+                    active={interest === 'dislike'}
+                    emoji="🙁"
+                    label="不喜欢"
+                    onClick={() => setInterest('dislike')}
+                  />
+                </div>
+              </div>
+
+              {/* 难度 */}
+              <div className="w-full">
+                <p className="text-center text-[#636E72] font-medium mb-2">读起来难不难？</p>
+                <div className="flex justify-center gap-3">
+                  <FeedbackChoiceButton
+                    active={difficulty === 'easy'}
+                    emoji="🙂"
+                    label="有点简单"
+                    onClick={() => setDifficulty('easy')}
+                  />
+                  <FeedbackChoiceButton
+                    active={difficulty === 'just_right'}
+                    emoji="😊"
+                    label="刚刚好"
+                    onClick={() => setDifficulty('just_right')}
+                  />
+                  <FeedbackChoiceButton
+                    active={difficulty === 'hard'}
+                    emoji="😕"
+                    label="有点难"
+                    onClick={() => setDifficulty('hard')}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 mt-1">
+                <button
+                  onClick={submitFeedback}
+                  disabled={feedbackState === 'saving'}
+                  className="px-8 py-3 bg-[#4ECDC4] hover:bg-[#61d6ce] disabled:opacity-60 text-white text-lg font-bold rounded-full shadow-sm transition-transform hover:scale-105"
+                >
+                  {feedbackState === 'saving' ? '保存中…' : '保存反馈'}
+                </button>
+                <button
+                  onClick={skipFeedback}
+                  className="px-6 py-3 text-[#636E72] hover:text-[#2D3436] font-medium"
+                >
+                  跳过
+                </button>
+              </div>
+
+              {feedbackState === 'error' && (
+                <p className="text-[#FF6B6B] font-medium text-sm">{feedbackError}</p>
+              )}
+            </div>
+          )}
+
+          {/* 反馈已保存/已跳过：完成状态 + 下一步 */}
+          {completionState === 'completed' && feedbackState === 'saved' && (
+            <div className="flex flex-col items-center gap-5">
+              <div className="flex items-center gap-2 text-[#51CF66] font-bold text-2xl">
+                <span>🎉</span>
+                <span>完成！</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => router.push('/book-select')}
+                  className="px-8 py-3 bg-[#FF6B35] hover:bg-[#ff7d4f] text-white text-lg font-bold rounded-full shadow-md transition-transform hover:scale-105"
+                >
+                  返回书架
+                </button>
+                <button
+                  onClick={rereadBook}
+                  className="px-8 py-3 bg-white border hover:bg-gray-50 text-[#2D3436] text-lg font-bold rounded-full shadow-sm transition-transform hover:scale-105"
+                >
+                  再读一次
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <button
         onClick={() => router.push('/book-select')}
         className="mt-6 px-4 py-2 text-sm text-gray-500 hover:text-gray-800"
@@ -394,5 +670,32 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
         ← 返回书架
       </button>
     </div>
+  );
+}
+
+// 反馈大按钮：适合儿童点击，选中态高亮
+function FeedbackChoiceButton({
+  active,
+  emoji,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  emoji: string;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 px-5 py-3 rounded-2xl border-2 font-medium transition-all hover:scale-105 ${
+        active
+          ? 'border-[#FF6B35] bg-[#FFF1EA] text-[#2D3436] shadow-sm'
+          : 'border-gray-200 bg-white text-[#636E72] hover:border-[#FFB596]'
+      }`}
+    >
+      <span className="text-3xl leading-none">{emoji}</span>
+      <span className="text-sm">{label}</span>
+    </button>
   );
 }
