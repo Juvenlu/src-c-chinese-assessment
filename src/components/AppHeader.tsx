@@ -141,35 +141,44 @@ export function AppHeader() {
             </summary>
 
             <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-              {/* 孩子列表 */}
-              {kids.length > 1 && (
-                <div className="border-b border-border p-2">
-                  <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                    我的孩子
-                  </p>
-                  {kids.map((child: { id: string; nickname: string }) => (
-                    <button
-                      key={child.id}
-                      onClick={() => handleSwitchChild(child.id)}
-                      className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors ${
-                        child.id === activeChild.id
-                          ? "bg-primary/10 font-medium text-primary"
-                          : "text-foreground hover:bg-muted"
-                      }`}
-                    >
-                      <User className="h-4 w-4" />
-                      {child.nickname}
-                      {child.id === activeChild.id && (
-                        <span className="ml-auto text-xs">✓</span>
-                      )}
-                    </button>
-                  ))}
-                  <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-muted-foreground hover:bg-muted">
-                    <Plus className="h-4 w-4" />
-                    添加孩子
-                  </button>
-                </div>
-              )}
+
+{/* 孩子列表 */}
+{kids.length > 1 && (
+  <div className="border-b border-border p-2">
+    <p className="mb-1 px-2 text-xs font-medium text-muted-foreground">
+      我的孩子
+    </p>
+    {kids.map((child: { id: string; nickname: string }) => (
+      <button
+        key={child.id}
+        onClick={() => handleSwitchChild(child.id)}
+        className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors ${
+          child.id === activeChild.id
+            ? "bg-primary/10 font-medium text-primary"
+            : "text-foreground hover:bg-muted"
+        }`}
+      >
+        <User className="h-4 w-4" />
+        {child.nickname}
+        {child.id === activeChild.id && (
+          <span className="ml-auto text-xs">✓</span>
+        )}
+      </button>
+    ))}
+  </div>
+)}
+
+{/* 添加孩子入口：单孩子和多孩子均可见 */}
+<div className="border-b border-border p-2">
+  <Link
+    href="/parent-center"
+    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
+  >
+    <Plus className="h-4 w-4" />
+    添加孩子
+  </Link>
+</div>
+
 
               {/* 菜单 */}
               <div className="p-2">
