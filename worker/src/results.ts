@@ -38,22 +38,22 @@ const MAX_COMPLETION_SECONDS = 7200;
  *
  * 背景：test_sessions 在最终提交阶段才创建，因此
  * `completed_at - started_at` 只反映「提交耗时」而非真实答题耗时，
- * 不能用它作为完成时长（历史 bug：190 题被记为 5 秒）。
+ * 绝不能用作答题时长（历史 bug：190 题被记为 5 秒）。
  *
- * 优先级：
- * 1. 客户端显式上报的 completion_time_seconds（fulltest 用 testStartTime 实测）
- *    仅接受有限、正整数秒且不超过安全上限的值。
- * 2. 逐题 reaction_time_ms 的合计（服务端独立证据，不依赖客户端计时）。
- * 3. 兜底会话时间差（仅极端情况，无法取得真实耗时时）。
+ * 解析规则：
+ * 1. 客户端显式上报的 completion_time_seconds（fulltest 用 testStartTime 实测），
+ *    仅接受有限、正整数秒且不超过安全上限（7200s）的值，直接采用。
+ * 2. 逐题 reaction_time_ms 的合计（服务端独立证据，不依赖客户端计时），
+ *    合计换算为秒后同样受 7200s 上限约束。
+ * 3. 逐题合计超过 7200s，或两种来源均不可用 / 均非法时：返回 0，
+ *    表示"未知 / 异常"，绝不伪造一个貌似真实的耗时。
  *
- * 非法客户端值（负数 / 0 / NaN / Infinity / 超限 / 类型错误）一律忽略，
- * 绝不写入数据库，也不会把提交阶段耗时伪装成真实答题耗时。
+ * 返回值恒为非负整数。0 表示无法得到可靠耗时的哨兵值，
+ * 调用方与展示层应将 0 视为"未记录"，不得直接当作真实答题时长。
  */
 export function resolveCompletionTimeSeconds(opts: {
 	clientDuration?: unknown;
 	answers?: Array<{ reaction_time_ms?: number }>;
-	sessionStartedAt?: number;
-	sessionCompletedAt?: number;
 }): number {
 	// 1) 客户端上报值：严格校验
 	const raw = opts.clientDuration;
@@ -74,14 +74,15 @@ export function resolveCompletionTimeSeconds(opts: {
 		}
 	}
 	if (sumMs > 0) {
-		// 与前端口径一致：至少 1 秒
-		return Math.max(1, Math.round(sumMs / 1000));
+		const candidate = Math.max(1, Math.round(sumMs / 1000));
+		// 合计超过安全上限 → 数据异常，返回 0（未知），不伪造成 7200s 真实耗时
+		if (candidate <= MAX_COMPLETION_SECONDS) {
+			return candidate;
+		}
 	}
 
-	// 3) 兜底：会话时间差（无法还原真实耗时时的最后手段）
-	const startedAt = Number(opts.sessionStartedAt) || 0;
-	const completedAt = Number(opts.sessionCompletedAt) || Math.floor(Date.now() / 1000);
-	return Math.max(0, Math.round(completedAt - startedAt));
+	// 3) 两种来源均不可用 / 均异常 → 0（未知），而非记录提交耗时
+	return 0;
 }
 
 /** D1 test_results 行 → 前端 TestResult（类型 + 字段转换） */
@@ -288,14 +289,11 @@ export async function handlePostResults(
 		stableVocabCount = calculateSamplingStableVocabCount(stableCharCount, level);
 	}
 
-	// 完成时间：优先客户端实测耗时，其次逐题反应时间合计，最后才回退会话时间差。
-	// 不能直接用 completed_at - started_at：session 在提交阶段才创建，该差值只是提交耗时。
+	// 完成时间：优先客户端实测耗时，其次逐题反应时间合计，两者均异常则记为 0（未知）。
+	// 不能直接用 completed_at - started_at：session 在提交阶段才创建，差值只是提交耗时。
 	const completionTimeSeconds = resolveCompletionTimeSeconds({
 		clientDuration: clientCompletionTime,
 		answers,
-		sessionStartedAt: Number(session.started_at) || 0,
-		sessionCompletedAt:
-			Number(session.completed_at) || Math.floor(Date.now() / 1000),
 	});
 
 	// 掌握率（与 Vercel 版一致）
