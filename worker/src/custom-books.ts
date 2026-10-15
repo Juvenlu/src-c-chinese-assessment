@@ -9,18 +9,24 @@
  */
 
 import { getSessionFromRequest } from './session';
+import { markCustomBookFirstViewed } from './admin-versioning';
 import type { Env } from './types';
 
 /** D1 行 → 前端 custom book 列表项（时间戳转 ISO string） */
 function rowToBookListItem(row: Record<string, unknown>): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(row)) {
-		if (k === 'created_at' || k === 'updated_at' || k === 'finalized_at') {
+		if (k === 'created_at' || k === 'updated_at' || k === 'finalized_at'
+			|| k === 'pushed_at' || k === 'first_viewed_at') {
 			result[k] = v ? new Date((v as number) * 1000).toISOString() : null;
 		} else {
 			result[k] = v;
 		}
 	}
+	// “新”角标：已推送且孩子尚未首次查看
+	const pushed = typeof row.pushed_at === 'number' ? row.pushed_at : null;
+	const viewed = typeof row.first_viewed_at === 'number' ? row.first_viewed_at : null;
+	result.is_new = pushed !== null && viewed === null;
 	// 组装 episodes 对象（保持与原 Supabase API contract 一致）
 	result.episodes = {
 		series_name: row.series_name,
@@ -93,6 +99,8 @@ export async function handleV1CustomBooksList(request: Request, env: Env): Promi
 		       cb.status,
 		       cb.created_at,
 		       cb.updated_at,
+		       cb.pushed_at,
+		       cb.first_viewed_at,
 		       brv.version,
 		       brv.target_level,
 		       be.series_name,
@@ -103,7 +111,9 @@ export async function handleV1CustomBooksList(request: Request, env: Env): Promi
 		  JOIN book_episodes be ON cb.episode_id = be.id
 		 WHERE cb.child_id = ?1
 		   AND cb.status = 'active'
-		 ORDER BY cb.created_at DESC
+		 ORDER BY (cb.pushed_at IS NOT NULL) DESC,
+		          cb.pushed_at DESC,
+		          cb.created_at DESC
 	`).bind(childId).all<Record<string, unknown>>();
 
 	const data = results.map(rowToBookListItem);
@@ -160,6 +170,9 @@ export async function handleV1CustomBookDetail(request: Request, env: Env, bookI
 	} else {
 		return Response.json({ error: ownership.error }, { status: ownership.status });
 	}
+
+	// 首次打开已推送但未查看的正式版 → 记录 first_viewed_at（“新”消失），best-effort
+	await markCustomBookFirstViewed(env, idNum);
 
 	// pages_json 在 D1 中是 TEXT 存储的 JSON 字符串，需要解析为对象
 	let pagesJson: unknown = null;

@@ -37,6 +37,15 @@ import {
 	handleV1AdminEpisodesList,
 	handleV1AdminEpisodePages,
 } from "./admin-book-writer";
+import {
+	handleAdminListVersions,
+	handleAdminActivate,
+	handleAdminArchive,
+	handleAdminRestore,
+	handleAdminDelete,
+	handleAdminDeletePreview,
+	handleAdminPush,
+} from "./admin-versioning";
 
 import type { Env } from "./types";
 
@@ -1002,7 +1011,7 @@ export default {
 				return handleV1AdminRewritePatch(request, env, adminRewriteMatch[1]);
 			}
 
-			// POST /v1/admin/rewrite/:id/finalize — Admin Finalize + 自动发布 custom_books
+			// POST /v1/admin/rewrite/:id/finalize — Admin Finalize（P3-H-12C 起与上架解耦，不再自动发布 custom_books）
 			const adminFinalizeMatch = path.match(/^\/v1\/admin\/rewrite\/([^/]+)\/finalize$/);
 			if (adminFinalizeMatch && request.method === "POST") {
 				return handleV1AdminRewriteFinalize(request, env, adminFinalizeMatch[1]);
@@ -1012,6 +1021,50 @@ export default {
 			const adminRejectMatch = path.match(/^\/v1\/admin\/rewrite\/([^/]+)\/reject$/);
 			if (adminRejectMatch && request.method === "POST") {
 				return handleV1AdminRewriteReject(request, env, adminRejectMatch[1]);
+			}
+
+			// ===== P3-H-12C 绘本正式版本管理（x-admin-password）=====
+
+			// GET /v1/admin/children/:childId/episodes/:episodeId/versions
+			const adminVersionsMatch = path.match(
+				/^\/v1\/admin\/children\/([^/]+)\/episodes\/([^/]+)\/versions$/,
+			);
+			if (adminVersionsMatch && request.method === "GET") {
+				return handleAdminListVersions(request, env, adminVersionsMatch[1], adminVersionsMatch[2]);
+			}
+
+			// POST /v1/admin/rewrite/:id/activate — 显式设为唯一正式版
+			const adminActivateMatch = path.match(/^\/v1\/admin\/rewrite\/([^/]+)\/activate$/);
+			if (adminActivateMatch && request.method === "POST") {
+				return handleAdminActivate(request, env, adminActivateMatch[1]);
+			}
+
+			// POST /v1/admin/custom-books/:id/archive
+			const adminArchiveMatch = path.match(/^\/v1\/admin\/custom-books\/([^/]+)\/archive$/);
+			if (adminArchiveMatch && request.method === "POST") {
+				return handleAdminArchive(request, env, adminArchiveMatch[1]);
+			}
+
+			// POST /v1/admin/custom-books/:id/restore
+			const adminRestoreMatch = path.match(/^\/v1\/admin\/custom-books\/([^/]+)\/restore$/);
+			if (adminRestoreMatch && request.method === "POST") {
+				return handleAdminRestore(request, env, adminRestoreMatch[1]);
+			}
+
+			// GET /v1/admin/custom-books/:id/delete — 删除前依赖预检查（只读）
+			// POST /v1/admin/custom-books/:id/delete — 安全软删除（body confirm=true）
+			const adminDeleteMatch = path.match(/^\/v1\/admin\/custom-books\/([^/]+)\/delete$/);
+			if (adminDeleteMatch && request.method === "GET") {
+				return handleAdminDeletePreview(request, env, adminDeleteMatch[1]);
+			}
+			if (adminDeleteMatch && request.method === "POST") {
+				return handleAdminDelete(request, env, adminDeleteMatch[1]);
+			}
+
+			// POST /v1/admin/custom-books/:id/push — 推送（置“新”）
+			const adminPushMatch = path.match(/^\/v1\/admin\/custom-books\/([^/]+)\/push$/);
+			if (adminPushMatch && request.method === "POST") {
+				return handleAdminPush(request, env, adminPushMatch[1]);
 			}
 
 			// GET /v1/admin/episodes/:id/rewrites — Admin 列出某 episode 的所有 rewrite
