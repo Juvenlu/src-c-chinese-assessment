@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveWorkerUrl } from '../../lib/worker-target';
 import { getSupabaseClient } from '@/lib/auth-utils';
 
-const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const WORKER_BASE_URL = resolveWorkerUrl(process.env.WORKER_BASE_URL, process.env);
 const SRC_WORKER_SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 const WORKER_GUEST_API_ENABLED = process.env.WORKER_GUEST_API_ENABLED === 'true';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';

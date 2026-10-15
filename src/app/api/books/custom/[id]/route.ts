@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveWorkerUrl } from '../../../lib/worker-target';
 
 /**
  * Custom Book Detail — Worker Proxy
@@ -11,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
  * Production 必须走 Worker，绝不 fallback 到 Supabase / 直连 D1。
  */
 
-const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const WORKER_BASE_URL = resolveWorkerUrl(process.env.WORKER_BASE_URL, process.env);
 const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';

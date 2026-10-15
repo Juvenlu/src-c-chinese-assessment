@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveWorkerUrl } from '../lib/worker-target';
 
-const WORKER_URL = process.env.SRC_WORKER_URL || 'https://src-primary-api.quweizhongwen.workers.dev';
 const WORKER_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
 // POST /api/reading-records -> Worker POST /v1/reading-records
 // Service Key 仅在服务端持有并转发，浏览器 Session Cookie 原样透传。
+// Worker URL 经统一守卫解析：Preview 禁止 Production，缺失/非法时零外发拒绝。
 export async function POST(req: NextRequest) {
+  // SRC_WORKER_URL 未配置时回退 WORKER_BASE_URL（生产行为兼容）；两者均经统一守卫解析。
+  const WORKER_URL = resolveWorkerUrl(process.env.SRC_WORKER_URL ?? process.env.WORKER_BASE_URL, process.env);
+  if (!WORKER_URL || !WORKER_KEY) {
+    return NextResponse.json({ success: false, error: 'Worker 未配置或当前环境禁止访问' }, { status: 503 });
+  }
   try {
     const body = await req.json();
 

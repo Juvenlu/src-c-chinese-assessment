@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveWorkerUrl } from '../../lib/worker-target';
 
 /**
  * Admin Episodes List (Master Story) — Worker Proxy
@@ -12,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
  *   2. X-SRC-Service-Key
  */
 
-const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const WORKER_BASE_URL = resolveWorkerUrl(process.env.WORKER_BASE_URL, process.env);
 const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
