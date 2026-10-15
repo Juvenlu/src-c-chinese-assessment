@@ -139,14 +139,17 @@ interface FinalizeRequestBody {
 }
 
 /**
- * Finalize Rewrite + 自动发布到 custom_books
+ * Finalize Rewrite（仅定稿，与上架解耦）
  *
  * 流程：
  * 1. Admin 密码鉴权
  * 2. 查询 rewrite 是否存在
  * 3. UPDATE status=final, finalized_by=admin, finalized_at=now
- * 4. INSERT OR IGNORE custom_books（幂等）
- * 5. 返回完整 rewrite 对象
+ * 4. 返回完整 rewrite 对象
+ *
+ * 注意：本接口不再写入 custom_books，不会自动上架。
+ * 正式版需由管理员显式调用 POST /v1/admin/rewrite/:id/activate，
+ * 由 version-store.activateVersion 维护每个 child + episode 的唯一 active。
  */
 export async function handleV1AdminRewriteFinalize(
 	request: Request,

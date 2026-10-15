@@ -17,6 +17,9 @@ import { useCallback, useEffect, useState } from 'react';
 
 const ADMIN_PASSWORD = 'srcc2026';
 
+// 模块级稳定常量，避免组件每次渲染重建导致 useCallback/effect 依赖抖动
+const VERSION_API_BASE = '/api/books/versioning';
+
 interface VersionItem {
   rewrite_id: number;
   version: number;
@@ -69,14 +72,12 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
   const [confirmDelete, setConfirmDelete] = useState<VersionItem | null>(null);
   const [deleteMeta, setDeleteMeta] = useState<{ record_count: number; feedback_count: number } | null>(null);
 
-  const base = `/api/books/versioning`;
-
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const res = await fetch(
-        `${base}/children/${encodeURIComponent(childId)}/episodes/${episodeId}/versions`,
+        `${VERSION_API_BASE}/children/${encodeURIComponent(childId)}/episodes/${episodeId}/versions`,
         { headers: { 'x-admin-password': ADMIN_PASSWORD } },
       );
       const json = await res.json();
@@ -116,7 +117,7 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
     setDeleteMeta(null);
     try {
       const res = await fetch(
-        `${base}/custom-books/${v.custom_book_id}/delete`,
+        `${VERSION_API_BASE}/custom-books/${v.custom_book_id}/delete`,
         { headers: { 'x-admin-password': ADMIN_PASSWORD } },
       );
       const json = await res.json();
@@ -132,7 +133,7 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
     if (!confirmDelete || confirmDelete.custom_book_id == null) return;
     const id = confirmDelete.custom_book_id;
     setConfirmDelete(null);
-    await run(`del-${id}`, () => adminPost(`${base}/custom-books/${id}/delete`, { confirm: true }), '已软删除');
+    await run(`del-${id}`, () => adminPost(`${VERSION_API_BASE}/custom-books/${id}/delete`, { confirm: true }), '已软删除');
   };
 
   return (
@@ -206,7 +207,7 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
                         void run(
                           `act-${v.rewrite_id}`,
                           () =>
-                            adminPost(`${base}/rewrite/${v.rewrite_id}/activate`, {
+                            adminPost(`${VERSION_API_BASE}/rewrite/${v.rewrite_id}/activate`, {
                               child_id: childId,
                               episode_id: episodeId,
                             }),
@@ -224,7 +225,7 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
                       type="button"
                       disabled={busyId === key}
                       onClick={() =>
-                        void run(`push-${v.custom_book_id}`, () => adminPost(`${base}/custom-books/${v.custom_book_id}/push`), '已推送')
+                        void run(`push-${v.custom_book_id}`, () => adminPost(`${VERSION_API_BASE}/custom-books/${v.custom_book_id}/push`), '已推送')
                       }
                       className="text-xs px-2.5 py-1 bg-[var(--color-src-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
                     >
@@ -237,7 +238,7 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
                       type="button"
                       disabled={busyId === key}
                       onClick={() =>
-                        void run(`arch-${v.custom_book_id}`, () => adminPost(`${base}/custom-books/${v.custom_book_id}/archive`), '已归档')
+                        void run(`arch-${v.custom_book_id}`, () => adminPost(`${VERSION_API_BASE}/custom-books/${v.custom_book_id}/archive`), '已归档')
                       }
                       className="text-xs px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
                     >
@@ -250,7 +251,7 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
                       type="button"
                       disabled={busyId === key}
                       onClick={() =>
-                        void run(`res-${v.custom_book_id}`, () => adminPost(`${base}/custom-books/${v.custom_book_id}/restore`), '已恢复')
+                        void run(`res-${v.custom_book_id}`, () => adminPost(`${VERSION_API_BASE}/custom-books/${v.custom_book_id}/restore`), '已恢复')
                       }
                       className="text-xs px-2.5 py-1 bg-teal-100 text-teal-700 rounded-lg hover:bg-teal-200 disabled:opacity-50"
                     >
@@ -274,7 +275,7 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
                       type="button"
                       disabled={busyId === key}
                       onClick={() =>
-                        void run(`res-${v.custom_book_id}`, () => adminPost(`${base}/custom-books/${v.custom_book_id}/restore`), '已恢复')
+                        void run(`res-${v.custom_book_id}`, () => adminPost(`${VERSION_API_BASE}/custom-books/${v.custom_book_id}/restore`), '已恢复')
                       }
                       className="text-xs px-2.5 py-1 bg-teal-100 text-teal-700 rounded-lg hover:bg-teal-200 disabled:opacity-50"
                     >
