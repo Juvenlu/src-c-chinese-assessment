@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWorkerUrl } from '../lib/worker-target';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../lib/worker-target';
 
 /**
  * Test Sessions — Worker Proxy
@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
 				'X-SRC-Service-Key': SERVICE_KEY,
 			},
 			cache: 'no-store',
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
 				'X-SRC-Service-Key': SERVICE_KEY,
 			},
 			body: JSON.stringify(body),
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();
@@ -129,6 +131,7 @@ export async function PATCH(req: NextRequest) {
 				'X-SRC-Service-Key': SERVICE_KEY,
 			},
 			body: JSON.stringify(body),
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();

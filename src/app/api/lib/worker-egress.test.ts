@@ -79,6 +79,15 @@ async function main(): Promise<void> {
       body: JSON.stringify({ customBookId: 1, page: 1 }),
     });
 
+  // 精确 URL 断言：完整匹配 + pathname 不得含意外双斜杠
+  const checkExactUrl = (name: string, actual: string | undefined, expected: string): void => {
+    check(`${name} exact url`, actual === expected, `expected=${expected} actual=${actual}`);
+    if (actual) {
+      const p = new URL(actual).pathname;
+      check(`${name} pathname no '//'`, !p.includes('//'), `pathname=${p}`);
+    }
+  };
+
   try {
     // ============ proxyToWorker 矩阵 ============
 
@@ -117,11 +126,7 @@ async function main(): Promise<void> {
       );
       check('E3 preview+allowlisted staging -> 200', res.status === 200, `status=${res.status}`);
       check('E3 fetch exactly 1', fetchCalls.length === 1, `calls=${fetchCalls.length}`);
-      check(
-        'E3 fetch target is staging (not prod)',
-        fetchCalls.length === 1 && fetchCalls[0].startsWith(STAGING_URL),
-        `target=${fetchCalls[0]}`,
-      );
+      checkExactUrl('E3 staging', fetchCalls[0], `${STAGING_URL}/v1/admin/rewrites/2`);
     }
 
     // E4: Production + Production URL → 200 透传，fetch 1 次到生产主机
@@ -133,11 +138,7 @@ async function main(): Promise<void> {
       );
       check('E4 production+prodURL -> 200 passthrough', res.status === 200, `status=${res.status}`);
       check('E4 fetch exactly 1', fetchCalls.length === 1, `calls=${fetchCalls.length}`);
-      check(
-        'E4 fetch target is prod worker',
-        fetchCalls.length === 1 && fetchCalls[0].startsWith(PROD_URL),
-        `target=${fetchCalls[0]}`,
-      );
+      checkExactUrl('E4 prod proxy', fetchCalls[0], `${PROD_URL}/v1/admin/children`);
     }
 
     // E4b: Preview + 伪造相似域名（子串欺骗）→ 503 零外发
@@ -170,11 +171,8 @@ async function main(): Promise<void> {
       setEnv({ VERCEL_ENV: 'production', WORKER_BASE_URL: PROD_URL });
       const res = await readingRecords.POST(jsonRequest());
       check('E6 production reading fallback WORKER_BASE_URL -> 200', res.status === 200, `status=${res.status}`);
-      check(
-        'E6 production reading -> fetch 1 to prod',
-        fetchCalls.length === 1 && fetchCalls[0].startsWith(PROD_URL),
-        `calls=${fetchCalls.length} target=${fetchCalls[0]}`,
-      );
+      check('E6 fetch exactly 1', fetchCalls.length === 1, `calls=${fetchCalls.length}`);
+      checkExactUrl('E6 prod reading', fetchCalls[0], `${PROD_URL}/v1/reading-records`);
     }
 
     // E7: 本地/未知环境 + Production URL，未 opt-in → 503 零外发
@@ -191,6 +189,15 @@ async function main(): Promise<void> {
       const res = await readingRecords.POST(jsonRequest());
       check('E8 local+prodURL+opt-in -> 200', res.status === 200, `status=${res.status}`);
       check('E8 local opt-in -> fetch 1', fetchCalls.length === 1, `calls=${fetchCalls.length}`);
+      checkExactUrl('E8 local opt-in', fetchCalls[0], `${PROD_URL}/v1/reading-records`);
+    }
+
+    // E10: Preview + 非法 URL → 503 零外发
+    {
+      setEnv({ VERCEL_ENV: 'preview', SRC_WORKER_URL: 'not-a-valid-url' });
+      const res = await readingRecords.POST(jsonRequest());
+      check('E10 preview invalid URL -> 503', res.status === 503, `status=${res.status}`);
+      check('E10 invalid URL -> fetch 0', fetchCalls.length === 0, `calls=${fetchCalls.length}`);
     }
 
     // E9: Preview + 非 HTTPS 的 staging URL → 503 零外发

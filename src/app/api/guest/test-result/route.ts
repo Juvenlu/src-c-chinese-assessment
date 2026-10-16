@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWorkerUrl } from '../../lib/worker-target';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../../lib/worker-target';
 import { getSupabaseClient } from '@/lib/auth-utils';
 
 const WORKER_BASE_URL = resolveWorkerUrl(process.env.WORKER_BASE_URL, process.env);
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
           'X-SRC-Service-Key': SRC_WORKER_SERVICE_KEY as string,
         },
         body: JSON.stringify(body),
+        ...WORKER_FETCH_INIT,
       });
 
       const data = await res.json();

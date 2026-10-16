@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWorkerUrl } from '../../lib/worker-target';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../../lib/worker-target';
 
 const WORKER_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
@@ -28,6 +28,7 @@ export async function PATCH(
         'Cookie': req.headers.get('cookie') || '',
       },
       body: JSON.stringify(body),
+      ...WORKER_FETCH_INIT,
     });
 
     const data = await response.json();

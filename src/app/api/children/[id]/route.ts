@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWorkerUrl } from '../../lib/worker-target';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../../lib/worker-target';
 
 /**
  * Child detail/update — Worker Proxy
@@ -47,6 +47,7 @@ export async function GET(
 				'X-SRC-Service-Key': SERVICE_KEY,
 			},
 			cache: 'no-store',
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();
@@ -81,6 +82,7 @@ export async function PATCH(
 				'X-SRC-Service-Key': SERVICE_KEY,
 			},
 			body: JSON.stringify(body),
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();

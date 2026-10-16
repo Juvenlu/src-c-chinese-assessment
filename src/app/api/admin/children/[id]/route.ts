@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveWorkerUrl } from '../../../lib/worker-target';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../../../lib/worker-target';
 
 /**
  * Admin Child Detail + Reading Profile — Worker Proxy
@@ -57,6 +57,7 @@ export async function GET(
 				'X-SRC-Service-Key': SERVICE_KEY,
 			},
 			cache: 'no-store',
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();

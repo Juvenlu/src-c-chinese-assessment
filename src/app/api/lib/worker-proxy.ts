@@ -9,7 +9,7 @@
  *   return proxyToWorker(request, `/v1/admin/xxx/${id}`)
  */
 
-import { getDeployEnv, resolveWorkerTarget } from './worker-target';
+import { getDeployEnv, resolveWorkerTarget, WORKER_FETCH_INIT } from './worker-target';
 
 const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
@@ -109,6 +109,7 @@ export async function proxyToWorker(request: Request, workerPath: string, option
       },
       body: shouldHaveBody ? body : undefined,
       cache: 'no-store',
+      ...WORKER_FETCH_INIT,
     });
 
     const text = await res.text();

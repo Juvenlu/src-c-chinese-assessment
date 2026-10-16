@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveWorkerUrl } from '../../lib/worker-target';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../../lib/worker-target';
 
 const WORKER_BASE_URL = resolveWorkerUrl(process.env.WORKER_BASE_URL, process.env);
 const SRC_WORKER_SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
           'X-SRC-Service-Key': SRC_WORKER_SERVICE_KEY as string,
           Cookie: cookieHeader,
         },
+        ...WORKER_FETCH_INIT,
       });
     } catch (err) {
       console.error('[auth/logout POST] Worker network error:', err);

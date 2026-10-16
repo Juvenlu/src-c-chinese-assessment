@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveWorkerUrl } from '../../../../lib/worker-target';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../../../../lib/worker-target';
 
 /**
  * Admin Rewrite Finalize — Worker Proxy
@@ -58,6 +58,7 @@ export async function POST(
 			},
 			body: bodyText,
 			cache: 'no-store',
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();

@@ -50,9 +50,16 @@ export function parsePreviewAllowlist(raw: string | undefined): Set<string> {
   return out;
 }
 
+/**
+ * 发往 Worker 的 fetch 必须禁止自动跟随重定向：
+ * 防止 Preview 白名单内的 Staging Worker 经 3xx 把请求（含 Service Key）
+ * 自动转发到 Production。所有 Worker 调用路径统一使用此 init。
+ */
+export const WORKER_FETCH_INIT = { redirect: 'manual' } as const satisfies RequestInit;
+
 export type ResolveResult =
   | { ok: true; url: string; hostname: string; isProduction: boolean }
-  | { ok: false; reason: 'missing_url' | 'invalid_url' | 'non_https' | 'prod_blocked_preview' | 'prod_blocked_local' | 'not_in_preview_allowlist' };
+  | { ok: false; reason: 'missing_url' | 'invalid_url' | 'non_https' | 'not_pure_origin' | 'prod_blocked_preview' | 'prod_blocked_local' | 'not_in_preview_allowlist' };
 
 /**
  * 按当前部署环境校验并解析 Worker 目标地址。
@@ -84,9 +91,26 @@ export function resolveWorkerTarget(
     return { ok: false, reason: 'non_https' };
   }
 
+  // 仅允许纯 HTTPS Origin：`https://hostname` 或 `https://hostname/`。
+  // 拒绝路径前缀、query、hash、username、password——避免下游 `${base}/v1/...`
+  // 拼出畸形路径，并杜绝凭证等非 Origin 组成部分混入请求目标。
+  if (
+    (parsed.pathname !== '/' && parsed.pathname !== '') ||
+    parsed.search !== '' ||
+    parsed.hash !== '' ||
+    parsed.username !== '' ||
+    parsed.password !== ''
+  ) {
+    return { ok: false, reason: 'not_pure_origin' };
+  }
+
   const hostname = parsed.hostname.toLowerCase();
   const isProduction = PRODUCTION_WORKER_HOSTS.has(hostname);
   const deployEnv = getDeployEnv(env);
+
+  // 合法 base 统一为无尾斜杠的纯 Origin，确保下游 `${base}/v1/...`
+  // 拼出单斜杠路径（`new URL('https://host').toString()` 会自动补 '/'）。
+  const normalizedUrl = parsed.origin;
 
   if (deployEnv === 'preview') {
     if (isProduction) {
@@ -96,7 +120,7 @@ export function resolveWorkerTarget(
     if (!allowlist.has(hostname)) {
       return { ok: false, reason: 'not_in_preview_allowlist' };
     }
-    return { ok: true, url: parsed.toString(), hostname, isProduction };
+    return { ok: true, url: normalizedUrl, hostname, isProduction };
   }
 
   if (deployEnv === 'local' && isProduction) {
@@ -106,7 +130,7 @@ export function resolveWorkerTarget(
   }
 
   // production：保持现有行为
-  return { ok: true, url: parsed.toString(), hostname, isProduction };
+  return { ok: true, url: normalizedUrl, hostname, isProduction };
 }
 
 /**

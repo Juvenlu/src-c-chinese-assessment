@@ -131,9 +131,41 @@ function env(over: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
   check('T11b spoof host not present', !PRODUCTION_WORKER_HOSTS.has('src-primary-api.quweizhongwen.workers.dev.evil.com'));
 }
 
+// 15. URL 归一化：输出不得含尾部斜杠（防下游 `${base}/v1/...` 拼出 `//v1/...`）
+{
+  const prod = resolveWorkerTarget(PROD_URL, env({ VERCEL_ENV: 'production' }));
+  check('T15a prod url no trailing slash', prod.ok === true && prod.ok && prod.url === 'https://src-primary-api.quweizhongwen.workers.dev',
+    prod.ok ? prod.url : 'not ok');
+  const prodSlash = resolveWorkerTarget(PROD_URL + '/', env({ VERCEL_ENV: 'production' }));
+  check('T15b input with trailing slash normalized', prodSlash.ok === true && prodSlash.ok && prodSlash.url === 'https://src-primary-api.quweizhongwen.workers.dev',
+    prodSlash.ok ? prodSlash.url : 'not ok');
+  const staging = resolveWorkerTarget(STAGING_URL, env({
+    VERCEL_ENV: 'preview',
+    SRC_PREVIEW_ALLOWED_WORKER_HOSTS: new URL(STAGING_URL).hostname,
+  }));
+  check('T15c staging url no trailing slash', staging.ok === true && staging.ok && staging.url === STAGING_URL,
+    staging.ok ? staging.url : 'not ok');
+  // 下游拼接不得出现双斜杠路径
+  if (prod.ok) {
+    const joined = `${prod.url}/v1/auth/me`;
+    check('T15f joined pathname has no double slash', new URL(joined).pathname === '/v1/auth/me', joined);
+  }
+}
+
+// 16. 纯 HTTPS Origin 强制：路径前缀/query/hash/凭证一律拒绝
+{
+  const prodEnv = env({ VERCEL_ENV: 'production' });
+  check('T16a path prefix rejected', (() => { const r = resolveWorkerTarget('https://example.workers.dev/api/', prodEnv); return !r.ok && r.reason === 'not_pure_origin'; })());
+  check('T16b query rejected', (() => { const r = resolveWorkerTarget('https://example.workers.dev/?x=/', prodEnv); return !r.ok && r.reason === 'not_pure_origin'; })());
+  check('T16c hash rejected', (() => { const r = resolveWorkerTarget('https://example.workers.dev/#frag', prodEnv); return !r.ok && r.reason === 'not_pure_origin'; })());
+  check('T16d username:password rejected', (() => { const r = resolveWorkerTarget('https://user:pass@example.workers.dev/', prodEnv); return !r.ok && r.reason === 'not_pure_origin'; })());
+  check('T16e bare origin accepted', (() => { const r = resolveWorkerTarget('https://example.workers.dev', prodEnv); return r.ok === true && r.ok && r.url === 'https://example.workers.dev'; })());
+  check('T16f origin with single trailing slash accepted', (() => { const r = resolveWorkerTarget('https://example.workers.dev/', prodEnv); return r.ok === true && r.ok && r.url === 'https://example.workers.dev'; })());
+}
+
 // ---------- 34 条调用路径静态覆盖检查 ----------
 const here = path.dirname(fileURLToPath(import.meta.url));
-const apiDir = path.resolve(here, '../../../'); // src/app/api
+const apiDir = path.resolve(here, '..'); // src/app/api（here = src/app/api/lib）
 function listRouteFiles(): string[] {
   const out: string[] = [];
   function walk(dir: string) {
@@ -190,6 +222,25 @@ console.log(`[coverage] worker caller routes = ${workerCallerRoutes.length}, gua
   }
   check('T14 zero hardcoded prod host in route files', offenders.length === 0,
     offenders.length ? 'OFFENDERS: ' + offenders.join(', ') : '');
+}
+
+// Redirect 保护：所有直连/阅读路由的每个 fetch 必须显式 ...WORKER_FETCH_INIT；
+// proxyToWorker 消费路由由 worker-proxy.ts 统一保护。
+{
+  const unprotected: string[] = [];
+  for (const f of workerCallerRoutes) {
+    const c = fs.readFileSync(f, 'utf8');
+    if (/proxyToWorker\s*\(/.test(c)) continue; // 代理统一保护
+    const fetchCount = (c.match(/await fetch\(/g) || []).length;
+    const initCount = (c.match(/\.\.\.WORKER_FETCH_INIT,/g) || []).length;
+    if (fetchCount !== initCount) {
+      unprotected.push(`${path.relative(apiDir, f)}(fetch=${fetchCount},init=${initCount})`);
+    }
+  }
+  const proxySrc = fs.readFileSync(path.join(apiDir, 'lib', 'worker-proxy.ts'), 'utf8');
+  check('T17a all direct/reading fetch sets WORKER_FETCH_INIT', unprotected.length === 0,
+    unprotected.length ? 'UNPROTECTED: ' + unprotected.join(', ') : '');
+  check('T17b worker-proxy fetch sets WORKER_FETCH_INIT', proxySrc.includes('...WORKER_FETCH_INIT,'));
 }
 
 console.log(`\nRESULT PASS=${passed} FAIL=${failed}`);
