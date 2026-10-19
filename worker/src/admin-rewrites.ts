@@ -1,15 +1,17 @@
 /**
- * Admin Rewrite — Finalize + Publish
+ * Admin Rewrite — Finalize（P3-H-12C 起与上架解耦）
  *
  * POST /v1/admin/rewrite/:id/finalize
  *   - Admin 密码鉴权（x-admin-password）
  *   - Rewrite status → final
- *   - 自动建立 custom_books（INSERT OR IGNORE，幂等）
+ *   - 不再自动创建/激活 custom_books；设正式版改走 activate 端点
  *
  * 架构：Vercel → Worker → D1
  */
 
+import { createD1DBAdapter } from "./d1-adapter";
 import type { Env } from "./types";
+import { markRewriteFinal } from "./version-store";
 
 // ===== 工具函数 =====
 
@@ -137,14 +139,17 @@ interface FinalizeRequestBody {
 }
 
 /**
- * Finalize Rewrite + 自动发布到 custom_books
+ * Finalize Rewrite（仅定稿，与上架解耦）
  *
  * 流程：
  * 1. Admin 密码鉴权
  * 2. 查询 rewrite 是否存在
  * 3. UPDATE status=final, finalized_by=admin, finalized_at=now
- * 4. INSERT OR IGNORE custom_books（幂等）
- * 5. 返回完整 rewrite 对象
+ * 4. 返回完整 rewrite 对象
+ *
+ * 注意：本接口不再写入 custom_books，不会自动上架。
+ * 正式版需由管理员显式调用 POST /v1/admin/rewrite/:id/activate，
+ * 由 version-store.activateVersion 维护每个 child + episode 的唯一 active。
  */
 export async function handleV1AdminRewriteFinalize(
 	request: Request,
@@ -172,8 +177,32 @@ export async function handleV1AdminRewriteFinalize(
 	const nowTs = nowUnix();
 
 	try {
-		// 1. 先查 rewrite，确认存在并取得必要字段
-		const selectResult = await env.DB
+		// 1. 先确认 rewrite 存在（404），字段读取由 markRewriteFinal 完成
+		const exists = await env.DB
+			.prepare(`SELECT id FROM book_rewrite_versions WHERE id = ?`)
+			.bind(rewriteId)
+			.first<{ id: number }>();
+
+		if (!exists) {
+			return jsonResponse({ error: "Not found" }, 404);
+		}
+
+		// 2. Finalize 与上架解耦（P3-H-12C）：
+		//    Finalize 只把 rewrite 置为 final，不再自动创建/激活 custom_books。
+		//    设为正式版改由管理员显式调用 /v1/admin/rewrite/:id/activate。
+		const pagesJson = body.pages ? JSON.stringify(body.pages) : null;
+		const finalRes = await markRewriteFinal(
+			createD1DBAdapter(env.DB),
+			nowTs,
+			rewriteId,
+			pagesJson,
+		);
+		if (!finalRes.ok) {
+			return jsonResponse({ error: finalRes.error }, finalRes.status);
+		}
+
+		// 3. 回读最新记录返回（保证 pages_json 与库内一致）
+		const finalized = await env.DB
 			.prepare(
 				`SELECT id, episode_id, child_id, target_level, status, version,
             pages_json, frontier_targets_json,
@@ -187,75 +216,11 @@ export async function handleV1AdminRewriteFinalize(
 			.bind(rewriteId)
 			.first<RewriteRow>();
 
-		if (!selectResult) {
-			return jsonResponse({ error: "Not found" }, 404);
+		if (!finalized) {
+			return jsonResponse({ error: "Rewrite missing after finalize" }, 500);
 		}
 
-		// 2. 如果已经是 final，直接返回（幂等）
-		if (selectResult.status === "final" && selectResult.finalized_at) {
-			// 确保 custom_books 存在（幂等保护）
-			if (selectResult.child_id) {
-				await env.DB
-					.prepare(
-						`INSERT OR IGNORE INTO custom_books
-						(child_id, rewrite_id, episode_id, level_tier, is_free, status, created_at)
-						VALUES (?, ?, ?, ?, 0, 'active', ?)`
-					)
-					.bind(
-						selectResult.child_id,
-						rewriteId,
-						selectResult.episode_id,
-						selectResult.target_level,
-						nowTs,
-					)
-					.run();
-			}
-
-			return jsonResponse(mapRewriteRow(selectResult));
-		}
-
-		// 3. UPDATE status = final
-		const pagesJson = body.pages
-			? JSON.stringify(body.pages)
-			: selectResult.pages_json;
-
-		const updateResult = await env.DB
-			.prepare(
-				`UPDATE book_rewrite_versions
-           SET status = 'final',
-               finalized_by = 'admin',
-               finalized_at = ?,
-               pages_json = ?
-         WHERE id = ?
-         RETURNING *`
-			)
-			.bind(nowTs, pagesJson, rewriteId)
-			.first<RewriteRow>();
-
-		if (!updateResult) {
-			return jsonResponse({ error: "Update failed" }, 500);
-		}
-
-		// 4. INSERT OR IGNORE custom_books（幂等发布）
-		if (updateResult.child_id) {
-			await env.DB
-				.prepare(
-					`INSERT OR IGNORE INTO custom_books
-					(child_id, rewrite_id, episode_id, level_tier, is_free, status, created_at)
-					VALUES (?, ?, ?, ?, 0, 'active', ?)`
-				)
-				.bind(
-					updateResult.child_id,
-					rewriteId,
-					updateResult.episode_id,
-					updateResult.target_level,
-					nowTs,
-				)
-				.run();
-		}
-
-		// 5. 返回
-		return jsonResponse(mapRewriteRow(updateResult));
+		return jsonResponse(mapRewriteRow(finalized));
 	} catch (error) {
 		console.error("[admin-rewrites] finalize error:", error);
 		return jsonResponse({

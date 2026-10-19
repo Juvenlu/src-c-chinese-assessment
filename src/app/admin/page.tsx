@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { BookWriter } from '@/components/admin/book-writer';
+import { VersionManager } from '@/components/admin/version-manager';
 import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
 
 type AdminTab = 'results' | 'charlib' | 'users' | 'questions' | 'books';
@@ -1558,6 +1559,17 @@ function AdminContent() {
                               </div>
                             </div>
                           </div>
+                        )}
+
+                        {/* P3-H-12C 正式版本管理：仅对归属某个孩子的 final 版本显示 */}
+                        {rewriteDetail.status === 'final' &&
+                          rewriteDetail.child_id &&
+                          Number(rewriteDetail.episode_id ?? selectedEpisode?.id) > 0 && (
+                          <VersionManager
+                            childId={String(rewriteDetail.child_id)}
+                            episodeId={Number(rewriteDetail.episode_id ?? selectedEpisode?.id)}
+                            currentRewriteId={Number(rewriteDetail.id)}
+                          />
                         )}
 
                         {/* 图文并排页 */}

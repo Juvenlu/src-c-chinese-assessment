@@ -9,7 +9,8 @@
  *   return proxyToWorker(request, `/v1/admin/xxx/${id}`)
  */
 
-const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+import { getDeployEnv, resolveWorkerTarget, WORKER_FETCH_INIT } from './worker-target';
+
 const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -18,7 +19,17 @@ const WORKER_ENABLED =
   process.env.WORKER_CHILDREN_ENABLED === 'true' ||
   IS_PRODUCTION;
 
-if (IS_PRODUCTION && (!WORKER_BASE_URL || !SERVICE_KEY)) {
+// 经统一守卫解析后的 Worker Base URL（请求时动态求值，避免模块加载期缓存环境）。
+// 非 Production 环境解析失败时为 null，调用方按既有「未配置」分支 fail-fast。
+function getResolvedWorkerBaseUrl(): string | null {
+  const result = resolveWorkerTarget(process.env.WORKER_BASE_URL, process.env);
+  return result.ok ? result.url : null;
+}
+
+// 向后兼容导出：值在当前环境下可用时给出，否则为 null（消费方均有空值检查）。
+const WORKER_BASE_URL = getResolvedWorkerBaseUrl();
+
+if (IS_PRODUCTION && (!process.env.WORKER_BASE_URL || !SERVICE_KEY)) {
   console.error('[worker-proxy] Production 缺少 WORKER_BASE_URL 或 SRC_WORKER_SERVICE_KEY 配置');
 }
 
@@ -43,7 +54,25 @@ export interface ProxyOptions {
 export async function proxyToWorker(request: Request, workerPath: string, options: ProxyOptions = {}): Promise<Response> {
   const { NextResponse } = await import('next/server');
 
-  if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+  // 请求时解析（不依赖模块加载期快照），并执行 Preview/Production 隔离守卫。
+  const target = resolveWorkerTarget(process.env.WORKER_BASE_URL, process.env);
+  const resolvedBaseUrl = target.ok ? target.url : null;
+  const deployEnv = getDeployEnv(process.env);
+
+  // Preview 强制隔离：即使误配置了生产 URL + 有效 Service Key，也必须零外发拒绝。
+  if (deployEnv === 'preview' && (!target.ok || !SERVICE_KEY)) {
+    return NextResponse.json(
+      {
+        error:
+          target.ok === false && target.reason === 'not_in_preview_allowlist'
+            ? 'Preview 环境 Worker 不在允许名单内'
+            : 'Preview 环境禁止访问 Production Worker',
+      },
+      { status: 503 },
+    );
+  }
+
+  if (!WORKER_ENABLED || !resolvedBaseUrl || !SERVICE_KEY) {
     if (IS_PRODUCTION) {
       return NextResponse.json({ error: '服务配置错误' }, { status: 500 });
     }
@@ -69,7 +98,7 @@ export async function proxyToWorker(request: Request, workerPath: string, option
       }
     }
 
-    const targetUrl = `${WORKER_BASE_URL}${workerPath}`;
+    const targetUrl = `${resolvedBaseUrl}${workerPath}`;
 
     const res = await fetch(targetUrl, {
       method,
@@ -80,6 +109,7 @@ export async function proxyToWorker(request: Request, workerPath: string, option
       },
       body: shouldHaveBody ? body : undefined,
       cache: 'no-store',
+      ...WORKER_FETCH_INIT,
     });
 
     const text = await res.text();

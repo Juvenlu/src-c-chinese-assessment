@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../lib/worker-target';
 
 /**
  * Test Answers — Worker Proxy
@@ -13,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * Production 必须走 Worker，绝不 fallback 到 Supabase。
  */
 
-const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const WORKER_BASE_URL = resolveWorkerUrl(process.env.WORKER_BASE_URL, process.env);
 const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -60,6 +61,7 @@ export async function GET(req: NextRequest) {
 				'X-SRC-Service-Key': SERVICE_KEY,
 			},
 			cache: 'no-store',
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();
@@ -98,6 +100,7 @@ export async function POST(req: NextRequest) {
 				'X-SRC-Service-Key': SERVICE_KEY,
 			},
 			body: JSON.stringify(body),
+			...WORKER_FETCH_INIT,
 		});
 
 		const data = await res.json();

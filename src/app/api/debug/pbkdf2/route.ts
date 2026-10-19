@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../../lib/worker-target';
 
-const WORKER_BASE_URL = process.env.WORKER_BASE_URL;
+const WORKER_BASE_URL = resolveWorkerUrl(process.env.WORKER_BASE_URL, process.env);
 const SRC_WORKER_SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
 const WORKER_GUEST_API_ENABLED = process.env.WORKER_GUEST_API_ENABLED === 'true';
 const DIAG_PASSWORD = process.env.DIAG_PASSWORD || '';
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
       headers: {
         'X-SRC-Service-Key': SRC_WORKER_SERVICE_KEY,
       },
+      ...WORKER_FETCH_INIT,
     });
 
     const data = await res.json();
