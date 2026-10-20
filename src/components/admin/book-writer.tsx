@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { VersionManager } from './version-manager';
 
 interface Child {
   id: string | number;
@@ -72,6 +73,167 @@ const STATUS_COLOR: Record<string, string> = {
   failed: 'bg-gray-100 text-gray-700',
 };
 
+// ---------- P3-H-12F-4G-B 批量导入与渲染守卫纯函数（导出供本地测试） ----------
+
+export interface BulkImportResult {
+  ok: boolean;
+  pages?: Map<number, string>;
+  totalChars?: number;
+  hanziChars?: number;
+  errors?: string[];
+}
+
+// 页码标记行：行首「第N页」「第 N 页」「【第N页】」，可跟冒号/标题
+const PAGE_MARK_RE = /^【?\s*第\s*0*(\d{1,3})\s*页\s*】?\s*[:：.、]?\s*/;
+// 分页符：单独一行三个及以上连字符
+const SEPARATOR_RE = /^\s*-{3,}\s*$/;
+
+// 与 Worker PATCH 重算口径一致：全部 Unicode 字符数（含标点换行）
+export function countChars(text: string): number {
+  return Array.from(text || '').length;
+}
+
+export function countHanzi(text: string): number {
+  return Array.from(text || '').filter((ch) => ch >= '一' && ch <= '鿿').length;
+}
+
+/**
+ * 解析批量粘贴文本为分页结果。
+ * 支持两种格式：
+ *  1) 页码格式：每页以「第N页」标记行开头；
+ *  2) 分页符格式：以单独一行 --- 分隔，按顺序对应第 1..N 页。
+ * 校验：页数必须恰好等于 expectedPageCount；无缺页/重复页号/超范围页号/空页。
+ * 任何错误均返回 ok=false 且不含 pages，调用方不得部分应用。
+ */
+export function parseBulkPageText(raw: string, expectedPageCount: number): BulkImportResult {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) {
+    return { ok: false, errors: ['内容为空，请先粘贴改写文本'] };
+  }
+  if (!Number.isInteger(expectedPageCount) || expectedPageCount <= 0) {
+    return { ok: false, errors: ['目标页数无效'] };
+  }
+
+  const lines = trimmed.split(/\r?\n/);
+  const hasPageMark = lines.some((l) => PAGE_MARK_RE.test(l));
+  const hasSeparator = lines.some((l) => SEPARATOR_RE.test(l));
+
+  const pages = new Map<number, string>();
+  const errors: string[] = [];
+
+  if (hasPageMark) {
+    const duplicated: number[] = [];
+    let currentNo: number | null = null;
+    let buf: string[] = [];
+    let preamble = '';
+    const flush = () => {
+      if (currentNo === null) return;
+      pages.set(currentNo, buf.join('\n').trim());
+      buf = [];
+    };
+    for (const line of lines) {
+      const m = line.match(PAGE_MARK_RE);
+      if (m) {
+        flush();
+        currentNo = parseInt(m[1], 10);
+        if (pages.has(currentNo)) duplicated.push(currentNo);
+        const rest = line.slice(m[0].length);
+        buf = rest.trim() ? [rest] : [];
+      } else if (currentNo === null) {
+        if (line.trim()) preamble += (preamble ? '\n' : '') + line.trim();
+      } else {
+        buf.push(line);
+      }
+    }
+    flush();
+    if (preamble) {
+      errors.push('首个「第1页」标记之前存在无法归属的文字，请删除或补页码');
+    }
+    if (duplicated.length > 0) {
+      errors.push(`页号重复：第 ${Array.from(new Set(duplicated)).join('、')} 页`);
+    }
+  } else if (hasSeparator) {
+    const segments: string[] = [];
+    let buf: string[] = [];
+    for (const line of lines) {
+      if (SEPARATOR_RE.test(line)) {
+        segments.push(buf.join('\n').trim());
+        buf = [];
+      } else {
+        buf.push(line);
+      }
+    }
+    segments.push(buf.join('\n').trim());
+    if (segments.length !== expectedPageCount) {
+      return {
+        ok: false,
+        errors: [`按分页符解析出 ${segments.length} 页，应为 ${expectedPageCount} 页（分页符 --- 应出现 ${expectedPageCount - 1} 次）`],
+      };
+    }
+    segments.forEach((text, idx) => pages.set(idx + 1, text));
+  } else {
+    return {
+      ok: false,
+      errors: ['未识别到页码标记（如「第1页」）或分页符（单独一行 ---），请按格式粘贴'],
+    };
+  }
+
+  const missing: number[] = [];
+  for (let i = 1; i <= expectedPageCount; i++) {
+    if (!pages.has(i)) missing.push(i);
+  }
+  const outOfRange = Array.from(pages.keys()).filter((n) => n < 1 || n > expectedPageCount);
+  const emptyPages = Array.from(pages.entries())
+    .filter(([, text]) => !text.trim())
+    .map(([n]) => n);
+
+  if (missing.length > 0) errors.push(`缺少页面：第 ${missing.join('、')} 页（共需 ${expectedPageCount} 页）`);
+  if (outOfRange.length > 0) errors.push(`页号超出范围（1-${expectedPageCount}）：${outOfRange.join('、')}`);
+  if (emptyPages.length > 0) errors.push(`页面内容为空：第 ${emptyPages.join('、')} 页`);
+  if (errors.length > 0) return { ok: false, errors };
+
+  let totalChars = 0;
+  let hanziChars = 0;
+  pages.forEach((text) => {
+    totalChars += countChars(text);
+    hanziChars += countHanzi(text);
+  });
+  return { ok: true, pages, totalChars, hanziChars };
+}
+
+/**
+ * 将导入文本合并进现有页面数组：仅替换 text 字段，
+ * 保留 page / image_url / original_text / frontier 等其他字段（引用不变）。
+ */
+export function applyBulkTextToPages(pages: RewritePage[], imported: Map<number, string>): RewritePage[] {
+  return pages.map((p) => (imported.has(p.page) ? { ...p, text: imported.get(p.page) as string } : p));
+}
+
+/**
+ * 版本管理（激活入口）渲染守卫：
+ * 仅当当前版本为 final、归属当前选中孩子、且与当前选中故事一致时显示。
+ */
+export function shouldShowVersionManager(
+  detail: Pick<RewriteVersion, 'status' | 'child_id' | 'episode_id'> | null,
+  selectedChildId: string,
+  selectedEpisodeId?: number | null,
+): boolean {
+  if (!detail) return false;
+  if (detail.status !== 'final') return false;
+  if (!detail.child_id || !selectedChildId) return false;
+  if (String(detail.child_id) !== String(selectedChildId)) return false;
+  const epId = Number(detail.episode_id ?? selectedEpisodeId);
+  if (!Number.isFinite(epId) || epId <= 0) return false;
+  if (selectedEpisodeId != null && Number(detail.episode_id) !== Number(selectedEpisodeId)) return false;
+  return true;
+}
+
+/** 版本列表过滤：只显示当前选中孩子的 rewrite（未选孩子时不显示任何版本）。 */
+export function filterVersionsForChild(versions: RewriteVersion[], childId: string): RewriteVersion[] {
+  if (!childId) return [];
+  return versions.filter((v) => String(v.child_id ?? '') === String(childId));
+}
+
 export function BookWriter({ childList, adminFetch }: BookWriterProps) {
   // Step 1: Child
   const [selectedChildId, setSelectedChildId] = useState<string>('');
@@ -94,6 +256,19 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
   const [editedPages, setEditedPages] = useState<RewritePage[]>([]);
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [targetLevel, setTargetLevel] = useState<string>('SRC300');
+
+  // 批量导入面板（P3-H-12F-4G-B）
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+  const [bulkPreview, setBulkPreview] = useState<BulkImportResult | null>(null);
+
+  const resetBulkPanel = () => {
+    setBulkOpen(false);
+    setBulkText('');
+    setBulkErrors([]);
+    setBulkPreview(null);
+  };
 
   // Reading profile（从 admin children detail 读取）
   const [readingProfile, setReadingProfile] = useState<any>(null);
@@ -144,7 +319,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
   const handleSelectChild = (childId: string) => {
     setSelectedChildId(childId);
     if (childId) loadChildProfile(childId);
-    // 切换孩子时清空重选状态
+    // 切换孩子时清空重选状态（含批量导入面板，防止跨孩子残留）
     setSelectedEpisode(null);
     setEpisodePages([]);
     setRewriteVersions([]);
@@ -152,6 +327,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
     setRewriteDetail(null);
     setEditedPages([]);
     setEditMode(false);
+    resetBulkPanel();
   };
 
   const loadEpisodePages = async (ep: Episode) => {
@@ -193,6 +369,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
     setRewriteDetail(null);
     setEditedPages([]);
     setEditMode(false);
+    resetBulkPanel();
   };
 
   const loadRewriteDetail = async (id: number) => {
@@ -256,6 +433,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
       if (res.ok && data && data.id) {
         alert('保存成功！');
         setEditMode(false);
+        resetBulkPanel();
         setRewriteDetail(data as RewriteVersion);
         setEditedPages(data.pages_json || []);
         loadRewriteVersions(selectedEpisode!.id);
@@ -295,7 +473,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
 
   const handleFinalizeRewrite = async () => {
     if (!selectedRewriteId) return;
-    if (!confirm('确认发布此版本？发布后状态变为 final，孩子可以阅读。')) return;
+    if (!confirm('确认定稿此版本？定稿后状态变为 final，仍需在下方「版本管理」设为正式版，孩子才能阅读。')) return;
     try {
       const res = await adminFetch(`/api/books/writer/rewrites/${selectedRewriteId}/finalize`, {
         method: 'POST',
@@ -304,7 +482,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
       });
       const data = await res.json();
       if (res.ok && data && data.id && data.status === 'final') {
-        alert('已发布！孩子端可阅读。');
+        alert('已定稿。请在下方「版本管理」中设为正式版，孩子才能阅读。');
         setRewriteDetail(data as RewriteVersion);
         loadRewriteVersions(selectedEpisode!.id);
       } else {
@@ -320,6 +498,28 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
     const updated = [...editedPages];
     updated[index] = { ...updated[index], text };
     setEditedPages(updated);
+  };
+
+  // 批量导入：仅解析+预览，不修改任何已有文本（P3-H-12F-4G-B）
+  const handleBulkParse = () => {
+    const expected = editedPages.length || selectedEpisode?.page_count || 10;
+    const result = parseBulkPageText(bulkText, expected);
+    if (!result.ok) {
+      setBulkErrors(result.errors || ['解析失败']);
+      setBulkPreview(null);
+    } else {
+      setBulkErrors([]);
+      setBulkPreview(result);
+    }
+  };
+
+  // 批量导入：确认后应用到编辑器（仅内存态，仍需点击「保存修改」才写入）
+  const handleBulkApply = () => {
+    if (!bulkPreview?.ok || !bulkPreview.pages) return;
+    const imported = bulkPreview.pages;
+    setEditedPages((prev) => applyBulkTextToPages(prev, imported));
+    resetBulkPanel();
+    alert(`已应用 ${imported.size} 页到编辑器（尚未保存）。请逐页核对后点击「保存修改」。`);
   };
 
   const selectedChild = childList.find((c) => String(c.id) === selectedChildId);
@@ -464,11 +664,11 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
               </div>
             </div>
 
-            {/* 版本列表 */}
+            {/* 版本列表（仅显示当前选中孩子的 rewrite） */}
             <div className="mb-6">
               <div className="text-sm font-medium mb-2 text-gray-700">版本列表</div>
               <div className="space-y-2">
-                {rewriteVersions.map((v) => (
+                {filterVersionsForChild(rewriteVersions, selectedChildId).map((v) => (
                   <div
                     key={v.id}
                     className={`border rounded-lg p-3 cursor-pointer transition-all ${
@@ -479,6 +679,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
                     onClick={() => {
                       setSelectedRewriteId(v.id);
                       setEditMode(false);
+                      resetBulkPanel();
                       loadRewriteDetail(v.id);
                     }}
                   >
@@ -510,8 +711,8 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
                     )}
                   </div>
                 ))}
-                {rewriteVersions.length === 0 && (
-                  <div className="text-sm text-gray-400 italic">暂无版本，点击上方「创建人工初稿」开始</div>
+                {filterVersionsForChild(rewriteVersions, selectedChildId).length === 0 && (
+                  <div className="text-sm text-gray-400 italic">当前孩子暂无版本，点击上方「创建人工初稿」开始</div>
                 )}
               </div>
             </div>
@@ -535,7 +736,22 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
                       <>
                         <button
                           onClick={() => {
+                            setBulkOpen((v) => !v);
+                            setBulkErrors([]);
+                            setBulkPreview(null);
+                          }}
+                          className={`px-3 py-1.5 text-sm rounded-lg ${
+                            bulkOpen
+                              ? 'bg-teal-600 text-white'
+                              : 'bg-teal-50 text-teal-700 hover:bg-teal-100'
+                          }`}
+                        >
+                          📋 批量导入
+                        </button>
+                        <button
+                          onClick={() => {
                             setEditMode(false);
+                            resetBulkPanel();
                             setEditedPages(rewriteDetail.pages_json);
                           }}
                           className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
@@ -587,6 +803,93 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
                     <span className="font-bold">v{rewriteDetail.version}</span>
                   </div>
                 </div>
+
+                {/* 版本管理（激活入口）：仅 final 且归属当前孩子/当前故事时显示（D1 数据源） */}
+                {shouldShowVersionManager(rewriteDetail, selectedChildId, selectedEpisode?.id) && (
+                  <div className="mb-4">
+                    <VersionManager
+                      key={`${selectedChildId}-${selectedEpisode!.id}-${rewriteDetail.id}`}
+                      childId={String(rewriteDetail.child_id)}
+                      episodeId={Number(rewriteDetail.episode_id ?? selectedEpisode!.id)}
+                      currentRewriteId={Number(rewriteDetail.id)}
+                      onChanged={() => {
+                        loadRewriteVersions(selectedEpisode!.id);
+                        loadRewriteDetail(rewriteDetail.id);
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* 批量导入面板（P3-H-12F-4G-B）：解析预览 → 应用到编辑器 → 保存才写入 */}
+                {editMode && bulkOpen && (
+                  <div className="mb-4 border border-teal-200 rounded-xl p-4 bg-teal-50/40">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-medium text-teal-800">📋 批量导入改写文本</div>
+                      <button
+                        onClick={resetBulkPanel}
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        关闭
+                      </button>
+                    </div>
+                    <div className="text-xs text-gray-500 mb-2">
+                      格式：每页以「第1页」「第2页」… 标记开头；或用单独一行 <code>---</code> 分页（共{' '}
+                      {editedPages.length || selectedEpisode?.page_count || 10} 页）。
+                      解析后先预览，点击「应用到编辑器」后仍需「保存」才会写入。
+                    </div>
+                    <textarea
+                      value={bulkText}
+                      onChange={(e) => setBulkText(e.target.value)}
+                      rows={8}
+                      placeholder={'第1页\n（第一页改写文本）\n第2页\n（第二页改写文本）\n…'}
+                      className="w-full px-3 py-2 border border-teal-200 rounded-lg text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-300 font-mono"
+                    />
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={handleBulkParse}
+                        className="px-4 py-1.5 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+                      >
+                        解析预览
+                      </button>
+                      {bulkPreview?.ok && (
+                        <span className="text-xs text-teal-700">
+                          共 {bulkPreview.pages?.size ?? 0} 页 · 总字符 {bulkPreview.totalChars ?? 0} · 汉字{' '}
+                          {bulkPreview.hanziChars ?? 0}
+                        </span>
+                      )}
+                    </div>
+                    {bulkErrors.length > 0 && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="text-xs font-medium text-red-700 mb-1">解析失败（未改动任何内容）：</div>
+                        <ul className="text-xs text-red-600 list-disc pl-4 space-y-0.5">
+                          {bulkErrors.map((err, i) => (
+                            <li key={i}>{err}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {bulkPreview?.ok && bulkPreview.pages && (
+                      <div className="mt-3">
+                        <div className="text-xs font-medium text-gray-700 mb-1">预览（逐页核对）：</div>
+                        <div className="max-h-48 overflow-y-auto space-y-1">
+                          {Array.from(bulkPreview.pages.entries()).map(([no, text]) => (
+                            <div key={no} className="text-xs bg-white border rounded px-2 py-1.5 flex gap-2">
+                              <span className="font-bold text-teal-700 shrink-0">第 {no} 页</span>
+                              <span className="text-gray-400 shrink-0">{countChars(text)} 字符</span>
+                              <span className="text-gray-600 truncate">{text.slice(0, 40)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          onClick={handleBulkApply}
+                          className="mt-2 px-4 py-1.5 text-sm bg-[var(--color-src-primary)] text-white rounded-lg hover:opacity-90"
+                        >
+                          ✅ 应用到编辑器（未保存）
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 逐页编辑器 */}
                 <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
