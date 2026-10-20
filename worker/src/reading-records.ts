@@ -242,17 +242,34 @@ async function handleUpdate(
     binds.push(duration);
   }
 
-  // completed：单向（只能 0→1，绝不翻回 0）；仅在完成事件写 end_time
+  // completed：单向（只能 0→1，绝不翻回 0）；仅在首次完成事件写 end_time。
+  //
+  // 两阶段末页完成协议（产品规则：不能只凭客户端提交 completed=1 认定完成）：
+  //   完成事件必须以「服务端已持久化」的末页进度为依据 —— 仅当库存
+  //   record.pages_read 已达服务端 page_count 才接受 completed=true。
+  //   同一请求内提交 pages_read=总页数 + completed=true 不构成完成依据
+  //  （客户端可在任意页伪造该字段；此时整体 400，本次请求无任何写入，
+  //   包括同请求的 pages_read/duration 也一并拒绝，保证无副作用）。
+  //
+  // 注意：该协议验证的是服务端持久化进度状态，不能证明真实阅读行为。
   if (body.completed !== undefined) {
     if (typeof body.completed !== 'boolean') {
       return json({ success: false, error: 'Invalid completed' }, 400);
     }
     if (body.completed) {
-      setClauses.push('completed = 1');
-      setClauses.push('pages_read = ?');
-      binds.push(book.page_count);
-      // 仅在尚未完成时补 end_time，保留首次完成时间
-      if (!record.completed) {
+      if (record.completed) {
+        // 幂等：已完成记录重复完成 → 不修改 end_time / pages_read，沿用下方统一回读返回当前状态
+      } else {
+        if (record.pages_read < book.page_count) {
+          // 名额释放在完成事件成功落库后才发生；此处拒绝且零写入
+          return json({
+            success: false,
+            error: 'completion_requires_last_page',
+            pages_read: record.pages_read,
+            total_pages: book.page_count,
+          }, 400);
+        }
+        setClauses.push('completed = 1');
         setClauses.push('end_time = ?');
         binds.push(Math.floor(Date.now() / 1000));
       }
