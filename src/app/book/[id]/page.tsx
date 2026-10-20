@@ -287,13 +287,37 @@ export default function BookReaderPage({ params }: { params: Promise<{ id: strin
     // 串行排队，避免与在途页码保存乱序
     saveChainRef.current = saveChainRef.current.then(async () => {
       try {
-        const res = await fetch(`/api/reading-records/${bookId}`, {
+        const duration = Math.floor((Date.now() - mountStartRef.current) / 1000);
+
+        // 阶段一：先把末页进度持久化（服务端仅以已落库进度作为完成依据）
+        const pageRes = await fetch(`/api/reading-records/${bookId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             child_id: childId,
             pages_read: pages.length,
-            duration_seconds: Math.floor((Date.now() - mountStartRef.current) / 1000),
+            duration_seconds: duration,
+          }),
+        });
+        const pageResult = await pageRes.json().catch(() => null);
+
+        // 孩子/绘本已切换：丢弃旧结果，不更新任何 UI
+        if (uiAsyncGenRef.current !== gen) return;
+
+        if (!pageRes.ok || !pageResult?.success) {
+          completingRef.current = false;
+          setCompletionState('idle');
+          setCompleteError('进度保存失败，请再试一次');
+          return;
+        }
+
+        // 阶段二：末页进度已落库，再发送完成事件（不在同请求夹带 pages_read）
+        const res = await fetch(`/api/reading-records/${bookId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            child_id: childId,
+            duration_seconds: duration,
             completed: true,
           }),
         });

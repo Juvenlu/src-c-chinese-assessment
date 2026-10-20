@@ -630,6 +630,227 @@ async function main(): Promise<void> {
 	});
 
 	// ============================================================
+	console.log("\n[10] 两本未完成名额限制（统一计数，原子无副作用）");
+
+	const EP3 = 3;
+	const EP4 = 4;
+	const EP5 = 5;
+
+	const seedEpisodeRow = (db: DatabaseSync, id: number): void => {
+		db.prepare(`INSERT INTO book_episodes(id,series_name,episode_number,episode_title,status) VALUES (?,?,?,?,?)`)
+			.run(id, "西游记", id, `第${id}集`, "published");
+	};
+	const seedFinalRewrite = (db: DatabaseSync, child: string, episode: number): number => {
+		const r = db.prepare(
+			`INSERT INTO book_rewrite_versions
+			 (episode_id,child_id,target_level,pages_json,frontier_targets_json,status,version,
+			  total_chars,unique_chars,max_page_chars,created_at,finalized_at,finalized_by)
+			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		).run(episode, child, "SRC300", makePages(), "[]", "final", 1, 700, 200, 150, T0, T0 + 100, "admin");
+		return Number(r.lastInsertRowid);
+	};
+	const seedBookDirect = (
+		db: DatabaseSync, child: string, episode: number, rewrite: number,
+		status: "active" | "archived", completed: boolean,
+	): number => {
+		const r = db.prepare(
+			`INSERT INTO custom_books(child_id,rewrite_id,episode_id,level_tier,is_free,status,created_at,updated_at)
+			 VALUES (?,?,?,?,0,?,?,?)`,
+		).run(child, rewrite, episode, "SRC300", status, T0, T0);
+		const bookId = Number(r.lastInsertRowid);
+		if (completed) {
+			db.prepare(
+				`INSERT INTO reading_records(child_id,custom_book_id,start_time,end_time,duration_seconds,pages_read,total_pages,completed,created_at)
+				 VALUES (?,?,?,?,?,?,?,?,?)`,
+			).run(child, bookId, T0, T0 + 60, 60, 10, 10, 1, T0);
+		}
+		return bookId;
+	};
+	const unfinishedCount = (db: DatabaseSync, child: string): number =>
+		(getRow<{ n: number }>(db,
+			`SELECT COUNT(*) AS n FROM custom_books cb WHERE cb.child_id=? AND cb.status='active'
+			   AND NOT EXISTS (SELECT 1 FROM reading_records rr WHERE rr.custom_book_id=cb.id AND rr.completed=1)`,
+			[child]) as { n: number }).n;
+	const bookStatus = (db: DatabaseSync, child: string, rewrite: number): string | undefined =>
+		getRow<{ status: string }>(db, `SELECT status FROM custom_books WHERE child_id=? AND rewrite_id=?`, [child, rewrite])?.status;
+
+	await testAsync("首次两本上架成功，第三本 409 且无副作用（旧书保持 active）", async () => {
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3); seedEpisodeRow(seed.db, EP4);
+		const rB = seedFinalRewrite(seed.db, TED, EP3);
+		const rC = seedFinalRewrite(seed.db, TED, EP4);
+
+		const ok1 = await activateVersion(seed.adapter, T0 + 10, { childId: TED, episodeId: EP, rewriteId: seed.rewriteIds.w27 });
+		assert.equal(ok1.ok, true);
+		const ok2 = await activateVersion(seed.adapter, T0 + 20, { childId: TED, episodeId: EP3, rewriteId: rB });
+		assert.equal(ok2.ok, true);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+
+		const denied = await activateVersion(seed.adapter, T0 + 30, { childId: TED, episodeId: EP4, rewriteId: rC });
+		assert.equal(denied.ok, false);
+		if (!denied.ok) assert.equal(denied.status, 409);
+		assert.equal(bookStatus(seed.db, TED, seed.rewriteIds.w27), "active");
+		assert.equal(bookStatus(seed.db, TED, rB), "active");
+		assert.notEqual(bookStatus(seed.db, TED, rC), "active");
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+	});
+
+	await testAsync("历史未完成占名额、历史已完成不占名额", async () => {
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3); seedEpisodeRow(seed.db, EP4); seedEpisodeRow(seed.db, EP5);
+		// 历史未完成（无任何阅读记录 = 未开始，占 1）
+		const rOld1 = seedFinalRewrite(seed.db, TED, EP);
+		seedBookDirect(seed.db, TED, EP, rOld1, "active", false);
+		// 历史已完成（completed=1，保留完成资格不占名额）
+		const rOld2 = seedFinalRewrite(seed.db, TED, EP3);
+		seedBookDirect(seed.db, TED, EP3, rOld2, "active", true);
+		assert.equal(unfinishedCount(seed.db, TED), 1);
+
+		const rNew = seedFinalRewrite(seed.db, TED, EP4);
+		const ok = await activateVersion(seed.adapter, T0 + 10, { childId: TED, episodeId: EP4, rewriteId: rNew });
+		assert.equal(ok.ok, true);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+
+		const rX = seedFinalRewrite(seed.db, TED, EP5);
+		const denied = await activateVersion(seed.adapter, T0 + 20, { childId: TED, episodeId: EP5, rewriteId: rX });
+		assert.equal(denied.ok, false);
+		if (!denied.ok) assert.equal(denied.status, 409);
+		// 历史已完成书保持 active（未被误归档）
+		assert.equal(bookStatus(seed.db, TED, rOld2), "active");
+	});
+
+	await testAsync("满额时同 episode 未完成版本替换（净 0）成功，旧版归档", async () => {
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3);
+		const rA1 = seedFinalRewrite(seed.db, TED, EP);
+		const rA2 = seedFinalRewrite(seed.db, TED, EP);
+		const rB = seedFinalRewrite(seed.db, TED, EP3);
+		seedBookDirect(seed.db, TED, EP, rA1, "active", false);
+		seedBookDirect(seed.db, TED, EP3, rB, "active", false);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+
+		const res = await activateVersion(seed.adapter, T0 + 10, { childId: TED, episodeId: EP, rewriteId: rA2 });
+		assert.equal(res.ok, true);
+		assert.equal(bookStatus(seed.db, TED, rA1), "archived");
+		assert.equal(bookStatus(seed.db, TED, rA2), "active");
+		assert.equal(bookStatus(seed.db, TED, rB), "active");
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+	});
+
+	await testAsync("满额时『已完成版本替换为未完成版本』净 +1 → 409，旧版本保持 active", async () => {
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3); seedEpisodeRow(seed.db, EP4);
+		const rDone = seedFinalRewrite(seed.db, TED, EP);
+		const rNewVer = seedFinalRewrite(seed.db, TED, EP);
+		const rB = seedFinalRewrite(seed.db, TED, EP3);
+		const rC = seedFinalRewrite(seed.db, TED, EP4);
+		seedBookDirect(seed.db, TED, EP, rDone, "active", true);
+		seedBookDirect(seed.db, TED, EP3, rB, "active", false);
+		seedBookDirect(seed.db, TED, EP4, rC, "active", false);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+
+		const denied = await activateVersion(seed.adapter, T0 + 10, { childId: TED, episodeId: EP, rewriteId: rNewVer });
+		assert.equal(denied.ok, false);
+		if (!denied.ok) assert.equal(denied.status, 409);
+		assert.equal(bookStatus(seed.db, TED, rDone), "active");
+		assert.notEqual(bookStatus(seed.db, TED, rNewVer), "active");
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+	});
+
+	await testAsync("重复请求幂等：满额时重复激活在架版本不占新名额", async () => {
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3);
+		const rA = seedFinalRewrite(seed.db, TED, EP);
+		const rB = seedFinalRewrite(seed.db, TED, EP3);
+		const ok1 = await activateVersion(seed.adapter, T0 + 10, { childId: TED, episodeId: EP, rewriteId: rA });
+		const ok2 = await activateVersion(seed.adapter, T0 + 20, { childId: TED, episodeId: EP3, rewriteId: rB });
+		assert.equal(ok1.ok && ok2.ok, true);
+
+		const again = await activateVersion(seed.adapter, T0 + 30, { childId: TED, episodeId: EP, rewriteId: rA });
+		assert.equal(again.ok, true);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+		assert.equal(activeCount(seed.db, TED), 1);
+		assert.equal(activeCount(seed.db, TED, EP3), 1);
+	});
+
+	await testAsync("重新激活（restore）：已完成版本满额可恢复（+0）；未完成版本满额 409 且无副作用", async () => {
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3); seedEpisodeRow(seed.db, EP4);
+		const rDone = seedFinalRewrite(seed.db, TED, EP);
+		const doneId = seedBookDirect(seed.db, TED, EP, rDone, "archived", true);
+		const rB = seedFinalRewrite(seed.db, TED, EP3);
+		const rC = seedFinalRewrite(seed.db, TED, EP4);
+		seedBookDirect(seed.db, TED, EP3, rB, "active", false);
+		seedBookDirect(seed.db, TED, EP4, rC, "active", false);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+
+		// 恢复已完成版本：+0 → 允许
+		const ok = await restoreVersion(seed.adapter, T0 + 10, doneId);
+		assert.equal(ok.ok, true);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+
+		await archiveVersion(seed.adapter, T0 + 20, doneId);
+		// 未完成归档版本在满额时恢复 → 409，且无副作用
+		const rUnf = seedFinalRewrite(seed.db, TED, EP);
+		const unfId = seedBookDirect(seed.db, TED, EP, rUnf, "archived", false);
+		const denied = await restoreVersion(seed.adapter, T0 + 30, unfId);
+		assert.equal(denied.ok, false);
+		if (!denied.ok) assert.equal(denied.status, 409);
+		assert.equal(bookStatus(seed.db, TED, rB), "active");
+		assert.equal(bookStatus(seed.db, TED, rC), "active");
+		assert.equal(bookStatus(seed.db, TED, rUnf), "archived");
+	});
+
+	await testAsync("并发等价：满额后连续多个 activate 均 409，书架不变", async () => {
+		// 真并发安全由「守卫嵌在写语句内 + execBatch 单事务 + D1 写事务串行化」保证；
+		// 此处串行模拟两个并发请求的等价交错（各自在事务内对满额状态求值）。
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3); seedEpisodeRow(seed.db, EP4); seedEpisodeRow(seed.db, EP5);
+		const rA = seedFinalRewrite(seed.db, TED, EP);
+		const rB = seedFinalRewrite(seed.db, TED, EP3);
+		const rC = seedFinalRewrite(seed.db, TED, EP4);
+		const rD = seedFinalRewrite(seed.db, TED, EP5);
+		await activateVersion(seed.adapter, T0 + 10, { childId: TED, episodeId: EP, rewriteId: rA });
+		await activateVersion(seed.adapter, T0 + 20, { childId: TED, episodeId: EP3, rewriteId: rB });
+		const d1 = await activateVersion(seed.adapter, T0 + 30, { childId: TED, episodeId: EP4, rewriteId: rC });
+		const d2 = await activateVersion(seed.adapter, T0 + 40, { childId: TED, episodeId: EP5, rewriteId: rD });
+		assert.equal(d1.ok, false);
+		assert.equal(d2.ok, false);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+		assert.equal(getRows(seed.db, `SELECT id FROM custom_books WHERE child_id=? AND status='active'`, [TED]).length, 2);
+	});
+
+	await testAsync("跨孩子名额隔离：Ted 满额不影响 Sean 上架", async () => {
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3); seedEpisodeRow(seed.db, EP4);
+		const rA = seedFinalRewrite(seed.db, TED, EP);
+		const rB = seedFinalRewrite(seed.db, TED, EP3);
+		seedBookDirect(seed.db, TED, EP, rA, "active", false);
+		seedBookDirect(seed.db, TED, EP3, rB, "active", false);
+		const rSean = seedFinalRewrite(seed.db, SEAN, EP4);
+		const ok = await activateVersion(seed.adapter, T0 + 10, { childId: SEAN, episodeId: EP4, rewriteId: rSean });
+		assert.equal(ok.ok, true);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+		assert.equal(unfinishedCount(seed.db, SEAN), 1);
+	});
+
+	await testAsync("草稿/审核/未上架 final 不占名额（finalize 不建 custom_books 行）", async () => {
+		const seed = seedBase();
+		seedEpisodeRow(seed.db, EP3);
+		const rA = seedFinalRewrite(seed.db, TED, EP);
+		const rB = seedFinalRewrite(seed.db, TED, EP3);
+		seedBookDirect(seed.db, TED, EP, rA, "active", false);
+		seedBookDirect(seed.db, TED, EP3, rB, "active", false);
+		const before = getRows(seed.db, `SELECT id FROM custom_books WHERE child_id=?`, [TED]).length;
+
+		const fin = await markRewriteFinal(seed.adapter, T0 + 10, seed.rewriteIds.draft, null);
+		assert.equal(fin.ok, true);
+		const after = getRows(seed.db, `SELECT id FROM custom_books WHERE child_id=?`, [TED]).length;
+		assert.equal(after, before);
+		assert.equal(unfinishedCount(seed.db, TED), 2);
+	});
+
+	// ============================================================
 	console.log("\n[汇总]");
 	console.log(`PASS=${passed}  FAIL=${failed}`);
 	if (failed > 0) process.exitCode = 1;

@@ -6,6 +6,15 @@
  * 不变量（由 DB 部分唯一索引 + 本服务共同保证）：
  *   每个 (child_id, episode_id) 至多一条 status='active' 的 custom_books。
  *
+ * 名额不变量（P3-H-12F，产品规则）：
+ *   每个 child_id 同时至多 UNFINISHED_BOOK_LIMIT(=2) 本「未完成」绘本。
+ *   未完成 = status='active' 且不存在 completed=1 的 reading_records
+ *           （无记录=未开始、completed=0=阅读中，均占名额；历史与新绘本统一计数）。
+ *   仅 activateVersion / restoreVersion 两个上架入口会新增 active 行，均在
+ *   写语句内嵌守卫实现原子限制：名额不足时归档与上架两条语句都写 0 行，
+ *   整体无副作用（execBatch 单事务原子提交 + D1 写事务串行化），返回 409。
+ *   草稿（review/ai_draft）与 final 未上架的 rewrite 不建 custom_books 行，不占名额。
+ *
  * 状态机：
  *   rewrite: ai_draft/review ──finalize──▶ final（不再自动创建/激活 custom_books）
  *   custom_books.status: active（唯一正式展示版）/ archived（归档）/ deleted（软删除）
@@ -57,6 +66,70 @@ export const BOOK_STATUS = {
 	DELETED: "deleted",
 } as const;
 export type BookStatus = (typeof BOOK_STATUS)[keyof typeof BOOK_STATUS];
+
+/** 每个孩子同时允许的未完成绘本上限（产品规则；超出时上架入口返回 409） */
+export const UNFINISHED_BOOK_LIMIT = 2;
+
+/**
+ * 未完成绘本计数（统一含历史，不按生成方式/上架时间区分）：
+ * active 且不存在 completed=1 的阅读记录。占位符：child_id。
+ */
+const UNFINISHED_COUNT_SQL = `SELECT COUNT(*) FROM custom_books cb
+       WHERE cb.child_id = ? AND cb.status = 'active'
+         AND NOT EXISTS (
+           SELECT 1 FROM reading_records rr
+            WHERE rr.custom_book_id = cb.id AND rr.completed = 1
+         )`;
+
+/**
+ * 目标 rewrite 上架后的名额净增（0 或 1）。占位符：child_id, rewrite_id。
+ * 目标行当前已是 active（重复激活在架版本，其未完成贡献已在计数内）
+ * 或目标行已有 completed=1 记录（已完成版本重新上架，不占名额）→ 净增 0；
+ * 其余（新行 / 归档中的未完成版本重新上架）→ 净增 +1。
+ */
+const INCOMING_DELTA_SQL = `CASE WHEN EXISTS (
+         SELECT 1 FROM custom_books cb2
+          WHERE cb2.child_id = ? AND cb2.rewrite_id = ?
+            AND (cb2.status = 'active' OR EXISTS (
+              SELECT 1 FROM reading_records rr2
+               WHERE rr2.custom_book_id = cb2.id AND rr2.completed = 1))
+       ) THEN 0 ELSE 1 END`;
+
+/**
+ * 上架守卫语句对（归档旧 active + 激活目标），两条语句携带同一守卫：
+ * 名额不足时两条都写 0 行，旧 active 保持不变，目标不会部分上架；
+ * 全部写经 execBatch 单事务原子提交，依赖 D1 写事务串行化抵御并发超额。
+ *
+ * 归档语句的守卫在「归档前」状态求值，需显式减去将被归档的未完成数；
+ * 激活语句在同批归档之后求值，计数已是归档后状态，语义一致。
+ * 版本替换按操作前后实际未完成数量计算，不假设净变化恒为零。
+ */
+function buildGuardedActivation(now: number, childId: string, episodeId: number, rewriteId: number): BatchStatement[] {
+	return [
+		{
+			sql: `UPDATE custom_books SET status = 'archived', updated_at = ?
+			      WHERE child_id = ? AND episode_id = ? AND rewrite_id <> ? AND status = 'active'
+			        AND ( (${UNFINISHED_COUNT_SQL})
+			            - (SELECT COUNT(*) FROM custom_books cb
+			                WHERE cb.child_id = ? AND cb.episode_id = ? AND cb.rewrite_id <> ? AND cb.status = 'active'
+			                  AND NOT EXISTS (SELECT 1 FROM reading_records rr WHERE rr.custom_book_id = cb.id AND rr.completed = 1))
+			            + (${INCOMING_DELTA_SQL}) ) <= ?`,
+			params: [now, childId, episodeId, rewriteId, childId, childId, episodeId, rewriteId, childId, rewriteId, UNFINISHED_BOOK_LIMIT],
+		},
+		{
+			sql: `INSERT INTO custom_books
+			        (child_id, rewrite_id, episode_id, level_tier, is_free, status, created_at, updated_at)
+			      SELECT r.child_id, r.id, r.episode_id, r.target_level, 0, 'active', ?, ?
+			        FROM book_rewrite_versions r
+			       WHERE r.id = ? AND r.child_id = ? AND r.episode_id = ? AND r.status = 'final'
+			         AND ( (${UNFINISHED_COUNT_SQL}) + (${INCOMING_DELTA_SQL}) ) <= ?
+			      ON CONFLICT(child_id, rewrite_id) DO UPDATE SET
+			        status = 'active', episode_id = excluded.episode_id,
+			        level_tier = excluded.level_tier, updated_at = ?`,
+			params: [now, now, rewriteId, childId, episodeId, childId, childId, rewriteId, UNFINISHED_BOOK_LIMIT, now],
+		},
+	];
+}
 
 export type ServiceResult<T> =
 	| { ok: true; data: T }
@@ -156,32 +229,18 @@ export async function activateVersion(
 		return fail(409, "Rewrite episode mismatch");
 	}
 
-	// 原子写：先归档其它 active，再 upsert 目标。
-	await db.execBatch([
-		{
-			sql: `UPDATE custom_books
-			        SET status = 'archived', updated_at = ?
-			      WHERE child_id = ? AND episode_id = ? AND rewrite_id <> ? AND status = 'active'`,
-			params: [now, childId, episodeId, rewriteId],
-		},
-		{
-			sql: `INSERT INTO custom_books
-			        (child_id, rewrite_id, episode_id, level_tier, is_free, status, created_at, updated_at)
-			      SELECT r.child_id, r.id, r.episode_id, r.target_level, 0, 'active', ?, ?
-			        FROM book_rewrite_versions r
-			       WHERE r.id = ? AND r.child_id = ? AND r.episode_id = ? AND r.status = 'final'
-			      ON CONFLICT(child_id, rewrite_id) DO UPDATE SET
-			        status = 'active', episode_id = excluded.episode_id,
-			        level_tier = excluded.level_tier, updated_at = ?`,
-			params: [now, now, rewriteId, childId, episodeId, now],
-		},
-	]);
+	// 原子写：先归档其它 active，再 upsert 目标；两条语句均携带名额守卫。
+	// 名额不足时整体无副作用（旧 active 不归档、目标不上架），execBatch 单事务提交。
+	await db.execBatch(buildGuardedActivation(now, childId, episodeId, rewriteId));
 
-	const book = await db.get<{ id: number }>(
-		`SELECT id FROM custom_books WHERE child_id = ? AND rewrite_id = ?`,
+	// 守卫拒绝时目标行不存在或仍为非 active → 明确 409（区别于「行丢失」的 500）
+	const book = await db.get<{ id: number; status: string }>(
+		`SELECT id, status FROM custom_books WHERE child_id = ? AND rewrite_id = ?`,
 		[childId, rewriteId],
 	);
-	if (!book) return fail(500, "Activation failed: custom book row missing");
+	if (!book || book.status !== BOOK_STATUS.ACTIVE) {
+		return fail(409, "Unfinished book limit reached", { limit: UNFINISHED_BOOK_LIMIT });
+	}
 	return { ok: true, data: { customBookId: asInt(book.id) as number } };
 }
 
@@ -232,18 +291,27 @@ export async function restoreVersion(
 		return { ok: true, data: { id: customBookId, status: BOOK_STATUS.ACTIVE } }; // 幂等
 	}
 
-	// 恢复即重新选为正式版：归档其它 active，再激活本版本。
+	// 恢复即重新选为正式版：与 activateVersion 同守卫（恢复同样可能新增未完成名额）。
+	// 名额不足时整体无副作用（旧 active 不归档、本版本不恢复），返回 409。
+	const childId = row.child_id;
+	const episodeId = asInt(row.episode_id) as number;
+	const rewriteId = asInt(row.rewrite_id) as number;
 	await db.execBatch([
+		buildGuardedActivation(now, childId, episodeId, rewriteId)[0],
 		{
-			sql: `UPDATE custom_books SET status = 'archived', updated_at = ?
-			      WHERE child_id = ? AND episode_id = ? AND rewrite_id <> ? AND status = 'active'`,
-			params: [now, row.child_id, asInt(row.episode_id), asInt(row.rewrite_id)],
-		},
-		{
-			sql: `UPDATE custom_books SET status = 'active', updated_at = ? WHERE id = ?`,
-			params: [now, customBookId],
+			sql: `UPDATE custom_books SET status = 'active', updated_at = ? WHERE id = ?
+			      AND ( (${UNFINISHED_COUNT_SQL}) + (${INCOMING_DELTA_SQL}) ) <= ?`,
+			params: [now, customBookId, childId, childId, rewriteId, UNFINISHED_BOOK_LIMIT],
 		},
 	]);
+
+	const after = await db.get<{ status: string }>(
+		`SELECT status FROM custom_books WHERE id = ?`,
+		[customBookId],
+	);
+	if (!after || after.status !== BOOK_STATUS.ACTIVE) {
+		return fail(409, "Unfinished book limit reached", { limit: UNFINISHED_BOOK_LIMIT });
+	}
 	return { ok: true, data: { id: customBookId, status: BOOK_STATUS.ACTIVE } };
 }
 
