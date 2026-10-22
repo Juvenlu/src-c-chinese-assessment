@@ -62,7 +62,7 @@ async function main() {
     console.log(`  updated_at: ${r.updated_at}`);
     console.log(`  updated_at_unix: ${Math.floor(new Date(r.updated_at).getTime() / 1000)}`);
   } else {
-    console.log(`  updated_at: NULL');
+    console.log(`  updated_at: NULL`);
   }
 
   // 3. JSON 字段类型
@@ -133,6 +133,7 @@ async function main() {
       for (const c of vr.checks) {
       const d = c.details ? ' - ' + JSON.stringify(c.details).slice(0, 70) : '';
       console.log(`    ${c.check_type || c.name}: ${c.passed ? 'PASS' : 'FAIL'}${d}`);
+      }
     }
   } else console.log(`  value: ${JSON.stringify(vr).slice(0, 200)}`);
 

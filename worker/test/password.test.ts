@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 
 // Polyfill Web Crypto on Node (same API as Workers)
-// @ts-ignore
+// @ts-expect-error - Node 环境 polyfill Web Crypto（与 Workers 同 API）
 if (typeof globalThis.crypto === 'undefined') {
-  // @ts-ignore
+  // @ts-expect-error - globalThis.crypto 为只读类型，运行时需要赋值 polyfill
   globalThis.crypto = webcrypto;
 }
 

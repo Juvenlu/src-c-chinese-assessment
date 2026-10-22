@@ -7,8 +7,7 @@
 // ============================================================================
 
 // ES Module Worker: 直接 import .wasm 文件
-// Wrangler 会将其作为 WebAssembly.Module 打包
-// @ts-ignore - .wasm module import
+// Wrangler 会将其作为 WebAssembly.Module 打包（类型由 wasm.d.ts 声明提供）
 import argon2WasmModule from "./wasm/argon2.wasm";
 
 // Argon2 常量 (argon2.h)

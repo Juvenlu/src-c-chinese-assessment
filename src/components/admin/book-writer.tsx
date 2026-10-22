@@ -255,6 +255,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
   const [editMode, setEditMode] = useState(false);
   const [editedPages, setEditedPages] = useState<RewritePage[]>([]);
   const [creatingDraft, setCreatingDraft] = useState(false);
+  const [generatingAi, setGeneratingAi] = useState(false);
   const [targetLevel, setTargetLevel] = useState<string>('SRC300');
 
   // 批量导入面板（P3-H-12F-4G-B）
@@ -417,6 +418,58 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
       alert('创建失败：' + (err?.message || String(err)));
     } finally {
       setCreatingDraft(false);
+    }
+  };
+
+  // AI 一键生成个性化初稿（MULTIBOOK-13）
+  // 后端链路：Next 编排层读 Master+真实档案(D1) → LLM 改写 → 质量验证 → 落库 status=review
+  // 成功后自动打开待审核版本，复用现有逐页编辑/保存/Finalize 流程
+  const handleGenerateAiDraft = async () => {
+    if (!selectedEpisode || !selectedChildId) return;
+    setGeneratingAi(true);
+    try {
+      const res = await adminFetch('/api/admin/rewrite/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          episode_id: selectedEpisode.id,
+          child_id: selectedChildId,
+          target_level: targetLevel,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.rewrite_id) {
+        alert(
+          `AI 初稿生成成功，已进入待审核！\n版本ID: ${data.rewrite_id} · v${data.version}\n` +
+          `字数: ${data.volume_validation?.actual_count ?? data.total_chars}（目标 ${data.volume_validation?.target_min}-${data.volume_validation?.target_max}）\n` +
+          `质量验证: ${data.validation_summary || '通过'}\n请逐页审核后再决定是否 Finalize。`
+        );
+        loadRewriteVersions(selectedEpisode.id);
+        setSelectedRewriteId(data.rewrite_id);
+        loadRewriteDetail(data.rewrite_id);
+      } else if (res.status === 409) {
+        alert(
+          '已存在待审核版本，不能重复生成。\n' +
+          (data?.existing_rewrite_id ? `现有版本ID: ${data.existing_rewrite_id}（v${data.existing_version}）\n` : '') +
+          '请先编辑或驳回现有版本。'
+        );
+      } else if (res.status === 422) {
+        // 档案不足 / 质量验证失败：展示明确原因，不产生任何版本
+        let msg = '生成未通过，未创建任何版本。\n\n原因：' + (data?.error || '未知');
+        if (data?.volume_validation) {
+          msg += `\n实际字数: ${data.volume_validation.actual_count}（目标 ${data.volume_validation.target_min}-${data.volume_validation.target_max}）`;
+        }
+        if (data?.validation?.summary) {
+          msg += `\n验证明细: ${data.validation.summary}`;
+        }
+        alert(msg);
+      } else {
+        alert('AI 生成失败：' + (data?.error || data?.message || `HTTP ${res.status}`));
+      }
+    } catch (err: any) {
+      alert('AI 生成失败：' + (err?.message || String(err)));
+    } finally {
+      setGeneratingAi(false);
     }
   };
 
@@ -653,14 +706,24 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
               <div className="flex items-end md:col-span-3 gap-2">
                 <button
                   onClick={handleCreateManualDraft}
-                  disabled={creatingDraft || !selectedEpisode}
+                  disabled={creatingDraft || generatingAi || !selectedEpisode}
                   className="px-6 py-2 bg-[var(--color-src-secondary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-medium"
                 >
                   {creatingDraft ? '⏳ 创建中...' : '✍️ 创建人工初稿'}
                 </button>
-                <span className="text-xs text-gray-400 self-center">
-                  （未来 AI 生成初稿入口将添加在此处）
-                </span>
+                <button
+                  onClick={handleGenerateAiDraft}
+                  disabled={generatingAi || creatingDraft || !selectedEpisode || !selectedChildId}
+                  title={!selectedChildId ? '请先在第 1 步选择孩子（AI 个性化需要真实阅读档案）' : '基于孩子真实识字档案一键生成个性化初稿，生成后进入待审核'}
+                  className="px-6 py-2 bg-[var(--color-src-primary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-medium"
+                >
+                  {generatingAi ? '⏳ AI 生成中（约1分钟）...' : '🤖 AI 生成个性化初稿'}
+                </button>
+                {!selectedChildId && (
+                  <span className="text-xs text-gray-400 self-center">
+                    （AI 生成需要先选择孩子）
+                  </span>
+                )}
               </div>
             </div>
 
@@ -692,6 +755,11 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
                         {v.source === 'manual' && (
                           <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                             人工
+                          </span>
+                        )}
+                        {v.source === 'ai' && (
+                          <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                            🤖 AI
                           </span>
                         )}
                         {v.child_id && (
