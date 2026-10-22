@@ -36,6 +36,23 @@ export const dynamic = 'force-dynamic'
 // LLM 调用可能超过默认超时
 export const maxDuration = 120
 
+/**
+ * LLM 错误信息脱敏（MULTIBOOK-25）：Error.message 由「状态码 + 网关错误体原文」拼接，
+ * 属第三方不可控输入且会经 502 响应直达浏览器 alert。本地实证（mock 网关）：错误体中的
+ * Bearer/JWT/api_key 会原样透传，网关 502 HTML 可能携带内部上游 IP。统一过滤后再进日志
+ * 与响应，正常业务错误文本（如 "403 no permission to access model x"）完整保留。
+ */
+export function sanitizeLlmErrorMessage(raw: string, maxLen = 200): string {
+  return raw
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED_JWT]')
+    .replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]')
+    // Authorization 头值形态为「Scheme credentials」两段，需整体吃掉（单测 T7d）
+    .replace(/authorization\s*[=:]\s*\S+(\s+\S+)?/gi, 'authorization=[REDACTED]')
+    .replace(/(api[_-]?key|token|secret|password)\s*[=:]\s*\S+/gi, '$1=[REDACTED]')
+    .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?\b/g, '[REDACTED_IP]')
+    .slice(0, maxLen)
+}
+
 const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 const WORKER_ENABLED =
@@ -236,14 +253,17 @@ export async function POST(req: NextRequest) {
         req.headers,
       )
     } catch (llmError) {
+      const safeMessage = sanitizeLlmErrorMessage(
+        llmError instanceof Error ? llmError.message : 'Unknown error',
+      )
       console.error(
         `[rewrite/generate] LLM 生成失败 episode=${episodeId} child=${childId.slice(0, 8)}:`,
-        llmError instanceof Error ? llmError.message.slice(0, 200) : 'Unknown',
+        safeMessage,
       )
       return NextResponse.json(
         {
           error: 'AI 生成失败',
-          message: llmError instanceof Error ? llmError.message.slice(0, 300) : 'Unknown error',
+          message: safeMessage,
         },
         { status: 502 },
       )
