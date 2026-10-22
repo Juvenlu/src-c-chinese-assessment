@@ -5,9 +5,8 @@
 // 实现：argon2-wasm-edge (hash-wasm-edge) + 静态 .wasm import
 // ============================================================================
 
-// @ts-ignore - .wasm module import (CF Workers ES Module style)
+// .wasm module import (CF Workers ES Module style) — 类型由 wasm.d.ts 声明提供
 import argon2Wasm from "argon2-wasm-edge/wasm/argon2.wasm";
-// @ts-ignore - .wasm module import
 import blake2bWasm from "argon2-wasm-edge/wasm/blake2b.wasm";
 
 import {

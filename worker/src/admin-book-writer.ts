@@ -112,6 +112,14 @@ function mapRewriteRow(row: RewriteRow): Record<string, unknown> {
 		}
 	}
 
+	// source 以 generation_params.source 为准（manual / ai），缺失时按 manual 兼容历史数据
+	const source =
+		generation_params &&
+		typeof generation_params === "object" &&
+		typeof (generation_params as Record<string, unknown>).source === "string"
+			? ((generation_params as Record<string, unknown>).source as string)
+			: "manual";
+
 	return {
 		id: row.id,
 		episode_id: row.episode_id,
@@ -131,7 +139,7 @@ function mapRewriteRow(row: RewriteRow): Record<string, unknown> {
 		total_chars: row.total_chars,
 		unique_chars: row.unique_chars,
 		max_page_chars: row.max_page_chars,
-		source: "manual",
+		source,
 	};
 }
 
@@ -551,6 +559,373 @@ export async function handleV1AdminManualDraft(request: Request, env: Env): Prom
 		console.error("[admin-rewrites] manual draft error:", error);
 		return jsonResponse({
 			error: "Create manual draft failed",
+			message: error instanceof Error ? error.message : "Unknown error",
+		}, 500);
+	}
+}
+
+// ============================================================
+// Admin: Child Reading Profile Detail（AI 个性化改写的档案数据源）
+// ============================================================
+
+const READING_PROFILE_LEVEL_ORDER = ["SRC100", "SRC300", "SRC500", "SRC800"] as const;
+
+interface TestResultProfileRow {
+	level: string;
+	stable_char_count: number | null;
+	stable_vocab_count: number | null;
+	total_questions: number | null;
+	correct_count: number | null;
+	known_characters_json: string | null;
+	weak_characters_json: string | null;
+	completed_at: number | null;
+}
+
+function parseJsonStringArray(raw: string | null): string[] {
+	if (!raw) return [];
+	try {
+		const parsed = JSON.parse(raw) as unknown;
+		if (!Array.isArray(parsed)) return [];
+		return parsed.filter((x): x is string => typeof x === "string" && x.length > 0);
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * GET /v1/admin/children/:id/reading-profile
+ *
+ * 从 D1 读取孩子真实阅读档案明细，供 AI 个性化改写使用。
+ * - children 基本信息 + confirmed_level
+ * - test_results（formal + completed，与 growth-map 同口径）每等级最新一条
+ * - known_characters / weak_characters 为各等级实测字表的并集（去重）
+ * - 只返回原始计数（total_questions / correct_count），不计算掌握率：
+ *   D1 无 mastery_rate 字段，不得把整级测评正确率虚构为单字/单词掌握率。
+ */
+export async function handleV1AdminChildReadingProfile(
+	request: Request,
+	env: Env,
+	childId: string,
+): Promise<Response> {
+	if (!verifyAdminPassword(request, env)) {
+		return jsonResponse({ error: "Unauthorized" }, 401);
+	}
+	if (!childId || childId.length > 64) {
+		return jsonResponse({ error: "Invalid child id" }, 400);
+	}
+
+	try {
+		const childRow = await env.DB.prepare(
+			`SELECT id, nickname, age, grade, country, home_language, confirmed_level, status
+			 FROM children WHERE id = ?`
+		).bind(childId).first<{
+			id: string; nickname: string; age: number | null; grade: string | null;
+			country: string | null; home_language: string | null;
+			confirmed_level: string | null; status: string;
+		}>();
+
+		if (!childRow) {
+			return jsonResponse({ error: "Child not found" }, 404);
+		}
+
+		// 与 growth-map.ts 同口径：仅正式测试（formal）且已完成
+		const resultsResp = await env.DB.prepare(
+			`SELECT level, stable_char_count, stable_vocab_count,
+			        total_questions, correct_count,
+			        known_characters_json, weak_characters_json, completed_at
+			 FROM test_results
+			 WHERE child_id = ? AND test_type = 'formal' AND status = 'completed'
+			 ORDER BY completed_at DESC
+			 LIMIT 20`
+		).bind(childId).all<TestResultProfileRow>();
+
+		// 每等级保留最新一条（查询已按 completed_at DESC 排序）
+		const latestByLevel = new Map<string, TestResultProfileRow>();
+		for (const row of resultsResp.results || []) {
+			if (!latestByLevel.has(row.level)) {
+				latestByLevel.set(row.level, row);
+			}
+		}
+
+		const knownSet = new Set<string>();
+		const weakSet = new Set<string>();
+		const levels: Record<string, unknown>[] = [];
+
+		for (const lv of READING_PROFILE_LEVEL_ORDER) {
+			const r = latestByLevel.get(lv);
+			if (!r) continue;
+			const knownChars = parseJsonStringArray(r.known_characters_json);
+			const weakChars = parseJsonStringArray(r.weak_characters_json);
+			for (const c of knownChars) knownSet.add(c);
+			for (const c of weakChars) weakSet.add(c);
+			levels.push({
+				level: lv,
+				stable_char_count: r.stable_char_count,
+				stable_vocab_count: r.stable_vocab_count,
+				total_questions: r.total_questions,
+				correct_count: r.correct_count,
+				known_characters_count: knownChars.length,
+				weak_characters_count: weakChars.length,
+				completed_at: r.completed_at
+					? new Date(r.completed_at * 1000).toISOString()
+					: null,
+			});
+		}
+
+		return jsonResponse({
+			success: true,
+			data: {
+				child: {
+					id: childRow.id,
+					nickname: childRow.nickname,
+					age: childRow.age,
+					grade: childRow.grade,
+					country: childRow.country,
+					home_language: childRow.home_language,
+				},
+				confirmed_level: childRow.confirmed_level,
+				levels,
+				known_characters: Array.from(knownSet),
+				weak_characters: Array.from(weakSet),
+			},
+		});
+	} catch (error) {
+		console.error("[admin-children] reading profile error:", error);
+		return jsonResponse({
+			error: "Read reading profile failed",
+			message: error instanceof Error ? error.message : "Unknown error",
+		}, 500);
+	}
+}
+
+// ============================================================
+// Admin: AI Generated Draft（受控写入，status 硬编码 review）
+// ============================================================
+
+interface GeneratedDraftBody {
+	episode_id: number | string;
+	child_id?: string;
+	target_level?: string;
+	pages?: unknown;
+	frontier_targets?: unknown;
+	generation_params?: Record<string, unknown>;
+	validation_result?: unknown;
+}
+
+/**
+ * POST /v1/admin/rewrite/generated
+ *
+ * AI 生成稿的唯一落库入口（由 Next.js 编排层在 LLM 生成 + 验证通过后调用）。
+ * 安全约束：
+ * - status 硬编码 'review'，请求体无法指定，绝不直接生成可 Finalize 之外的状态；
+ * - 页数必须与 Master 完全一致；image_url / original_text 强制以 Master 为准回填，
+ *   不信任请求体（Master Asset Lock 双保险）；
+ * - 幂等：同 (child_id, episode_id, target_level) 已存在活跃版本
+ *   （status IN review/ai_draft）时 409 拒绝，不产生重复版本；
+ * - generation_params 的 source/tool 由服务端强制覆盖，防止伪造来源；
+ * - 只 INSERT 新版本，绝不修改 Master 或任何既有 Rewrite。
+ */
+export async function handleV1AdminGeneratedDraft(request: Request, env: Env): Promise<Response> {
+	if (!verifyAdminPassword(request, env)) {
+		return jsonResponse({ error: "Unauthorized" }, 401);
+	}
+
+	let body: GeneratedDraftBody;
+	try {
+		body = (await request.json()) as GeneratedDraftBody;
+	} catch {
+		return jsonResponse({ error: "Invalid JSON body" }, 400);
+	}
+
+	const episodeId = Number(body.episode_id);
+	if (!Number.isInteger(episodeId) || episodeId <= 0) {
+		return jsonResponse({ error: "episode_id required" }, 400);
+	}
+
+	const childId = typeof body.child_id === "string" ? body.child_id.trim() : "";
+	if (!childId) {
+		return jsonResponse({ error: "child_id required" }, 400);
+	}
+
+	const targetLevel = body.target_level || "";
+	const validLevels = ["SRC100", "SRC300", "SRC500", "SRC800"];
+	if (!validLevels.includes(targetLevel)) {
+		return jsonResponse({ error: "invalid target_level" }, 400);
+	}
+
+	if (!Array.isArray(body.pages) || body.pages.length === 0) {
+		return jsonResponse({ error: "pages must be a non-empty array" }, 400);
+	}
+
+	// 页结构基础校验：每页必须是 { page: 正整数, text: 非空字符串 }
+	const rawPages = body.pages as Record<string, unknown>[];
+	for (let i = 0; i < rawPages.length; i++) {
+		const p = rawPages[i];
+		if (!p || typeof p !== "object") {
+			return jsonResponse({ error: `pages[${i}] is not an object` }, 400);
+		}
+		if (!Number.isInteger(p.page) || (p.page as number) <= 0) {
+			return jsonResponse({ error: `pages[${i}].page must be a positive integer` }, 400);
+		}
+		if (typeof p.text !== "string" || (p.text as string).trim().length === 0) {
+			return jsonResponse({ error: `pages[${i}].text must be a non-empty string` }, 400);
+		}
+	}
+
+	const nowTs = nowUnix();
+
+	try {
+		// 1. 读取 Master Pages（结构保护基准）
+		const pagesResult = await env.DB.prepare(
+			`SELECT page_number, original_text, image_url
+			 FROM book_episode_pages
+			 WHERE episode_id = ?
+			 ORDER BY page_number ASC`
+		).bind(episodeId).all<EpisodePageRow>();
+		const masterPages = pagesResult.results || [];
+
+		if (masterPages.length === 0) {
+			return jsonResponse({ error: "Episode has no pages" }, 404);
+		}
+
+		// 2. Master Asset Lock：页数必须一致
+		if (rawPages.length !== masterPages.length) {
+			return jsonResponse({
+				error: `Page count mismatch: master has ${masterPages.length} pages, got ${rawPages.length}`,
+			}, 422);
+		}
+
+		// 3. 强制以 Master 为准回填 image_url / original_text，页序按 Master 页码对齐
+		const masterByPage = new Map(masterPages.map((m) => [m.page_number, m]));
+		const pagesJson: RewritePage[] = [];
+		for (let i = 0; i < rawPages.length; i++) {
+			const expectedPage = i + 1;
+			const p = rawPages[i];
+			if (p.page !== expectedPage) {
+				return jsonResponse({
+					error: `Page sequence mismatch at index ${i}: expected page ${expectedPage}, got ${p.page}`,
+				}, 422);
+			}
+			const master = masterByPage.get(expectedPage);
+			if (!master) {
+				return jsonResponse({ error: `Master page ${expectedPage} missing` }, 422);
+			}
+			pagesJson.push({
+				page: expectedPage,
+				text: (p.text as string).trim(),
+				frontier: Array.isArray(p.frontier)
+					? (p.frontier as unknown[]).filter((f): f is string => typeof f === "string")
+					: [],
+				image_url: master.image_url || undefined,
+				original_text: master.original_text || "",
+			});
+		}
+
+		// 4. 幂等：同三元组存在活跃版本（review / ai_draft）→ 409，不产生重复版本
+		const activeExisting = await env.DB.prepare(
+			`SELECT id, version, status
+			 FROM book_rewrite_versions
+			 WHERE child_id = ? AND episode_id = ? AND target_level = ?
+			   AND status IN ('review', 'ai_draft')
+			 ORDER BY version DESC, id DESC
+			 LIMIT 1`
+		).bind(childId, episodeId, targetLevel).first<{
+			id: number; version: number; status: string;
+		}>();
+
+		if (activeExisting) {
+			return jsonResponse({
+				error: "Active draft already exists for this child/episode/level; reject or edit it first",
+				existing_rewrite_id: activeExisting.id,
+				existing_version: activeExisting.version,
+				existing_status: activeExisting.status,
+			}, 409);
+		}
+
+		// 5. 统计（与 manual 同口径：总字符按 Array.from，独立字仅 CJK）
+		let totalChars = 0;
+		const uniqueCharsSet = new Set<string>();
+		let maxPageChars = 0;
+		for (const page of pagesJson) {
+			const chars = Array.from(page.text);
+			totalChars += chars.length;
+			if (chars.length > maxPageChars) maxPageChars = chars.length;
+			for (const ch of chars) {
+				// 只统计 CJK 统一汉字（与 manual 同口径）
+				if (ch >= "一" && ch <= "鿿") {
+					uniqueCharsSet.add(ch);
+				}
+			}
+		}
+
+		// 6. version = episode 维度 MAX+1
+		const versionRow = await env.DB.prepare(
+			`SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+			 FROM book_rewrite_versions
+			 WHERE episode_id = ?`
+		).bind(episodeId).first<{ next_version: number }>();
+		const nextVersion = versionRow?.next_version || 1;
+
+		// 7. generation_params：source/tool 服务端强制覆盖，防止伪造来源
+		const generationParams = {
+			...(body.generation_params && typeof body.generation_params === "object"
+				? body.generation_params
+				: {}),
+			source: "ai",
+			tool: "book-writer-ai",
+			child_id: childId,
+			target_level: targetLevel,
+			created_at: new Date(nowTs * 1000).toISOString(),
+		};
+
+		const frontierTargetsJson = JSON.stringify(
+			Array.isArray(body.frontier_targets)
+				? (body.frontier_targets as unknown[]).filter((f): f is string => typeof f === "string")
+				: []
+		);
+
+		const validationResultJson =
+			body.validation_result && typeof body.validation_result === "object"
+				? JSON.stringify(body.validation_result)
+				: null;
+
+		// 8. INSERT（status 硬编码 review；只新增，不触碰任何既有记录）
+		const insertResult = await env.DB.prepare(
+			`INSERT INTO book_rewrite_versions
+			 (episode_id, target_level, pages_json, frontier_targets_json,
+			  generation_params_json, validation_result_json, status,
+			  version, retry_count, child_id, failure_reason,
+			  total_chars, unique_chars, max_page_chars, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, 'review', ?, 0, ?, NULL, ?, ?, ?, ?)
+			 RETURNING *`
+		).bind(
+			episodeId,
+			targetLevel,
+			JSON.stringify(pagesJson),
+			frontierTargetsJson,
+			JSON.stringify(generationParams),
+			validationResultJson,
+			nextVersion,
+			childId,
+			totalChars,
+			uniqueCharsSet.size,
+			maxPageChars,
+			nowTs,
+		).first<RewriteRow>();
+
+		if (!insertResult) {
+			return jsonResponse({ error: "Failed to create generated draft" }, 500);
+		}
+
+		return jsonResponse({
+			rewrite_id: insertResult.id,
+			status: insertResult.status,
+			...mapRewriteRow(insertResult),
+		}, 201);
+	} catch (error) {
+		console.error("[admin-rewrites] generated draft error:", error);
+		return jsonResponse({
+			error: "Create generated draft failed",
 			message: error instanceof Error ? error.message : "Unknown error",
 		}, 500);
 	}

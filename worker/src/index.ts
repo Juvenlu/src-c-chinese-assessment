@@ -29,11 +29,13 @@ import { handleV1AdminRewriteFinalize } from "./admin-rewrites";
 import { handleV1AdminChildren } from "./admin-children";
 import {
 	handleV1AdminManualDraft,
+	handleV1AdminGeneratedDraft,
 	handleV1AdminRewriteDetail,
 	handleV1AdminRewritePatch,
 	handleV1AdminRewriteReject,
 	handleV1AdminEpisodeRewrites,
 	handleV1AdminChildDetail,
+	handleV1AdminChildReadingProfile,
 	handleV1AdminEpisodesList,
 	handleV1AdminEpisodePages,
 } from "./admin-book-writer";
@@ -998,6 +1000,17 @@ export default {
 			// POST /v1/admin/rewrite/manual — 绘本写手：人工创建初稿（从 Master Pages）
 			if (path === "/v1/admin/rewrite/manual" && request.method === "POST") {
 				return handleV1AdminManualDraft(request, env);
+			}
+
+			// GET /v1/admin/children/:id/reading-profile — 孩子阅读档案明细（AI 个性化数据源，D1）
+			const adminReadingProfileMatch = path.match(/^\/v1\/admin\/children\/([^/]+)\/reading-profile$/);
+			if (adminReadingProfileMatch && request.method === "GET") {
+				return handleV1AdminChildReadingProfile(request, env, adminReadingProfileMatch[1]);
+			}
+
+			// POST /v1/admin/rewrite/generated — AI 生成稿受控写入（status=review，幂等）
+			if (path === "/v1/admin/rewrite/generated" && request.method === "POST") {
+				return handleV1AdminGeneratedDraft(request, env);
 			}
 
 			// GET /v1/admin/rewrite/:id — Admin 读取单条 rewrite 详情（D1）

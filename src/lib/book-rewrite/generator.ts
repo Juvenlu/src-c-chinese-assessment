@@ -71,10 +71,10 @@ export interface ChildReadingProfile {
   stable_char_count: number;
   /** 稳定词汇量估算 */
   stable_vocab_count: number;
-  /** 单字掌握率 (%) */
-  character_mastery_rate: number;
-  /** 词汇掌握率 (%) */
-  vocab_mastery_rate: number;
+  /** 单字掌握率 (%)，无可靠数据来源时为 null（不得虚构，prompt 中跳过该行） */
+  character_mastery_rate: number | null;
+  /** 词汇掌握率 (%)，无可靠数据来源时为 null（不得虚构，prompt 中跳过该行） */
+  vocab_mastery_rate: number | null;
   /** 已掌握的汉字列表（抽样测试结果，可能不全） */
   known_characters?: string[];
   /** 已掌握的词汇列表（抽样测试结果，可能不全） */
@@ -129,15 +129,21 @@ function buildUserPrompt(
       ? `\n- 需要降低负荷的词汇（掌握不稳，共${childProfile.weak_word_signals.length}个：${weakWords}）`
       : '';
 
+    // 掌握率仅在有可靠数据来源时展示；null 时整行省略，绝不虚构
+    const masteryNote = childProfile.character_mastery_rate != null
+      ? `\n- 单字掌握率：${childProfile.character_mastery_rate}%`
+      : '';
+    const vocabMasteryNote = childProfile.vocab_mastery_rate != null
+      ? `\n- 词汇掌握率：${childProfile.vocab_mastery_rate}%`
+      : '';
+
     childSection = `
 【孩子阅读画像（个性化参考）】${nickname}
 以下是这个孩子的实测数据，用于实现 i+1 个性化：
 - 已确认等级：${level}
 - 稳定识字量估算：约 ${childProfile.stable_char_count} 字
 - 稳定词汇量估算：约 ${childProfile.stable_vocab_count} 词
-- 抽样观测已知汉字：${childProfile.observed_known_chars} 个（正式测试中实际答对的字）
-- 单字掌握率：${childProfile.character_mastery_rate}%
-- 词汇掌握率：${childProfile.vocab_mastery_rate}%${charListNote}${weakCharNote}${weakWordNote}
+- 抽样观测已知汉字：${childProfile.observed_known_chars} 个（正式测试中实际答对的字）${masteryNote}${vocabMasteryNote}${charListNote}${weakCharNote}${weakWordNote}
 
 个性化改写要求：
 1. 以 ${level} 等级作为主要难度锚点，确保大部分语言在孩子可理解范围内
@@ -153,7 +159,7 @@ function buildUserPrompt(
   return `
 ${getLevelRulesPrompt(level)}
 ${childSection}
-${getV1GuidancePrompt(level as TargetLevel)}
+${getV1GuidancePrompt(level as TargetLevel, masterPages.length)}
 【Master Story（原始故事）】
 共 ${masterPages.length} 页。
 
@@ -176,15 +182,25 @@ ${frontierText}
  * V1.0 生产标准生成指引（给 AI 的目标提示）
  * 这些是 Generation Guidance，不要求 AI 精确计算。
  * 最终统计由 Audit Engine 完成。
+ *
+ * Length 口径说明：全书字数目标统一使用 LEVEL_LANGUAGE_RULES（level-rules.ts），
+ * 与 validateReadingVolume / generateRewrite 的确定性验证口径一致；
+ * standard-v1.ts 的 length_target_* 仅用于 Audit Engine，不在此引用，
+ * 避免同一 prompt 出现两套互相冲突的字数目标。
+ * pageCount 按 Master 实际页数传入（修复历史上每页字数按 10 页硬编码的问题）。
  */
-function getV1GuidancePrompt(level: TargetLevel): string {
+function getV1GuidancePrompt(level: TargetLevel, pageCount: number): string {
   const std = getStandardV1(level);
+  const rule = LEVEL_LANGUAGE_RULES[level as Level];
+  const safePageCount = Number.isInteger(pageCount) && pageCount > 0 ? pageCount : 10;
+  const perPageMin = Math.round(rule.targetReadingMin / safePageCount);
+  const perPageMax = Math.round(rule.targetReadingMax / safePageCount);
   return `
 【V1.0 生成目标指引（生成参考，最终由 Audit Engine 统计）】
 
 生成优先级（严格按顺序）：
 1. Story Completeness — 完整保留 Master Story 的人物、事件、因果、顺序、结局。不得为了压缩字数删除核心故事。
-2. Length — 目标 ${std.length_target_min}–${std.length_target_max} 个中文字符，最高不超过 ${std.length_allowed_max} 个。如果预计明显超过 ${std.length_target_max} 字，优先压缩重复叙述、装饰性描述、非核心说明，不要压缩核心事件。每页大约 ${Math.round(std.length_target_min / 10)}–${Math.round(std.length_target_max / 10)} 个中文字符，10 页合计自然形成全书体量。
+2. Length — 目标 ${rule.targetReadingMin}–${rule.targetReadingMax} 个中文字符，最高不超过 ${rule.targetReadingMax} 个。如果预计明显超过 ${rule.targetReadingMax} 字，优先压缩重复叙述、装饰性描述、非核心说明，不要压缩核心事件。每页大约 ${perPageMin}–${perPageMax} 个中文字符，${safePageCount} 页合计自然形成全书体量。
 3. Language Load — 外字率尽量 ≤${std.external_char_rate_max}%，I+1A 尽量 ${std.i_plus_1a_target_min}–${std.i_plus_1a_target_max}%，高负荷词 ≤${std.high_load_rate_max}%，单页最高负荷尽量 ≤${std.page_peak_load_max}%。
 4. Natural Chinese — 自然中文优先于机械满足指标。
 
