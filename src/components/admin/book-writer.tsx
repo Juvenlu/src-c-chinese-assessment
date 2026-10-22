@@ -464,7 +464,8 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
         }
         alert(msg);
       } else {
-        alert('AI 生成失败：' + (data?.error || data?.message || `HTTP ${res.status}`));
+        // 优先展示后端 message（真实错误细节），error 为通用文案兜底
+        alert('AI 生成失败：' + (data?.message || data?.error || `HTTP ${res.status}`));
       }
     } catch (err: any) {
       alert('AI 生成失败：' + (err?.message || String(err)));
