@@ -302,3 +302,41 @@ src/app/book-rewrite/[id]/page.tsx # 孩子阅读 Final 版本页面
 - 自动推荐系统
 - 阅读反馈与自适应
 - 拼音/音频/AI 图片
+
+
+---
+
+# 工程标准体系 V1.0（standards/）— 强制索引与门禁
+
+> 本节为追加内容，原有 AGENTS.md 全文不变。standards/ 目录与现行规则冲突时，以本节"适用优先级"裁定，冲突本身必须立即上报。
+
+## 标准文件索引与版本
+| 文件 | 版本 | 状态 |
+|---|---|---|
+| standards/00-GOVERNANCE.md | V1.0 | 总治理与变更控制 |
+| standards/01-ARCHITECTURE.md | V1.0 | 唯一生产架构与边界 |
+| standards/02-MODULE-INDEX.md | V1.0 | 模块目录与状态（VERIFIED/DRAFT/PLANNED） |
+| standards/modules/M01–M11 | V1.0 | 模块状态以 02-MODULE-INDEX 表为准 |
+| standards/sops/SOP-BOOK-PRODUCTION-V1.md | V1.0 | VERIFIED（ep2/ep3 实证流程） |
+| standards/templates/AGENT-TASK.md | V1.0 | 任务模板 |
+
+## 强制阅读顺序（按任务类型）
+1. 每次任务首先读本文件本节 + standards/00-GOVERNANCE.md。
+2. 绘本生产/改写/审核/上架/阅读链路任务：M04→M05→M06→M07→M08 + SOP-BOOK-PRODUCTION-V1。
+3. 认证/孩子档案任务：M01；测评任务：M02；成长地图：M03；Admin：M09；部署/环境/密钥：M10。
+4. 无法读取上述任一适用文件 → 立即 BLOCKED 并报告。
+
+## 门禁规则
+1. **冲突即停**：规则缺失、标准间冲突、标准与代码不一致 → 立即停止并 BLOCKED，不得自行取舍或变更架构。
+2. **架构冻结**：禁止擅自改变唯一 Production 架构（GitHub main → Vercel → Worker src-primary-api → D1 src-primary-database + R2）；禁止私自改用 Supabase、新数据库、新 API、新分支或第三方服务作为替代路线。
+3. **标准变更**：未经管理员批准不得修改 standards/ 与本文件；变更须独立分支 + PR + 管理员审核。
+4. **分项授权**：Production 写入、Finalize、Activate、推送置新、部署、数据库迁移均为独立授权事项，不得扩大或合并授权。
+5. **报告义务**：每次报告开头列出已读取的标准文件及版本、证据、PASS/FAIL/UNKNOWN、未执行事项与唯一下一步；禁止无证据宣称成功。
+
+## 与历史文件的适用优先级
+1. 管理员在当前任务中的明确授权与禁止事项（最高）。
+2. 本文件本节 + standards/00-GOVERNANCE.md + 01-ARCHITECTURE.md。
+3. standards/modules 对应模块标准、standards/sops 对应 SOP。
+4. AGENTS.md 原有章节（项目事实与技术细节，过时处以 standards 为准并在报告中标注）。
+5. MASTER_PROMPT.md（架构冻结令原文，仍有效）。
+6. RELEASE_FREEZE_RC1.md（2026-09-01 历史基线快照，仅留档；其表清单/环境变量已被后续演进 supersede，不作现行依据）。
