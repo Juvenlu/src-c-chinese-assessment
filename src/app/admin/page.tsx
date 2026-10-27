@@ -3,14 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { BookWriter } from '@/components/admin/book-writer';
-import { VersionManager } from '@/components/admin/version-manager';
 import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
 
 type AdminTab = 'results' | 'charlib' | 'users' | 'questions' | 'books';
 
-const ADMIN_PASSWORD = 'srcc2026';
 
-function AdminContent() {
+function AdminContent({ adminPassword }: { adminPassword: string }) {
   const [tab, setTab] = useState<AdminTab>('results');
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
@@ -29,16 +27,6 @@ function AdminContent() {
   const [customBooks, setCustomBooks] = useState<any[]>([]);
   const [selectedEpisode, setSelectedEpisode] = useState<any>(null);
   const [episodePages, setEpisodePages] = useState<any[]>([]);
-  // i+1 改写版本相关状态
-  const [rewriteVersions, setRewriteVersions] = useState<any[]>([]);
-  const [selectedRewriteId, setSelectedRewriteId] = useState<string>('');
-  const [rewriteDetail, setRewriteDetail] = useState<any>(null);
-  const [rewriteLoading, setRewriteLoading] = useState(false);
-  const [rewriteGenerating, setRewriteGenerating] = useState(false);
-  const [rewriteTargetLevel, setRewriteTargetLevel] = useState<string>('SRC500');
-  const [rewriteChildId, setRewriteChildId] = useState<string>('');
-  const [editMode, setEditMode] = useState(false);
-  const [editedPages, setEditedPages] = useState<any[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [wordFile, setWordFile] = useState<File | null>(null);
   const [newEpisode, setNewEpisode] = useState({
@@ -68,7 +56,7 @@ function AdminContent() {
       ...options,
       headers: {
         ...options.headers,
-        'x-admin-password': ADMIN_PASSWORD,
+        'x-admin-password': adminPassword,
       },
     });
   };
@@ -427,161 +415,6 @@ function AdminContent() {
     } finally {
       setImportingFromR2(false);
     }
-  };
-
-  // 加载改写版本列表
-  const loadRewriteVersions = async (episodeId: string | number) => {
-    try {
-      const res = await adminFetch(`/api/books/episodes/${episodeId}/rewrites`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setRewriteVersions(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('加载改写版本失败:', err);
-      setRewriteVersions([]);
-    }
-  };
-
-  // 加载单个改写版本详情
-  const loadRewriteDetail = async (versionId: string) => {
-    setRewriteLoading(true);
-    try {
-      const res = await adminFetch(`/api/books/rewrite/${versionId}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data && data.id) {
-        setRewriteDetail(data);
-        setEditedPages(data.pages_json);
-      }
-    } catch (err) {
-      console.error('加载改写详情失败:', err);
-    } finally {
-      setRewriteLoading(false);
-    }
-  };
-
-  // 触发 AI 改写生成
-  const handleGenerateRewrite = async () => {
-    if (!selectedEpisode) return;
-    setRewriteGenerating(true);
-    try {
-      const body: any = {
-        episode_id: selectedEpisode.id,
-        target_level: rewriteTargetLevel,
-      };
-      if (rewriteChildId) body.child_id = rewriteChildId;
-
-      const res = await adminFetch('/api/books/rewrite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      let data: any = {};
-      try {
-        data = await res.json();
-      } catch {
-        // 响应不是 JSON，用 HTTP 状态说明
-      }
-
-      if (res.ok && data.rewrite_id) {
-        alert(`生成成功！版本ID: ${data.rewrite_id} (${data.status})`);
-        loadRewriteVersions(selectedEpisode.id);
-        setSelectedRewriteId(data.rewrite_id);
-        loadRewriteDetail(data.rewrite_id);
-      } else {
-        const msg = data.error || data.failure_reason || (data.validation?.summary ? `验证未通过：${data.validation.summary}` : '') || `HTTP ${res.status}`;
-        alert('生成失败：' + msg);
-      }
-    } catch (err: any) {
-      console.error(err);
-      const msg = err?.message || String(err);
-      alert('生成失败：' + msg);
-    } finally {
-      setRewriteGenerating(false);
-    }
-  };
-
-  // 保存编辑后的改写页面
-  const handleSaveRewriteEdit = async () => {
-    if (!selectedRewriteId) return;
-    setRewriteLoading(true);
-    try {
-      const res = await adminFetch(`/api/books/rewrite/${selectedRewriteId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pages_json: editedPages }),
-      });
-      const data = await res.json();
-      if (res.ok && data && data.id) {
-        alert('保存成功！');
-        setEditMode(false);
-        setRewriteDetail(data);
-        setEditedPages(data.pages_json);
-      } else {
-        alert('保存失败：' + (data?.error || data?.failure_reason || res.statusText));
-      }
-    } catch (err) {
-      console.error(err);
-      alert('保存失败');
-    } finally {
-      setRewriteLoading(false);
-    }
-  };
-
-  // Final 发布
-  const handleFinalizeRewrite = async () => {
-    if (!selectedRewriteId) return;
-    if (!confirm('确认发布此版本？发布后状态变为 final，孩子可以阅读。')) return;
-    try {
-      const res = await adminFetch(`/api/books/rewrite/${selectedRewriteId}/finalize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (res.ok && data && data.id && data.status === 'final') {
-        alert('已发布！');
-        setRewriteDetail(data);
-        loadRewriteVersions(selectedEpisode.id);
-      } else {
-        alert('发布失败：' + (data?.error || data?.failure_reason || res.statusText));
-      }
-    } catch (err) {
-      console.error(err);
-      alert('发布失败：' + (err instanceof Error ? err.message : String(err)));
-    }
-  };
-
-  // 驳回
-  const handleRejectRewrite = async () => {
-    if (!selectedRewriteId) return;
-    const reason = prompt('请输入驳回原因：');
-    if (reason === null) return;
-    try {
-      const res = await adminFetch(`/api/books/rewrite/${selectedRewriteId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason }),
-      });
-      const data = await res.json();
-      if (res.ok && data && data.id && data.status === 'rejected') {
-        alert('已驳回');
-        setRewriteDetail(data);
-        loadRewriteVersions(selectedEpisode.id);
-      } else {
-        alert('驳回失败：' + (data?.error || data?.failure_reason || res.statusText));
-      }
-    } catch (err) {
-      console.error(err);
-      alert('驳回失败');
-    }
-  };
-
-  // 编辑单页文本
-  const handleEditPageText = (index: number, text: string) => {
-    const updated = [...editedPages];
-    updated[index] = { ...updated[index], text };
-    setEditedPages(updated);
   };
 
   const handleGenerateBook = async (childId: string, episodeId: string) => {
@@ -1082,7 +915,6 @@ function AdminContent() {
                   <BookWriter
                     childList={d1Children}
                     adminFetch={adminFetch}
-                    ADMIN_PASSWORD={ADMIN_PASSWORD}
                   />
                 )}
 
@@ -1142,12 +974,7 @@ function AdminContent() {
                           onClick={async () => {
                             setSelectedEpisode(ep);
                             setEpisodePages([]);
-                            setRewriteVersions([]);
-                            setRewriteDetail(null);
-                            setSelectedRewriteId('');
-                            setEditMode(false);
-                            loadRewriteVersions(ep.id);
-                            // 同时加载该 episode 的 Master Pages，供 AI Rewrite Review 使用
+                            // 加载该 episode 的 Master Pages，供上传/导入管理使用
                             try {
                               const pagesRes = await adminFetch(`/api/books/episodes/${ep.id}/pages`);
                               const pagesData = await pagesRes.json();
@@ -1377,271 +1204,6 @@ function AdminContent() {
                   </div>
                 </div>
 
-                {/* AI 改写版本管理 */}
-                {selectedEpisode && (
-                  <div className="bg-white rounded-xl shadow-sm p-6">
-                    <h2 className="font-display text-xl text-gray-800 mb-4">
-                      🤖 AI 改写版本（i+1 定制）
-                    </h2>
-                    <p className="text-sm text-gray-600 mb-4">
-                      基于 Master Story，通过 AI 调整语言难度，生成适配目标 SRC 等级的绘本版本。
-                    </p>
-
-                    {/* 生成控制面板 */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">目标等级</label>
-                        <select
-                          className="w-full px-3 py-2 border rounded-lg text-sm"
-                          value={rewriteTargetLevel}
-                          onChange={(e) => setRewriteTargetLevel(e.target.value)}
-                        >
-                          <option value="SRC100">SRC100（100字级）</option>
-                          <option value="SRC300">SRC300（300字级）</option>
-                          <option value="SRC500">SRC500（500字级）</option>
-                          <option value="SRC800">SRC800（800字级）</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">选择孩子（可选）</label>
-                        <select
-                          className="w-full px-3 py-2 border rounded-lg text-sm"
-                          value={rewriteChildId}
-                          onChange={(e) => setRewriteChildId(e.target.value)}
-                        >
-                          <option value="">不指定孩子（通用版本）</option>
-                          {d1Children.map((c) => (
-                            <option key={String(c.id)} value={String(c.id)}>
-                              {c.nickname} ({c.age}岁)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex items-end">
-                        <button
-                          onClick={handleGenerateRewrite}
-                          disabled={rewriteGenerating}
-                          className="w-full px-4 py-2 bg-[var(--color-src-secondary)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-medium"
-                        >
-                          {rewriteGenerating ? '⏳ AI 生成中...' : '✨ 生成 AI 改写版'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 版本列表 */}
-                    <div className="mb-4">
-                      <div className="text-sm font-medium mb-2 text-gray-700">已有版本</div>
-                      <div className="space-y-2">
-                        {rewriteVersions.map((v) => (
-                          <div
-                            key={v.id}
-                            className={`border rounded-lg p-3 cursor-pointer transition-all ${
-                              selectedRewriteId === v.id
-                                ? 'border-[var(--color-src-secondary)] bg-teal-50'
-                                : 'hover:bg-gray-50'
-                            }`}
-                            onClick={() => {
-                              setSelectedRewriteId(v.id);
-                              setEditMode(false);
-                              loadRewriteDetail(v.id);
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="font-bold">{v.target_level}</span>
-                                <span className="ml-2 text-sm text-gray-500">
-                                  v{v.version} · {new Date(v.created_at).toLocaleString()}
-                                </span>
-                                {v.child_id && (
-                                  <span className="ml-2 text-xs text-gray-400">
-                                    · 孩子: {v.child_id.slice(0, 8)}
-                                  </span>
-                                )}
-                              </div>
-                              <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                v.status === 'final' ? 'bg-green-100 text-green-700' :
-                                v.status === 'ai_draft' ? 'bg-yellow-100 text-yellow-700' :
-                                v.status === 'review' ? 'bg-blue-100 text-blue-700' :
-                                v.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                                v.status === 'failed' ? 'bg-gray-100 text-gray-700' :
-                                'bg-gray-100 text-gray-700'
-                              }`}>
-                                {v.status === 'final' ? '✅ 已发布' :
-                                 v.status === 'ai_draft' ? '🤖 AI 草稿' :
-                                 v.status === 'review' ? '👀 审核中' :
-                                 v.status === 'rejected' ? '❌ 已驳回' :
-                                 v.status === 'failed' ? '⚠️ 生成失败' : v.status}
-                              </span>
-                            </div>
-                            {v.frontier_targets && v.frontier_targets.length > 0 && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Frontier: {v.frontier_targets.join('、')}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                        {rewriteVersions.length === 0 && (
-                          <div className="text-sm text-gray-400 italic">暂无改写版本</div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 审核详情 */}
-                    {rewriteDetail && (
-                      <div className="border-t pt-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-display text-lg text-gray-800">
-                            审核：{rewriteDetail.target_level} 版本
-                          </h3>
-                          <div className="flex gap-2">
-                            {!editMode ? (
-                              <button
-                                onClick={() => setEditMode(true)}
-                                className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                              >
-                                ✏️ 编辑
-                              </button>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    setEditMode(false);
-                                    setEditedPages(rewriteDetail.pages_json);
-                                  }}
-                                  className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                                >
-                                  取消
-                                </button>
-                                <button
-                                  onClick={handleSaveRewriteEdit}
-                                  className="px-3 py-1.5 text-sm bg-[var(--color-src-secondary)] text-white rounded-lg hover:opacity-90"
-                                >
-                                  💾 保存
-                                </button>
-                              </>
-                            )}
-                            <button
-                              onClick={handleRejectRewrite}
-                              className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                            >
-                              驳回
-                            </button>
-                            <button
-                              onClick={handleFinalizeRewrite}
-                              disabled={rewriteDetail.status === 'final'}
-                              className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-                            >
-                              ✅ 发布 Final
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Validation 结果 */}
-                        {rewriteDetail.validation_result && (
-                          <div className="mb-4 p-3 bg-gray-50 rounded-lg text-sm">
-                            <div className="font-medium text-gray-700 mb-2">Validation 检查</div>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                              <div className={rewriteDetail.validation_result.reading_volume?.pass ? 'text-green-600' : 'text-red-600'}>
-                                阅读量: {rewriteDetail.validation_result.reading_volume?.pass ? '✅' : '⚠️'}
-                                {rewriteDetail.validation_result.reading_volume?.actual_chars}字
-                              </div>
-                              <div className={rewriteDetail.validation_result.language_difficulty?.pass ? 'text-green-600' : 'text-yellow-600'}>
-                                语言难度: {rewriteDetail.validation_result.language_difficulty?.pass ? '✅' : '⚠️'}
-                              </div>
-                              <div className={rewriteDetail.validation_result.frontier_presence?.pass ? 'text-green-600' : 'text-red-600'}>
-                                Frontier: {rewriteDetail.validation_result.frontier_presence?.pass ? '✅' : '⚠️'}
-                              </div>
-                              <div className={rewriteDetail.validation_result.story_preservation?.pass ? 'text-green-600' : 'text-yellow-600'}>
-                                故事保持: {rewriteDetail.validation_result.story_preservation?.pass ? '✅' : '⚠️'}
-                              </div>
-                              <div className="text-gray-600">
-                                总评: {rewriteDetail.validation_result.overall_pass ? '✅ 通过' : '⚠️ 待审核'}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* P3-H-12C 正式版本管理：仅对归属某个孩子的 final 版本显示 */}
-                        {rewriteDetail.status === 'final' &&
-                          rewriteDetail.child_id &&
-                          Number(rewriteDetail.episode_id ?? selectedEpisode?.id) > 0 && (
-                          <VersionManager
-                            childId={String(rewriteDetail.child_id)}
-                            episodeId={Number(rewriteDetail.episode_id ?? selectedEpisode?.id)}
-                            currentRewriteId={Number(rewriteDetail.id)}
-                          />
-                        )}
-
-                        {/* 图文并排页 */}
-                        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-                          {editedPages.map((page: any, idx: number) => {
-                            const original = episodePages.find((ep) => ep.page_number === page.page);
-                            // fallback: 如果 episodePages 未加载，使用 pages_json 中保存的 Master 数据
-                            const masterImage = original?.image_url || page.image_url;
-                            const masterText = original?.original_text || page.original_text;
-                            return (
-                              <div key={idx} className="border rounded-xl overflow-hidden">
-                                <div className="bg-gray-100 px-4 py-2 flex items-center justify-between">
-                                  <span className="font-bold">第 {page.page} 页</span>
-                                  {page.frontier && page.frontier.length > 0 && (
-                                    <span className="text-xs text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
-                                      🌟 {page.frontier.join('、')}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
-                                  {/* 左：图片 */}
-                                  <div className="bg-gray-50 p-3 flex items-center justify-center">
-                                    {masterImage ? (
-                                      <img
-                                        src={masterImage}
-                                        alt={`第 ${page.page} 页`}
-                                        className="max-w-full max-h-48 object-contain rounded"
-                                      />
-                                    ) : (
-                                      <div className="text-gray-400 text-sm">无图片</div>
-                                    )}
-                                  </div>
-                                  {/* 右：原文 + 改写文 */}
-                                  <div className="md:col-span-2 flex flex-col divide-y">
-                                    {/* 原文 */}
-                                    <div className="p-3">
-                                      <div className="text-xs text-gray-500 font-medium mb-1">
-                                        📜 原文 (Master Text)
-                                      </div>
-                                      <div className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                                        {masterText || '（无原文）'}
-                                      </div>
-                                    </div>
-                                    {/* 改写文 */}
-                                    <div className="p-3 bg-teal-50/30">
-                                      <div className="text-xs text-teal-700 font-medium mb-1">
-                                        ✨ AI 改写
-                                      </div>
-                                      {editMode ? (
-                                        <textarea
-                                          value={page.text || ''}
-                                          onChange={(e) => handleEditPageText(idx, e.target.value)}
-                                          className="w-full px-3 py-2 border border-teal-200 rounded-lg text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-teal-300"
-                                          rows={4}
-                                        />
-                                      ) : (
-                                        <div className="text-sm text-gray-800 leading-relaxed">
-                                          {page.text || '（无内容）'}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {/* Custom Books List */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h2 className="font-display text-xl text-gray-800 mb-4">已生成绘本</h2>
@@ -1839,27 +1401,40 @@ function AdminContent() {
 }
 
 export default function AdminPage() {
-  const [authed, setAuthed] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && sessionStorage.getItem('admin_auth') === '1') {
-      setAuthed(true);
-    }
-  }, []);
-
-  const handleLogin = () => {
-    if (passwordInput === ADMIN_PASSWORD) {
-      sessionStorage.setItem('admin_auth', '1');
-      setAuthed(true);
-      setPasswordError(false);
-    } else {
-      setPasswordError(true);
+  // 口令仅保存在 React 内存状态：不写入 localStorage / sessionStorage / Cookie / URL。
+  // 身份验证通过独立的无数据库依赖接口 /api/admin/verify 完成，真实鉴权在服务端。
+  // 与统计数据源（Supabase 影子库）解耦：统计接口故障不影响管理员进入后台。
+  const handleLogin = async () => {
+    if (!passwordInput || verifying) return;
+    setVerifying(true);
+    setPasswordError('');
+    try {
+      const res = await fetch('/api/admin/verify', {
+        headers: { 'x-admin-password': passwordInput },
+      });
+      if (res.ok) {
+        setAdminPassword(passwordInput);
+        setPasswordInput('');
+      } else if (res.status === 503) {
+        setPasswordError('服务端未配置管理员口令，请联系管理员配置环境变量');
+      } else if (res.status === 401 || res.status === 403) {
+        setPasswordError('密码错误，请重试');
+      } else {
+        setPasswordError(`验证失败（HTTP ${res.status}），请稍后重试`);
+      }
+    } catch {
+      setPasswordError('网络错误，请稍后重试');
+    } finally {
+      setVerifying(false);
     }
   };
 
-  if (!authed) {
+  if (!adminPassword) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-src-bg)] px-4">
         <div className="card-game max-w-sm w-full p-8 text-center">
@@ -1873,7 +1448,7 @@ export default function AdminPage() {
           <input
             type="password"
             value={passwordInput}
-            onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
+            onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(''); }}
             onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(); }}
             placeholder="请输入密码"
             className={`w-full px-4 py-3 rounded-xl border-2 text-center text-lg outline-none transition-colors ${
@@ -1883,13 +1458,14 @@ export default function AdminPage() {
             }`}
           />
           {passwordError && (
-            <p className="text-[var(--color-src-error)] text-sm mt-2">密码错误，请重试</p>
+            <p className="text-[var(--color-src-error)] text-sm mt-2">{passwordError}</p>
           )}
           <button
             onClick={handleLogin}
-            className="mt-4 w-full py-3 rounded-xl bg-[var(--color-src-primary)] text-white font-bold text-lg transition-all hover:opacity-90 active:scale-95"
+            disabled={verifying}
+            className="mt-4 w-full py-3 rounded-xl bg-[var(--color-src-primary)] text-white font-bold text-lg transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
           >
-            进入后台
+            {verifying ? '验证中…' : '进入后台'}
           </button>
           <Link
             href="/"
@@ -1902,5 +1478,5 @@ export default function AdminPage() {
     );
   }
 
-  return <AdminContent />;
+  return <AdminContent adminPassword={adminPassword} />;
 }

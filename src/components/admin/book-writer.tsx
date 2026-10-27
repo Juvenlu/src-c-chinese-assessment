@@ -54,7 +54,6 @@ interface RewritePage {
 interface BookWriterProps {
   childList: Child[];
   adminFetch: (url: string, options?: RequestInit) => Promise<Response>;
-  ADMIN_PASSWORD: string;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -881,6 +880,7 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
                       childId={String(rewriteDetail.child_id)}
                       episodeId={Number(rewriteDetail.episode_id ?? selectedEpisode!.id)}
                       currentRewriteId={Number(rewriteDetail.id)}
+                      adminFetch={adminFetch}
                       onChanged={() => {
                         loadRewriteVersions(selectedEpisode!.id);
                         loadRewriteDetail(rewriteDetail.id);

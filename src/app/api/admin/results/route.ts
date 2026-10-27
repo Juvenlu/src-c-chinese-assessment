@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'srcc2026';
-
 export async function GET(request: Request) {
-  // 简单密码校验（与前端 Admin 密码一致）
+  // 服务端环境变量校验（fail-closed：未配置拒绝服务，无硬编码兜底；请求时读取避免模块加载期固化）
+  const expected = process.env.ADMIN_PASSWORD;
+  if (!expected) {
+    return NextResponse.json({ error: '服务配置错误' }, { status: 503 });
+  }
   const adminPwd = request.headers.get('x-admin-password');
-  if (adminPwd !== ADMIN_PASSWORD) {
-    return NextResponse.json({ error: '无权访问' }, { status: 403 });
+  if (!adminPwd || adminPwd !== expected) {
+    return NextResponse.json({ error: '无权访问' }, { status: 401 });
   }
 
   try {

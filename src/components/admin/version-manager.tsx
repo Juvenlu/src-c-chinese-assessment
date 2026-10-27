@@ -15,8 +15,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-const ADMIN_PASSWORD = 'srcc2026';
-
 // 模块级稳定常量，避免组件每次渲染重建导致 useCallback/effect 依赖抖动
 const VERSION_API_BASE = '/api/books/versioning';
 
@@ -43,14 +41,8 @@ interface Props {
   currentRewriteId?: number | null;
   /** 操作后通知父组件刷新（可选） */
   onChanged?: () => void;
-}
-
-function adminPost(url: string, body?: unknown): Promise<Response> {
-  return fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-password': ADMIN_PASSWORD },
-    body: JSON.stringify(body ?? {}),
-  });
+  /** 统一管理员请求方法（口令由父组件内存态注入，经服务端鉴权） */
+  adminFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -64,7 +56,14 @@ const STATUS_LABEL: Record<string, string> = {
   deleted: '🗑️ 已删除',
 };
 
-export function VersionManager({ childId, episodeId, currentRewriteId, onChanged }: Props) {
+export function VersionManager({ childId, episodeId, currentRewriteId, onChanged, adminFetch }: Props) {
+  const adminPost = (url: string, body?: unknown): Promise<Response> =>
+    adminFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    });
+
   const [versions, setVersions] = useState<VersionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -76,9 +75,8 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         `${VERSION_API_BASE}/children/${encodeURIComponent(childId)}/episodes/${episodeId}/versions`,
-        { headers: { 'x-admin-password': ADMIN_PASSWORD } },
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `加载失败 (${res.status})`);
@@ -116,9 +114,8 @@ export function VersionManager({ childId, episodeId, currentRewriteId, onChanged
     setConfirmDelete(v);
     setDeleteMeta(null);
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         `${VERSION_API_BASE}/custom-books/${v.custom_book_id}/delete`,
-        { headers: { 'x-admin-password': ADMIN_PASSWORD } },
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || '预检查失败');

@@ -288,7 +288,7 @@ src/app/book-rewrite/[id]/page.tsx # 孩子阅读 Final 版本页面
 ### Admin 绘本工坊
 - 位置：`/admin` → 绘本工坊 tab
 - 功能：选择绘本集 → 查看 AI 改写版本 → 图文并排审核 → 编辑 → Final/Reject
-- 鉴权：x-admin-password: srcc2026（与现有 Admin API 一致）
+- 鉴权：x-admin-password 请求头 + 服务端 ADMIN_PASSWORD 环境变量校验（fail-closed，口令不落入文档与代码）
 
 ### 技术说明
 - **pg 直连原因**：Supabase PostgREST schema cache 对动态创建的表不刷新，使用 `pg` 库直接连 PostgreSQL 绕过此限制

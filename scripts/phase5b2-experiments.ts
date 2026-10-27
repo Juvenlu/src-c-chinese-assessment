@@ -11,7 +11,10 @@
 const EPISODE_ID = 2;
 const TARGET_LEVEL = 'SRC300';
 const BASE_URL = 'http://localhost:5000';
-const ADMIN_PASSWORD = 'srcc2026';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  throw new Error('Missing ADMIN_PASSWORD env（fail-closed，脚本无硬编码兜底）');
+}
 
 const profileA = {
   label: 'exp-A-action',
