@@ -1407,13 +1407,14 @@ export default function AdminPage() {
   const [verifying, setVerifying] = useState(false);
 
   // 口令仅保存在 React 内存状态：不写入 localStorage / sessionStorage / Cookie / URL。
-  // 身份验证通过现有受保护只读接口完成，真实鉴权在服务端。
+  // 身份验证通过独立的无数据库依赖接口 /api/admin/verify 完成，真实鉴权在服务端。
+  // 与统计数据源（Supabase 影子库）解耦：统计接口故障不影响管理员进入后台。
   const handleLogin = async () => {
     if (!passwordInput || verifying) return;
     setVerifying(true);
     setPasswordError('');
     try {
-      const res = await fetch('/api/admin/users', {
+      const res = await fetch('/api/admin/verify', {
         headers: { 'x-admin-password': passwordInput },
       });
       if (res.ok) {
