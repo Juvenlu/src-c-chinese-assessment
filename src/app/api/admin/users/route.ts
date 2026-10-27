@@ -6,18 +6,23 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
  * 管理后台：获取所有用户（家长+孩子）列表
  *
  * 安全说明：
- * 使用 x-admin-password header 验证，密码与前端 Admin 页面一致。
- * 当前版本无完整 Admin/Teacher 权限体系，此为最小化保护方案。
+ * 使用 x-admin-password header 验证，预期口令仅来自服务端环境变量 ADMIN_PASSWORD。
+ * 环境变量缺失时 fail-closed（503），无硬编码兜底。
  */
-const ADMIN_PASSWORD = 'srcc2026';
 
 export async function GET(req: NextRequest) {
-  // 验证管理员密码
+  const expected = process.env.ADMIN_PASSWORD;
+  if (!expected) {
+    return NextResponse.json(
+      { error: '服务配置错误' },
+      { status: 503 }
+    );
+  }
   const adminPwd = req.headers.get('x-admin-password');
-  if (!adminPwd || adminPwd !== ADMIN_PASSWORD) {
+  if (!adminPwd || adminPwd !== expected) {
     return NextResponse.json(
       { error: '管理员密码错误' },
-      { status: 403 }
+      { status: 401 }
     );
   }
 
