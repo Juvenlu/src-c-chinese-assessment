@@ -66,7 +66,14 @@ function BookSelectContent() {
                   href={`/book/${book.id}`}
                   className="block border rounded-xl p-4 hover:shadow-md transition"
                 >
-                  <div className="font-bold">{book.episodes?.series_name} 第{book.episodes?.episode_number}集</div>
+                  <div className="font-bold flex items-center gap-2">
+                    {book.episodes?.series_name} 第{book.episodes?.episode_number}集
+                    {book.is_new === true && (
+                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                        新
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-gray-500">{book.episodes?.episode_title}</div>
                   <div className="text-xs text-gray-400 mt-1">
                     {book.level_tier} · {new Date(book.created_at).toLocaleDateString()}
