@@ -72,6 +72,7 @@ export default function HubPage() {
     level: string;
     pages: string;
     coverColor: string;
+    isNew: boolean;
   } | null>(null);
   const [todayStoryLoading, setTodayStoryLoading] = useState(true);
   // 今日故事请求失败（区分“真实空列表”与“API 错误”，不得把失败当成无绘本）
@@ -110,6 +111,7 @@ export default function HubPage() {
           id: number;
           level_tier?: string | null;
           target_level?: string | null;
+          is_new?: boolean;
           episodes?: { series_name?: string | null; episode_title?: string | null; episode_number?: number | null };
         }> = Array.isArray(body.data) ? body.data : [];
         if (books.length > 0) {
@@ -125,6 +127,8 @@ export default function HubPage() {
             level: latest.target_level || latest.level_tier || readingBaseLevel,
             pages: "约10页",
             coverColor: "#FFE66D",
+            // “新”标签：直接采用后端 is_new（pushed_at非空且未首看），缺失按 false 处理
+            isNew: latest.is_new === true,
           });
           // 阅读入口走现有 Reader（/book/<custom_book.id>），沿用阅读进度恢复机制
           setTodayStoryHref(`/book/${latest.id}`);
@@ -137,6 +141,7 @@ export default function HubPage() {
             level: readingBaseLevel,
             pages: "即将开始",
             coverColor: "#FFE66D",
+            isNew: false,
           });
           setTodayStoryHref(bookSelectHref);
         }
@@ -244,6 +249,14 @@ export default function HubPage() {
                   style={{ backgroundColor: "var(--color-primary, #FF6B35)22", color: "var(--color-primary, #FF6B35)" }}
                 >
                   推荐 {todayStory?.level || readingBaseLevel}
+                </span>
+              )}
+              {!todayStoryError && todayStory?.isNew === true && (
+                <span
+                  className="rounded-full px-2 py-0.5 font-bold"
+                  style={{ backgroundColor: "var(--color-src-accent, #FFE66D)", color: "var(--color-src-text, #2D3436)" }}
+                >
+                  新
                 </span>
               )}
               {!todayStoryError && <span>{todayStory?.pages || "约10页"}</span>}
