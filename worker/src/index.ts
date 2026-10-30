@@ -50,6 +50,7 @@ import {
 } from "./admin-versioning";
 
 import type { Env } from "./types";
+import { parseRoles, hasRole } from "./roles";
 
 export type { Env };
 
@@ -252,6 +253,8 @@ interface ParentRow {
 	email_verified: number;
 	status: string;
 	created_at: number;
+	/** 006 迁移后存在；'parent' / 'teacher' / 'parent,teacher'，经 parseRoles 规范化 */
+	roles?: string | null;
 }
 
 interface ChildRow {
@@ -288,7 +291,7 @@ async function handlePostAuthLogin(request: Request, env: Env): Promise<Response
 
 	try {
 		const parentResult = await env.DB.prepare(
-			"SELECT id, email, password_hash, email_verified, status, created_at FROM parents WHERE email = ?"
+			"SELECT id, email, password_hash, email_verified, status, created_at, roles FROM parents WHERE email = ?"
 		).bind(email).all<ParentRow>();
 
 		const parent = parentResult.results?.[0];
@@ -331,6 +334,7 @@ async function handlePostAuthLogin(request: Request, env: Env): Promise<Response
 			emailVerified: parent.email_verified === 1,
 			created_at: parent.created_at,
 			status: parent.status,
+			roles: parseRoles(parent.roles),
 		};
 
 		const childrenOut = children.map((c) => ({
@@ -650,11 +654,13 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 		);
 
 		// ===== 构造返回 =====
+		// roles 列由 006 迁移 DEFAULT 'parent' 写入，此处直接声明规范化角色
 		const userOut = {
 			id: parentId,
 			email,
 			email_verified: true,
 			created_at: nowTs,
+			roles: ["parent"],
 		};
 
 		const childOut = {
@@ -742,7 +748,7 @@ async function handleGetAuthMe(request: Request, env: Env): Promise<Response> {
 
 		// 查询家长信息（不含 password_hash）
 		const parentResult = await env.DB.prepare(
-			"SELECT id, email, email_verified, status, created_at FROM parents WHERE id = ?"
+			"SELECT id, email, email_verified, status, created_at, roles FROM parents WHERE id = ?"
 		).bind(session.parent_id).all<ParentRow>();
 
 		const parent = parentResult.results?.[0];
@@ -771,6 +777,7 @@ async function handleGetAuthMe(request: Request, env: Env): Promise<Response> {
 			emailVerified: parent.email_verified === 1,
 			created_at: parent.created_at,
 			status: parent.status,
+			roles: parseRoles(parent.roles),
 		};
 
 		const childrenOut = children.map((c) => ({
@@ -810,6 +817,149 @@ async function handlePostAuthLogout(_request: Request, _env: Env): Promise<Respo
 		200,
 		{ "Set-Cookie": expiredCookie }
 	);
+}
+
+// ===== Handler：POST /v1/auth/teacher/signup =====
+// P4-T1 教师注册：统一账号体系 + teacher 角色
+// 与家长 signup 的差异：不要求孩子资料、不创建 children、roles='teacher'
+// 复用同一套 Argon2id 密码哈希、HMAC Session、邮箱全局唯一约束
+interface TeacherSignupRequestBody {
+	email?: string;
+	password?: string;
+}
+
+async function handlePostAuthTeacherSignup(request: Request, env: Env): Promise<Response> {
+	let body: TeacherSignupRequestBody;
+	try {
+		body = await request.json() as TeacherSignupRequestBody;
+	} catch {
+		return jsonResponse({ error: "请求数据格式错误" }, 400);
+	}
+
+	const email = (body.email || "").toString().trim().toLowerCase();
+	const password = (body.password || "").toString();
+
+	// ===== 基础校验（与家长注册同规则）=====
+	if (!email || !isValidEmail(email)) {
+		return jsonResponse({ error: "请输入有效的Email地址" }, 400);
+	}
+	if (!password || password.length < 8) {
+		return jsonResponse({ error: "密码至少需要8位" }, 400);
+	}
+
+	if (!env.SESSION_SECRET) {
+		return jsonResponse({ error: "服务配置错误" }, 500);
+	}
+
+	try {
+		// ===== Email 全局查重（家长/教师共用 parents 表）=====
+		const existing = await env.DB.prepare(
+			"SELECT id FROM parents WHERE email = ?"
+		).bind(email).first<{ id: string }>();
+
+		if (existing) {
+			return jsonResponse(
+				{ error: "这个邮箱已经注册。如果您已是家长用户，请直接登录；现有账号开通教师身份的功能即将开放。" },
+				409
+			);
+		}
+
+		// ===== 密码哈希（Argon2id，与家长一致）=====
+		const passwordHash = await hashPassword(password);
+
+		// ===== 写入教师账号（roles='teacher'，不创建 children）=====
+		const parentId = crypto.randomUUID();
+		const nowTs = nowUnix();
+
+		await env.DB.prepare(
+			`INSERT INTO parents (id, email, password_hash, email_verified, status, roles, created_at)
+			 VALUES (?, ?, ?, 1, 'active', 'teacher', ?)`
+		).bind(parentId, email, passwordHash, nowTs).run();
+
+		// ===== 生成 Session（payload 结构与家长一致）=====
+		const sessionToken = await signSession(
+			{ parent_id: parentId },
+			env.SESSION_SECRET
+		);
+
+		const userOut = {
+			id: parentId,
+			email,
+			emailVerified: true,
+			created_at: nowTs,
+			status: "active",
+			roles: ["teacher"],
+		};
+
+		const cookie = createSessionCookie(sessionToken);
+
+		return jsonResponse(
+			{
+				success: true,
+				session: sessionToken,
+				user: userOut,
+				children: [],
+			},
+			200,
+			{
+				"Set-Cookie": cookie,
+			}
+		);
+	} catch (error) {
+		// UNIQUE constraint on email = 并发重复注册
+		const msg = error instanceof Error ? error.message : "Unknown";
+		if (msg.includes("UNIQUE constraint failed: parents.email")) {
+			return jsonResponse(
+				{ error: "这个邮箱已经注册。如果您已是家长用户，请直接登录；现有账号开通教师身份的功能即将开放。" },
+				409
+			);
+		}
+		console.error("[TeacherSignup] error:", msg);
+		return jsonResponse({ error: "注册失败，请稍后重试" }, 500);
+	}
+}
+
+// ===== Handler：GET /v1/teacher/me =====
+// P4-T1 教师中心服务端鉴权：Session 有效 + roles 含 teacher 才放行
+// 非教师账号（仅 parent）返回 403，杜绝仅靠 URL 访问教师数据
+async function handleGetTeacherMe(request: Request, env: Env): Promise<Response> {
+	try {
+		const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+		if (!session || !session.parent_id) {
+			return jsonResponse({ user: null, error: "未登录" }, 401);
+		}
+
+		const parentResult = await env.DB.prepare(
+			"SELECT id, email, email_verified, status, created_at, roles FROM parents WHERE id = ?"
+		).bind(session.parent_id).all<ParentRow>();
+
+		const parent = parentResult.results?.[0];
+		if (!parent || parent.status !== "active") {
+			return jsonResponse({ user: null, error: "未登录" }, 401);
+		}
+
+		const roles = parseRoles(parent.roles);
+		if (!hasRole(roles, "teacher")) {
+			return jsonResponse({ user: null, error: "该账号未开通教师身份" }, 403);
+		}
+
+		return jsonResponse(
+			{
+				user: {
+					id: parent.id,
+					email: parent.email,
+					emailVerified: parent.email_verified === 1,
+					created_at: parent.created_at,
+					status: parent.status,
+					roles,
+				},
+			},
+			200
+		);
+	} catch (error) {
+		console.error("[TeacherMe] error:", error instanceof Error ? error.message : String(error));
+		return jsonResponse({ error: "获取教师信息失败" }, 500);
+	}
 }
 
 // ===== Growth Map =====
@@ -899,6 +1049,16 @@ export default {
 			// POST /v1/auth/logout — 清除 Session Cookie
 			if (path === "/v1/auth/logout" && request.method === "POST") {
 				return handlePostAuthLogout(request, env);
+			}
+
+			// POST /v1/auth/teacher/signup — 教师注册（teacher 角色，不创建孩子）
+			if (path === "/v1/auth/teacher/signup" && request.method === "POST") {
+				return handlePostAuthTeacherSignup(request, env);
+			}
+
+			// GET /v1/teacher/me — 教师中心服务端鉴权（Session + teacher 角色）
+			if (path === "/v1/teacher/me" && request.method === "GET") {
+				return handleGetTeacherMe(request, env);
 			}
 			// GET /v1/growth-map — 成长地图（需要登录 Session + child_id 归属校验）
 			if (path === "/v1/growth-map" && request.method === "GET") {

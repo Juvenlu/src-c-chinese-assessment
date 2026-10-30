@@ -5,6 +5,8 @@
  * 运行：npx tsx test/signup.test.ts
  */
 
+import "./setup-wasm-ext";
+import "./setup-webcrypto";
 import { hashPassword } from "../src/password";
 
 const TEST_SECRET = "test-session-secret-for-signup-unit-tests";

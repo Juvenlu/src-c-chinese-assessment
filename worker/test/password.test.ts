@@ -2,6 +2,8 @@
  * Tests for PBKDF2 password utility.
  * Uses Web Crypto API available in Node.js 19+.
  */
+import './setup-wasm-ext';
+import './setup-webcrypto';
 import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 
