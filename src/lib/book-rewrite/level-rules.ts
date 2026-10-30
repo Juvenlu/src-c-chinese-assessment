@@ -24,8 +24,8 @@ export const LEVEL_LANGUAGE_RULES: Record<Level, LevelLanguageRule> = {
     level: 'SRC100',
     name: '入门级',
     description: '高频字、短句子、简单动作和关系，直接表达',
-    targetReadingMin: 120,
-    targetReadingMax: 220,
+    targetReadingMin: 100,
+    targetReadingMax: 150,
     features: [
       '只用最常见的高频汉字和简单词汇',
       '句子简短，一句话表达一个意思',
@@ -41,7 +41,7 @@ export const LEVEL_LANGUAGE_RULES: Record<Level, LevelLanguageRule> = {
     name: '基础级',
     description: '简单连续叙事，基础细节，简单因果，常见连接词',
     targetReadingMin: 300,
-    targetReadingMax: 560,
+    targetReadingMax: 380,
     features: [
       '可以有简单的连续叙事（然后、接着）',
       '加入少量细节描写（颜色、样子、声音）',
@@ -72,7 +72,7 @@ export const LEVEL_LANGUAGE_RULES: Record<Level, LevelLanguageRule> = {
     level: 'SRC800',
     name: '高级',
     description: '丰富叙事，完整场景，人物动机，因果关系，推理，更高信息密度',
-    targetReadingMin: 700,
+    targetReadingMin: 800,
     targetReadingMax: 900,
     features: [
       '场景描写更丰富，有画面感',
