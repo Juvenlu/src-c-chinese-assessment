@@ -713,6 +713,18 @@ interface GeneratedDraftBody {
 }
 
 /**
+ * 正式等级字数区间（全书汉字出现次数）。
+ * 与 src/lib/book-rewrite/level-rules.ts 的 LEVEL_LANGUAGE_RULES.targetReadingMin/Max 同源：
+ * 任一处调整必须同步另一处（Worker 与 Next.js 分属两个运行时，暂无共享模块，刻意保持最小副本，勿扩大为架构重构）。
+ */
+const LEVEL_TOTAL_HANZI_RANGE: Record<string, { min: number; max: number }> = {
+	SRC100: { min: 100, max: 150 },
+	SRC300: { min: 300, max: 380 },
+	SRC500: { min: 500, max: 600 },
+	SRC800: { min: 800, max: 900 },
+};
+
+/**
  * POST /v1/admin/rewrite/generated
  *
  * AI 生成稿的唯一落库入口（由 Next.js 编排层在 LLM 生成 + 验证通过后调用）。
@@ -844,6 +856,7 @@ export async function handleV1AdminGeneratedDraft(request: Request, env: Env): P
 
 		// 5. 统计（与 manual 同口径：总字符按 Array.from，独立字仅 CJK）
 		let totalChars = 0;
+		let totalHanzi = 0;
 		const uniqueCharsSet = new Set<string>();
 		let maxPageChars = 0;
 		for (const page of pagesJson) {
@@ -855,7 +868,58 @@ export async function handleV1AdminGeneratedDraft(request: Request, env: Env): P
 				if (ch >= "一" && ch <= "鿿") {
 					uniqueCharsSet.add(ch);
 				}
+				// 汉字出现次数：与 Next.js validation.ts countChineseChars 同区间 [一-龥]，
+				// 供下方阅读量硬校验使用（服务端独立可信校验，不信任客户端字数）
+				if (ch >= "一" && ch <= "龥") {
+					totalHanzi++;
+				}
 			}
+		}
+
+		// 5.5 服务端硬校验（57N-4）：正式字数区间 + validation_result 完整性。
+		// 任一不满足 → 422，零写入；其余启发式单项（语言难度/图文一致性等）允许 passed=false
+		// 进入人工审核，原始 validation_result 原样存储、不做任何修改。
+		const range = LEVEL_TOTAL_HANZI_RANGE[targetLevel];
+		if (totalHanzi < range.min || totalHanzi > range.max) {
+			return jsonResponse({
+				error: `Reading volume out of range for ${targetLevel}: ${totalHanzi} hanzi, expected ${range.min}-${range.max}`,
+				total_hanzi: totalHanzi,
+				expected_min: range.min,
+				expected_max: range.max,
+			}, 422);
+		}
+
+		const vr = body.validation_result;
+		if (!vr || typeof vr !== "object" || Array.isArray(vr)) {
+			return jsonResponse({ error: "validation_result must be an object" }, 422);
+		}
+		const vrObj = vr as Record<string, unknown>;
+		if (typeof vrObj.overall_pass !== "boolean") {
+			return jsonResponse({ error: "validation_result.overall_pass must be a boolean" }, 422);
+		}
+		if (vrObj.overall_pass !== true) {
+			return jsonResponse({ error: "validation_result.overall_pass must be true" }, 422);
+		}
+		if (!Array.isArray(vrObj.items)) {
+			return jsonResponse({ error: "validation_result.items must be an array" }, 422);
+		}
+		// 阅读量项为硬校验项：按稳定标识 name === '阅读量' 精确匹配；
+		// 缺失或重复均拒绝——不因名称变化而静默放行。
+		const volumeItems = (vrObj.items as unknown[]).filter(
+			(item): item is Record<string, unknown> =>
+				!!item && typeof item === "object" && (item as Record<string, unknown>).name === "阅读量"
+		);
+		if (volumeItems.length === 0) {
+			return jsonResponse({ error: "validation_result missing reading-volume item (name '阅读量')" }, 422);
+		}
+		if (volumeItems.length > 1) {
+			return jsonResponse({ error: "validation_result has duplicate reading-volume items" }, 422);
+		}
+		if (typeof volumeItems[0].passed !== "boolean") {
+			return jsonResponse({ error: "reading-volume item 'passed' must be a boolean" }, 422);
+		}
+		if (volumeItems[0].passed !== true) {
+			return jsonResponse({ error: "reading-volume validation must pass" }, 422);
 		}
 
 		// 6. version = episode 维度 MAX+1
