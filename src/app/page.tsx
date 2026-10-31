@@ -33,11 +33,19 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-[var(--color-src-bg)]">
       {/* Top nav */}
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        {!loading && (
+          <Link
+            href="/teacher"
+            className="inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 bg-white/80 backdrop-blur rounded-full shadow-sm text-[var(--color-src-text-light)] hover:bg-white hover:shadow-md transition-all text-sm font-medium"
+          >
+            教师入口
+          </Link>
+        )}
         {!loading && user ? (
           <Link
             href="/hub"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-md text-[var(--color-src-text)] hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm font-medium"
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 bg-white rounded-full shadow-md text-[var(--color-src-text)] hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm font-medium"
           >
             <span>进入中文世界</span>
             <span>→</span>
@@ -45,7 +53,7 @@ export default function HomePage() {
         ) : !loading ? (
           <Link
             href="/login"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur rounded-full shadow-sm text-[var(--color-src-text)] hover:bg-white hover:shadow-md transition-all text-sm font-medium"
+            className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 bg-white/80 backdrop-blur rounded-full shadow-sm text-[var(--color-src-text)] hover:bg-white hover:shadow-md transition-all text-sm font-medium"
           >
             登录
           </Link>

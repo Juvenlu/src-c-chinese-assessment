@@ -1,0 +1,30 @@
+-- ============================================================
+-- 006_parents_roles.sql
+-- P4-T1 教师注册 — parents 表角色字段（D1 / SQLite）
+--
+-- 变更：
+--   parents 增加 roles 列（TEXT，NOT NULL，DEFAULT 'parent'）
+--
+-- 取值规范（应用层强约束，SQLite 不支持 ALTER 后补 CHECK）：
+--   'parent'          普通家长账号（存量默认值，全部既有账号自动归属此类）
+--   'teacher'         教师账号（P4-T1 新增注册入口写入）
+--   'parent,teacher'  未来同一账号双角色（本阶段不产生，仅预留格式）
+--   规范由 worker/src/roles.ts 的 parseRoles() 解析与兜底，
+--   非法值一律按 ['parent'] 处理，绝不信任未校验的字符串包含判断。
+--
+-- 兼容性：
+--   - 既有行自动获得 DEFAULT 'parent'，无需回填。
+--   - Worker login/me 在部署后 SELECT roles 列，因此：
+--     【部署顺序强制要求】必须先执行本迁移，再部署包含 P4-T1 的 Worker 版本，
+--     否则 SELECT roles 将因列不存在而报错（no such column: roles）。
+--
+-- 幂等 / 一次性说明：
+--   - SQLite/D1 不支持 ALTER TABLE ADD COLUMN IF NOT EXISTS。
+--   - 本 ALTER 为一次性语句：列已存在时会报
+--     "duplicate column name: roles"，此时说明迁移已执行过，
+--     数据未被破坏，无需重跑。
+--   - 判断是否已迁移：
+--       PRAGMA table_info(parents);  -- 已含 roles 列则无需执行
+-- ============================================================
+
+ALTER TABLE parents ADD COLUMN roles TEXT NOT NULL DEFAULT 'parent';
