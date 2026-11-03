@@ -5,6 +5,8 @@
  * 运行：npx tsx test/login.test.ts
  */
 
+import "./setup-wasm-ext";
+import "./setup-webcrypto";
 import { hashPassword } from "../src/password";
 import { signSession, SESSION_COOKIE_NAME } from "../src/session";
 

@@ -9,6 +9,12 @@ export interface UserInfo {
   emailVerified: boolean;
   subscription_status?: string;
   plan_type?: string;
+  /**
+   * 规范化角色（Worker parseRoles 输出）：如 ['parent'] / ['teacher'] / ['parent','teacher']。
+   * 可选字段——兼容旧版本 Worker 响应（无 roles 时视为普通家长账号）。
+   * 前端仅用于 UI 提示；所有权限判断以 Worker 服务端为准。
+   */
+  roles?: string[];
 }
 
 export interface ChildInfo {
