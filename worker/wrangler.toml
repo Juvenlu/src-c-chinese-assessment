@@ -12,6 +12,13 @@ database_id = "519f117f-88b6-49c7-9d1c-dd9284ac10a4"
 # WASM module binding for Argon2id diagnostic
 # (ES Module worker: import .wasm directly in code — see argon2-wasm-diag.ts)
 
+# 邀请码 join 跨实例频率限制（平台级，namespace 1001=生产）
+# period 官方仅支持 10/60 秒（wrangler 4.156 schema 实证）
+[[ratelimits]]
+name = "JOIN_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
 # 部署配置
 [env.production]
 name = "src-primary-api"
@@ -21,12 +28,23 @@ binding = "DB"
 database_name = "src-primary-database"
 database_id = "519f117f-88b6-49c7-9d1c-dd9284ac10a4"
 
+[[env.production.ratelimits]]
+name = "JOIN_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
 [env.preview]
 
 [[env.preview.d1_databases]]
 binding = "DB"
 database_name = "src-preview-database"
 database_id = "aa04062b-2673-434d-bf27-469bd459b720"
+
+# Preview 独立 namespace 1002，与生产计数完全隔离
+[[env.preview.ratelimits]]
+name = "JOIN_RATE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }
 
 # wrangler preview 必需：preview 部署的绑定仅来自 previews block
 # (extractConfigBindings(config) = extractBindings(config.previews, config.assets))
@@ -36,3 +54,8 @@ database_id = "aa04062b-2673-434d-bf27-469bd459b720"
 binding = "DB"
 database_name = "src-preview-database"
 database_id = "aa04062b-2673-434d-bf27-469bd459b720"
+
+[[env.preview.previews.ratelimits]]
+name = "JOIN_RATE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }

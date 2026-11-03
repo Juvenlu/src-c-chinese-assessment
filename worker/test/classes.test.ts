@@ -105,6 +105,8 @@ function makeEnv(db: DatabaseSync): Env {
 		SRC_WORKER_SERVICE_KEY: TEST_SERVICE_KEY,
 		SESSION_SECRET: TEST_SECRET,
 		ADMIN_PASSWORD: "unused",
+		// 平台频控默认 mock：全部允许（既有测试行为不变）
+		JOIN_RATE_LIMITER: { limit: async () => ({ success: true }) },
 	};
 }
 
@@ -345,6 +347,33 @@ async function main(): Promise<void> {
 		lastStatus = r.status;
 	}
 	check("连续猜测触发 429", lastStatus === 429, `last=${lastStatus}`);
+	__resetJoinRateForTest();
+
+	// ———— 14. 平台级 Rate Limiting binding（单实例 mock 验证调用契约，不宣称跨地区一致） ————
+	console.log("\n== [14] 平台频控 binding ==");
+	// 14a. binding 超限 → 429
+	const denyEnv: Env = { ...env, JOIN_RATE_LIMITER: { limit: async () => ({ success: false }) } };
+	const denied = await worker.fetch(
+		makeRequest("/v1/classes/join", { method: "POST", cookie: parent2.cookie, body: { invite_code: code1, child_id: parent2.childId } }), denyEnv);
+	check("binding 超限返回 429", denied.status === 429, `status=${denied.status}`);
+	__resetJoinRateForTest();
+	// 14b. binding 异常 → 503 安全失败（不静默放行）
+	const errEnv: Env = { ...env, JOIN_RATE_LIMITER: { limit: async () => { throw new Error("binding down"); } } };
+	const errRes = await worker.fetch(
+		makeRequest("/v1/classes/join", { method: "POST", cookie: parent2.cookie, body: { invite_code: code1, child_id: parent2.childId } }), errEnv);
+	check("binding 异常返回 503（安全失败）", errRes.status === 503, `status=${errRes.status}`);
+	__resetJoinRateForTest();
+	// 14c. 不同家长使用各自 key（身份隔离）
+	const keys: string[] = [];
+	const recEnv: Env = { ...env, JOIN_RATE_LIMITER: { limit: async (o: { key: string }) => { keys.push(o.key); return { success: true }; } } };
+	await worker.fetch(makeRequest("/v1/classes/join", { method: "POST", cookie: parent1.cookie, body: { invite_code: "INVALID1", child_id: parent1.childId } }), recEnv);
+	await worker.fetch(makeRequest("/v1/classes/join", { method: "POST", cookie: parent2.cookie, body: { invite_code: "INVALID2", child_id: parent2.childId } }), recEnv);
+	check("两家长各自 key 隔离", keys.length === 2 && keys[0] === parent1.userId && keys[1] === parent2.userId, JSON.stringify(keys));
+	__resetJoinRateForTest();
+	// 14d. binding 允许时流程继续（默认 mock 已在 [1]-[13] 全程覆盖，此处显式验证走到码校验）
+	const okJoin = await worker.fetch(
+		makeRequest("/v1/classes/join", { method: "POST", cookie: parent2.cookie, body: { invite_code: "ALSO_BAD", child_id: parent2.childId } }), env);
+	check("binding 允许时流程继续（无效码 403）", okJoin.status === 403, `status=${okJoin.status}`);
 	__resetJoinRateForTest();
 
 	// ———— 11. Master 列表只返回 published ————

@@ -18,8 +18,9 @@
  *   - crypto.getRandomValues 生成 8 字符 Crockford Base32（去 I/L/O/U，40bit 熵）
  *   - 插入撞 UNIQUE 自动换码重试（最多 5 次）
  *   - 重新生成 = UPDATE 单码值，旧码立即失效
- *   - join 接口服务端滑动窗口频率限制（内存级，含失败尝试计数，防枚举）
- *     注：Worker 多 isolate 下内存频控为单实例尽力而为，非全局一致；
+ *   - join 接口双层频率限制（含失败尝试计数，防枚举）：
+ *     ① 平台级：Cloudflare Rate Limiting binding（跨 isolate 一致，权威防线）
+ *     ② 内存级：模块内滑动窗口（单实例快拒辅助，减少 binding 调用）
  *     40bit 熵 + 频控 + 统一错误文案构成实际防线。
  */
 
@@ -29,6 +30,7 @@ import { parseRoles, hasRole } from "./roles";
 interface Env {
 	DB: D1Database;
 	SESSION_SECRET: string;
+	JOIN_RATE_LIMITER: RateLimit;
 }
 
 // ==================== 常量 ====================
@@ -272,8 +274,18 @@ export async function handleJoinClass(request: Request, env: Env): Promise<Respo
 	if (!session) return jsonResponse({ error: "未登录" }, 401);
 
 	// 服务端频率限制（含失败尝试，防邀请码枚举）
+	// ① 内存级快拒（单实例辅助防线）
 	if (!joinRateAllow(session.parent_id)) {
 		return jsonResponse({ error: "操作过于频繁，请稍后再试" }, 429);
+	}
+	// ② 平台级兜底（跨 isolate 一致）；binding 异常 → 503 安全失败，不静默绕过限流
+	try {
+		const outcome = await env.JOIN_RATE_LIMITER.limit({ key: session.parent_id });
+		if (!outcome.success) {
+			return jsonResponse({ error: "操作过于频繁，请稍后再试" }, 429);
+		}
+	} catch {
+		return jsonResponse({ error: "服务暂时不可用，请稍后再试" }, 503);
 	}
 
 	let body: Record<string, unknown>;

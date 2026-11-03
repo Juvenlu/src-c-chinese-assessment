@@ -7,6 +7,8 @@ export interface Env {
 	SRC_WORKER_SERVICE_KEY: string;
 	SESSION_SECRET: string;
 	ADMIN_PASSWORD: string;
+	/** Cloudflare 原生 Rate Limiting binding（wrangler.toml [[ratelimits]]），join 接口跨实例频控 */
+	JOIN_RATE_LIMITER: RateLimit;
 }
 
 export type Level = 'SRC100' | 'SRC300' | 'SRC500' | 'SRC800';
