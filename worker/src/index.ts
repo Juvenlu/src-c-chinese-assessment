@@ -49,6 +49,15 @@ import {
 	handleAdminPush,
 } from "./admin-versioning";
 
+import {
+	handleCreateClass,
+	handleListClasses,
+	handleGetClass,
+	handleRegenerateInviteCode,
+	handleJoinClass,
+	handleRevokeMember,
+	handleMasterStories,
+} from "./classes";
 import type { Env } from "./types";
 import { parseRoles, hasRole } from "./roles";
 
@@ -1060,6 +1069,41 @@ export default {
 			if (path === "/v1/teacher/me" && request.method === "GET") {
 				return handleGetTeacherMe(request, env);
 			}
+
+			// ===== 教师班级（P4-T2）=====
+			// 注意：join / master-stories 精确匹配必须先于 /v1/classes/:id 正则
+			// POST /v1/classes — 教师创建班级（Session + teacher）
+			if (path === "/v1/classes" && request.method === "POST") {
+				return handleCreateClass(request, env);
+			}
+			// GET /v1/classes — 教师查看自己的班级列表
+			if (path === "/v1/classes" && request.method === "GET") {
+				return handleListClasses(request, env);
+			}
+			// POST /v1/classes/join — 家长授权自己孩子入班（频控 + 归属校验）
+			if (path === "/v1/classes/join" && request.method === "POST") {
+				return handleJoinClass(request, env);
+			}
+			// GET /v1/classes/master-stories — 已发布 Master 故事（教师只读）
+			if (path === "/v1/classes/master-stories" && request.method === "GET") {
+				return handleMasterStories(request, env);
+			}
+			// GET /v1/classes/:id — 教师查看本班及学生（他班 404）
+			const classGetMatch = path.match(/^\/v1\/classes\/([^/]+)$/);
+			if (classGetMatch && request.method === "GET") {
+				return handleGetClass(request, env, classGetMatch[1]);
+			}
+			// POST /v1/classes/:id/invite-code — 重新生成邀请码（旧码即失效）
+			const inviteRegenMatch = path.match(/^\/v1\/classes\/([^/]+)\/invite-code$/);
+			if (inviteRegenMatch && request.method === "POST") {
+				return handleRegenerateInviteCode(request, env, inviteRegenMatch[1]);
+			}
+			// POST /v1/classes/:id/members/:childId/revoke — 授权家长或本班教师撤销
+			const revokeMatch = path.match(/^\/v1\/classes\/([^/]+)\/members\/([^/]+)\/revoke$/);
+			if (revokeMatch && request.method === "POST") {
+				return handleRevokeMember(request, env, revokeMatch[1], revokeMatch[2]);
+			}
+
 			// GET /v1/growth-map — 成长地图（需要登录 Session + child_id 归属校验）
 			if (path === "/v1/growth-map" && request.method === "GET") {
 				return handleV1GrowthMap(request, env);
