@@ -159,22 +159,24 @@ export default function TeacherHomePage() {
           </div>
         </div>
 
-        {/* 功能入口（占位，即将开放） */}
+        {/* 功能入口 */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-2xl shadow p-5 opacity-60 cursor-not-allowed select-none">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-[var(--color-src-primary)]/10 flex items-center justify-center">
-                <Users className="w-5 h-5 text-[var(--color-src-primary)]" />
+          <Link href="/teacher/classes" className="block">
+            <div className="bg-white rounded-2xl shadow p-5 h-full transition-all duration-200 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-[var(--color-src-primary)]/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-[var(--color-src-primary)]" />
+                </div>
+                <h3 className="font-bold text-gray-800">我的班级</h3>
               </div>
-              <h3 className="font-bold text-gray-800">我的班级</h3>
+              <p className="text-xs text-gray-400 leading-relaxed mb-3">
+                创建班级，邀请学生加入，查看学生阅读状态
+              </p>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--color-src-secondary)]/15 text-teal-700">
+                进入管理
+              </span>
             </div>
-            <p className="text-xs text-gray-400 leading-relaxed mb-3">
-              创建班级，邀请学生加入，查看学生阅读状态
-            </p>
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-400">
-              即将开放
-            </span>
-          </div>
+          </Link>
 
           <div className="bg-white rounded-2xl shadow p-5 opacity-60 cursor-not-allowed select-none">
             <div className="flex items-center gap-3 mb-3">

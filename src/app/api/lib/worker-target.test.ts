@@ -200,15 +200,17 @@ for (const f of workerCallerRoutes) {
     c.includes("resolveWorkerUrl(process.env.SRC_WORKER_URL") ||
     c.includes('resolveWorkerTarget(process.env.WORKER_BASE_URL') ||
     /proxyToWorker\s*\(/.test(c) || // 经公共代理：守卫在 worker-proxy.ts 内统一执行
+    /proxySessionToWorker\s*\(/.test(c) || // 经 Session 代理：守卫在 session-proxy.ts 内统一执行
     isProxyLib;
   if (usesGuard) guarded++;
   else unguarded.push(path.relative(apiDir, f));
 }
 
-// 19 直连 + 11 proxyToWorker 消费路由（5 既有 manual/writer + 6 新增 versioning）+ 3 reading = 33
-// 注：守卫本体 worker-proxy.ts 为 lib 文件，非 route.ts；故 12 个 proxyToWorker 引用中 11 个是路由
-check(`T12 worker-caller routes count expected (=33)`,
-  workerCallerRoutes.length === 33, `actual=${workerCallerRoutes.length}`);
+// 38 既有 caller（19 直连 + 11 proxyToWorker 消费路由 + 3 reading + 5 其他守卫内路由）
+// + 4 新增 classes Session 代理路由（P4-T4）= 42
+// 注：守卫本体 worker-proxy.ts / session-proxy.ts 为 lib 文件，非 route.ts
+check(`T12 worker-caller routes count expected (=42)`,
+  workerCallerRoutes.length === 42, `actual=${workerCallerRoutes.length}`);
 check('T13 all worker-caller routes guarded (unguarded=0)', unguarded.length === 0,
   unguarded.length ? 'UNGUARDED: ' + unguarded.join(', ') : '');
 console.log(`[coverage] worker caller routes = ${workerCallerRoutes.length}, guarded = ${guarded}`);

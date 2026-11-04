@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { AppHeader } from "@/components/AppHeader";
+import { JoinClassCard } from "@/components/JoinClassCard";
 import {
   BookOpen,
   Gamepad2,
@@ -338,6 +339,9 @@ export default function HubPage() {
             </div>
           </Link>
         </div>
+
+        {/* 🏫 加入老师教室（P4-T4） */}
+        <JoinClassCard />
 
         {/* 成长速览卡片 */}
         <div className="mt-8 grid gap-6 md:grid-cols-2">
