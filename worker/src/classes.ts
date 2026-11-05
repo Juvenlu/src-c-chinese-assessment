@@ -26,6 +26,8 @@
 
 import { getSessionFromRequest } from "./session";
 import { parseRoles, hasRole } from "./roles";
+import { getConfirmedLevel } from "./level-service";
+import type { Level } from "./types";
 
 interface Env {
 	DB: D1Database;
@@ -222,22 +224,47 @@ export async function handleGetClass(request: Request, env: Env, classId: string
 	const cls = await getOwnedClass(env, classId, auth.parent_id);
 	if (!cls) return jsonResponse({ error: "班级不存在" }, 404); // 他班同 404，不泄露存在性
 
-	// 最小字段投影：仅 nickname / grade / confirmed_level + 必要标识
-	const { results: members } = await env.DB.prepare(
+	// 最小字段投影：仅 nickname / grade + 必要标识
+	// confirmed_level 不读 children 静态字段（无写入路径），由下方权威计算统一注入
+	const { results: memberRows } = await env.DB.prepare(
 		`SELECT m.child_id, m.authorized_at,
-		        ch.nickname, ch.grade, ch.confirmed_level
+		        ch.nickname, ch.grade
 		 FROM class_memberships m
 		 JOIN children ch ON ch.id = m.child_id
 		 WHERE m.class_id = ?1 AND m.status = 'active'
 		 ORDER BY m.authorized_at ASC`
-	).bind(classId).all();
+	).bind(classId).all<{ child_id: string; authorized_at: number; nickname: string; grade: string }>();
+
+	// 权威等级（与成长地图同一链路，P4-T6B-4）：
+	// 批量取每位成员最新一条正式测评（窗口函数每孩仅 1 行，不加载全部测评历史），
+	// 经 level-service.getConfirmedLevel 纯函数计算 —— 固定 2 条 SQL，无 N+1，零学习数据写入。
+	const levelByChild = new Map<string, Level | null>();
+	if (memberRows.length > 0) {
+		const { results: latestFormals } = await env.DB.prepare(
+			`SELECT child_id, stable_char_count, level FROM (
+			   SELECT child_id, stable_char_count, level,
+			          ROW_NUMBER() OVER (PARTITION BY child_id ORDER BY completed_at DESC) AS rn
+			   FROM test_results
+			   WHERE test_type = 'formal' AND status = 'completed'
+			     AND child_id IN (SELECT child_id FROM class_memberships WHERE class_id = ?1 AND status = 'active')
+			 ) WHERE rn = 1`
+		).bind(classId).all<{ child_id: string; stable_char_count: number | null; level: Level | null }>();
+		for (const r of latestFormals) {
+			levelByChild.set(r.child_id, getConfirmedLevel({ stable_char_count: r.stable_char_count, level: r.level }));
+		}
+	}
+	const members = memberRows.map((m) => ({
+		...m,
+		// 未测评（无正式测评记录）→ null → 前端显示「未测评」
+		confirmed_level: levelByChild.get(m.child_id) ?? null,
+	}));
 
 	return jsonResponse({
 		class: {
 			id: cls.id, name: cls.name, invite_code: cls.invite_code,
 			status: cls.status, created_at: cls.created_at,
 		},
-		members, // confirmed_level 可能为 NULL → 原样返回，前端显示「未测评」
+		members,
 	});
 }
 

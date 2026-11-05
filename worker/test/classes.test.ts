@@ -96,6 +96,19 @@ CREATE TABLE book_episodes (
   description     TEXT
 );`;
 
+// 权威等级数据源（P4-T6B-4）：最小列集，与线上 test_results 关键字段对齐
+const DDL_TEST_RESULTS = `
+CREATE TABLE test_results (
+  id                TEXT PRIMARY KEY,
+  child_id          TEXT NOT NULL,
+  level             TEXT,
+  test_type         TEXT NOT NULL,
+  status            TEXT NOT NULL,
+  stable_char_count INTEGER,
+  completed_at      INTEGER NOT NULL,
+  created_at        INTEGER NOT NULL
+);`;
+
 const TEST_SERVICE_KEY = "test-service-key-p4t2";
 const TEST_SECRET = "test-session-secret-p4t2";
 
@@ -127,6 +140,7 @@ function createFreshDb(): DatabaseSync {
 	db.exec(DDL_CHILDREN);
 	db.exec(DDL_GUEST_SESSIONS);
 	db.exec(DDL_BOOK_EPISODES);
+	db.exec(DDL_TEST_RESULTS);
 	applyMigration(db, "007_teacher_classes.sql");
 	db.exec(`INSERT INTO book_episodes (id, series_name, episode_number, episode_title, page_count, level_tier, status)
 	         VALUES (2,'西游记',1,'大家都叫他孙悟空',10,'SRC500','published'),
@@ -182,6 +196,14 @@ async function signupParent(db: DatabaseSync, email: string, nickname: string): 
 	);
 	const body = (await res.json()) as { user?: { id: string }; children?: { id: string }[] };
 	return { cookie: extractSessionCookie(res), userId: body.user?.id, childId: body.children?.[0]?.id };
+}
+
+/** 种子：一条已完成的正式测评结果（权威等级数据源，P4-T6B-4） */
+function seedFormalResult(db: DatabaseSync, childId: string, level: string, stableChar: number, completedAt: number): void {
+	db.prepare(
+		`INSERT INTO test_results (id, child_id, level, test_type, status, stable_char_count, completed_at, created_at)
+		 VALUES (?,?,?,'formal','completed',?,?,?)`
+	).run(`tr-${completedAt}-${childId.slice(0, 8)}`, childId, level, stableChar, completedAt, completedAt);
 }
 
 // ————————————————————————————————————
@@ -266,14 +288,35 @@ async function main(): Promise<void> {
 
 	function dupRes200(s: number): boolean { return s === 200 || s === 201; }
 
-	// ———— 12. confirmed_level=NULL 正确返回 ————
-	console.log("\n== [12] 教师查看成员（confirmed_level=NULL）==");
+	// ———— 12. 未测评成员 confirmed_level=NULL 正确返回 ————
+	console.log("\n== [12] 教师查看成员（未测评 → NULL）==");
 	const detailRes = await worker.fetch(makeRequest(`/v1/classes/${classId}`, { cookie: teacher1.cookie }), env);
 	const detailBody = (await detailRes.json()) as { members?: { nickname: string; grade: string; confirmed_level: string | null }[] };
 	const seanMember = detailBody.members?.find((m) => m.nickname === "Sean");
-	check("成员含 Sean，confirmed_level 原样 NULL", !!seanMember && seanMember.confirmed_level === null,
+	check("未测评成员 Sean，confirmed_level 为 NULL", !!seanMember && seanMember.confirmed_level === null,
 		JSON.stringify(seanMember));
 	check("成员字段最小化（无 email/password）", !!seanMember && !("email" in seanMember) && !("parent_id" in seanMember));
+
+	// ———— 12b. 成员 confirmed_level 走权威动态计算（P4-T6B-4）————
+	console.log("\n== [12b] 成员权威等级（level-service 动态计算）==");
+	seedFormalResult(db, parent1.childId!, "SRC100", 114, 1_000_000); // 较早完成
+	seedFormalResult(db, parent1.childId!, "SRC300", 317, 2_000_000); // 最新完成
+	const detailRes2 = await worker.fetch(makeRequest(`/v1/classes/${classId}`, { cookie: teacher1.cookie }), env);
+	const detailBody2 = (await detailRes2.json()) as { members?: { nickname: string; confirmed_level: string | null }[] };
+	const sean2 = detailBody2.members?.find((m) => m.nickname === "Sean");
+	check("已测评成员显示权威等级（最新正式测评优先）", sean2?.confirmed_level === "SRC300", JSON.stringify(sean2));
+
+	// max 语义：测试等级低于识字量推算时取高者（复用 getConfirmedLevel，非第二套算法）
+	db.prepare("DELETE FROM test_results WHERE child_id = ?").run(parent1.childId!);
+	seedFormalResult(db, parent1.childId!, "SRC100", 317, 3_000_000);
+	const detailRes3 = await worker.fetch(makeRequest(`/v1/classes/${classId}`, { cookie: teacher1.cookie }), env);
+	const sean3 = ((await detailRes3.json()) as { members?: { nickname: string; confirmed_level: string | null }[] })
+		.members?.find((m) => m.nickname === "Sean");
+	check("权威 max 语义（stable_char 推算优先于测试等级）", sean3?.confirmed_level === "SRC300", JSON.stringify(sean3));
+
+	// 教师端详情查询不产生任何学习数据写入
+	const trCount = db.prepare("SELECT COUNT(*) c FROM test_results").get() as { c: number };
+	check("教师详情查询零学习数据写入", trCount.c === 1, `test_results=${trCount.c}`);
 
 	// ———— 9. 同一孩子加入多个班级 ————
 	console.log("\n== [9] 同孩子加入多班 ==");
@@ -299,6 +342,15 @@ async function main(): Promise<void> {
 	const newJoin = await worker.fetch(
 		makeRequest("/v1/classes/join", { method: "POST", cookie: parent2.cookie, body: { invite_code: regenBody.invite_code, child_id: parent2.childId } }), env);
 	check("新码加入成功", newJoin.status === 201);
+
+	// ———— 12c. 混合班级：已测评与未测评成员并存（P4-T6B-4）————
+	const detailRes4 = await worker.fetch(makeRequest(`/v1/classes/${classId}`, { cookie: teacher1.cookie }), env);
+	const detailBody4 = (await detailRes4.json()) as { members?: { nickname: string; confirmed_level: string | null }[] };
+	const sean4 = detailBody4.members?.find((m) => m.nickname === "Sean");
+	const amy4 = detailBody4.members?.find((m) => m.nickname === "Amy");
+	check("混合班级：已测评 Sean=SRC300、未测评 Amy=NULL（等级不错配）",
+		sean4?.confirmed_level === "SRC300" && !!amy4 && amy4.confirmed_level === null,
+		`Sean=${sean4?.confirmed_level} Amy=${amy4?.confirmed_level}`);
 
 	// ———— 8. 撤销、重复撤销、重新加入 ————
 	console.log("\n== [8] 撤销授权 ==");
