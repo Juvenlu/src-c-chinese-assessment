@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import {
   AlertCircle,
   ArrowLeft,
+  BookOpen,
   Check,
   Copy,
   Loader2,
@@ -31,6 +32,17 @@ interface MemberItem {
   confirmed_level: string | null;
 }
 
+/** 推送请求（P4-T7-1）：episode_id 第一阶段为 NULL，故事由管理员处理时指定 */
+interface PushRequestItem {
+  id: string;
+  episode_id: number | null;
+  status: 'pending' | 'processing' | 'done' | 'failed';
+  failure_reason: string | null;
+  created_at: number;
+  updated_at: number | null;
+  episode_title: string | null;
+}
+
 type PageState = 'loading' | 'ok' | 'not-found' | 'forbidden' | 'error';
 
 // ==================== 页面 ====================
@@ -51,6 +63,11 @@ export default function TeacherClassDetailPage({
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [actionError, setActionError] = useState('');
+
+  // 课堂绘本推送（P4-T7-1）
+  const [pushRequests, setPushRequests] = useState<PushRequestItem[]>([]);
+  const [pushSubmitting, setPushSubmitting] = useState(false);
+  const [pushError, setPushError] = useState('');
 
   // 未登录 → 教师登录页
   useEffect(() => {
@@ -92,6 +109,16 @@ export default function TeacherClassDetailPage({
         setClassDetail(data.class);
         setMembers(Array.isArray(data.members) ? data.members : []);
         setPageState('ok');
+        // 推送请求状态独立加载：失败不阻塞班级详情展示
+        try {
+          const pr = await authFetch(`/api/classes/${classId}/push-requests`);
+          if (!cancelled && pr.ok) {
+            const prData = await pr.json().catch(() => null);
+            setPushRequests(Array.isArray(prData?.requests) ? prData.requests : []);
+          }
+        } catch {
+          /* 状态加载失败不阻塞页面 */
+        }
       } catch {
         if (!cancelled) setPageState('error');
       }
@@ -142,6 +169,41 @@ export default function TeacherClassDetailPage({
       setActionError('网络异常，请稍后重试');
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  // 一键提交绘本推送请求（P4-T7-1）：幂等，重复提交返回既有未完成请求
+  const handlePushSubmit = async () => {
+    if (!classDetail || pushSubmitting) return;
+    setPushError('');
+    setPushSubmitting(true);
+    try {
+      const res = await authFetch(`/api/classes/${classId}/push-requests`, { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (res.status === 401) {
+        router.push('/teacher/login');
+        return;
+      }
+      if (!res.ok) {
+        setPushError((data && data.error) || '提交失败，请稍后重试');
+        return;
+      }
+      if (data?.request) {
+        // 本地置顶更新（GET 列表按 created_at 倒序）
+        const req: PushRequestItem = {
+          episode_title: null,
+          failure_reason: null,
+          updated_at: null,
+          ...data.request,
+        };
+        setPushRequests((prev) => [req, ...prev.filter((r) => r.id !== req.id)]);
+      } else {
+        setPushError('返回异常，请刷新确认');
+      }
+    } catch {
+      setPushError('网络异常，请稍后重试');
+    } finally {
+      setPushSubmitting(false);
     }
   };
 
@@ -267,6 +329,78 @@ export default function TeacherClassDetailPage({
             </p>
           )}
         </div>
+
+        {/* 课堂绘本（P4-T7-1）：一键申请，管理员为每位学生准备专属版本 */}
+        {(() => {
+          const openRequest = pushRequests.find(
+            (r) => r.status === 'pending' || r.status === 'processing'
+          );
+          const latestDone = !openRequest ? pushRequests.find((r) => r.status === 'done') : undefined;
+          const latestFailed = !openRequest ? pushRequests.find((r) => r.status === 'failed') : undefined;
+          return (
+            <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
+              <h2 className="font-bold text-gray-800 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-[var(--color-src-primary)]" />
+                课堂绘本
+              </h2>
+
+              {openRequest ? (
+                <div className="flex items-center gap-3 rounded-2xl bg-[var(--color-src-secondary)]/10 p-4">
+                  {openRequest.status === 'pending' ? (
+                    <Check className="w-5 h-5 text-teal-600 shrink-0" />
+                  ) : (
+                    <Loader2 className="w-5 h-5 animate-spin text-teal-600 shrink-0" />
+                  )}
+                  <div>
+                    <p className="font-bold text-gray-800">
+                      {openRequest.status === 'pending' ? '已提交，等待管理员处理' : '正在准备绘本'}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      提交于 {new Date(openRequest.created_at * 1000).toLocaleString('zh-CN')}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    一键为全班学生申请个性化绘本，管理员将为每位学生准备适合其水平的专属版本。
+                  </p>
+                  {latestDone && (
+                    <p className="text-sm text-teal-700 flex items-center gap-1.5">
+                      <Check className="w-4 h-4 shrink-0" />
+                      上一次绘本已推送到学生书架
+                    </p>
+                  )}
+                  {latestFailed && (
+                    <p className="text-sm text-red-500 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      上一次推送未成功，可重新提交
+                    </p>
+                  )}
+                  <button
+                    onClick={handlePushSubmit}
+                    disabled={pushSubmitting || members.length === 0}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-[var(--color-src-primary)] text-white font-bold shadow-md transition-all duration-200 hover:shadow-lg active:scale-95 disabled:opacity-50"
+                  >
+                    {pushSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookOpen className="w-4 h-4" />}
+                    {pushSubmitting ? '提交中...' : '推送绘本给全班'}
+                  </button>
+                  {members.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center">
+                      班级还没有学生，等待家长授权孩子加入后即可推送
+                    </p>
+                  )}
+                  {pushError && (
+                    <p className="text-sm text-red-500 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      {pushError}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 学生名单 */}
         <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">

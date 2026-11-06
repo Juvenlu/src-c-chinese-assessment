@@ -57,6 +57,8 @@ import {
 	handleJoinClass,
 	handleRevokeMember,
 	handleMasterStories,
+	handleCreatePushRequest,
+	handleListPushRequests,
 } from "./classes";
 import type { Env } from "./types";
 import { parseRoles, hasRole } from "./roles";
@@ -1102,6 +1104,14 @@ export default {
 			const revokeMatch = path.match(/^\/v1\/classes\/([^/]+)\/members\/([^/]+)\/revoke$/);
 			if (revokeMatch && request.method === "POST") {
 				return handleRevokeMember(request, env, revokeMatch[1], revokeMatch[2]);
+			}
+			// POST/GET /v1/classes/:id/push-requests — 教师一键提交/查询绘本推送请求（P4-T7-1）
+			const pushReqMatch = path.match(/^\/v1\/classes\/([^/]+)\/push-requests$/);
+			if (pushReqMatch && request.method === "POST") {
+				return handleCreatePushRequest(request, env, pushReqMatch[1]);
+			}
+			if (pushReqMatch && request.method === "GET") {
+				return handleListPushRequests(request, env, pushReqMatch[1]);
 			}
 
 			// GET /v1/growth-map — 成长地图（需要登录 Session + child_id 归属校验）

@@ -142,6 +142,7 @@ function createFreshDb(): DatabaseSync {
 	db.exec(DDL_BOOK_EPISODES);
 	db.exec(DDL_TEST_RESULTS);
 	applyMigration(db, "007_teacher_classes.sql");
+	applyMigration(db, "008_class_push_requests.sql");
 	db.exec(`INSERT INTO book_episodes (id, series_name, episode_number, episode_title, page_count, level_tier, status)
 	         VALUES (2,'西游记',1,'大家都叫他孙悟空',10,'SRC500','published'),
 	                (3,'西游记',2,'拜菩提祖师为师',8,'SRC500','published'),
@@ -438,8 +439,86 @@ async function main(): Promise<void> {
 	const noAuth = await worker.fetch(makeRequest("/v1/classes/master-stories", {}), env);
 	check("未登录 401", noAuth.status === 401);
 
-	// ———— 13. 回归：原有认证/孩子链路 ————
-	console.log("\n== [13] 回归 ==");
+	// ———— 13. 推送请求（P4-T7-1：一键提交 + 幂等 + 权限 + 零学习数据写入）————
+	console.log("\n== [13] 推送请求 ==");
+	const trBefore = (db.prepare("SELECT COUNT(*) AS c FROM test_results").get() as { c: number }).c;
+
+	// 权限三闸
+	const pushNoAuth = await worker.fetch(makeRequest(`/v1/classes/${classId}/push-requests`, { method: "POST" }), env);
+	check("推送：未登录 401", pushNoAuth.status === 401);
+	const pushParent = await worker.fetch(makeRequest(`/v1/classes/${classId}/push-requests`, { method: "POST", cookie: parent1.cookie }), env);
+	check("推送：非教师 403", pushParent.status === 403);
+	const pushT2 = await worker.fetch(makeRequest(`/v1/classes/${classId}/push-requests`, { method: "POST", cookie: teacher2.cookie }), env);
+	check("推送：他班教师 404", pushT2.status === 404);
+	const getT2 = await worker.fetch(makeRequest(`/v1/classes/${classId}/push-requests`, { cookie: teacher2.cookie }), env);
+	check("推送查询：他班教师 404", getT2.status === 404);
+
+	// 空班级禁止提交（teacher1 新建无成员班级）
+	const emptyRes = await worker.fetch(
+		makeRequest("/v1/classes", { method: "POST", cookie: teacher1.cookie, body: { name: "绘本班" } }), env);
+	const emptyClass = ((await emptyRes.json()) as { class: { id: string; invite_code: string } }).class;
+	const pushEmpty = await worker.fetch(
+		makeRequest(`/v1/classes/${emptyClass.id}/push-requests`, { method: "POST", cookie: teacher1.cookie }), env);
+	check("推送：空班级 400", pushEmpty.status === 400, `status=${pushEmpty.status}`);
+
+	// 家长授权孩子加入后，一键提交
+	await worker.fetch(
+		makeRequest("/v1/classes/join", { method: "POST", cookie: parent1.cookie, body: { invite_code: emptyClass.invite_code, child_id: parent1.childId } }), env);
+	const push201 = await worker.fetch(
+		makeRequest(`/v1/classes/${emptyClass.id}/push-requests`, { method: "POST", cookie: teacher1.cookie }), env);
+	const push201Body = (await push201.json()) as { request?: { id: string; episode_id: number | null; status: string }; already_pending?: boolean };
+	check("推送：首次提交 201 + pending + episode_id NULL", push201.status === 201
+		&& push201Body.request?.status === "pending" && push201Body.request.episode_id === null
+		&& push201Body.already_pending === false);
+	const firstReqId = push201Body.request?.id ?? "";
+
+	// 幂等：重复提交返回同一请求，不产生重复待办
+	const pushDup = await worker.fetch(
+		makeRequest(`/v1/classes/${emptyClass.id}/push-requests`, { method: "POST", cookie: teacher1.cookie }), env);
+	const pushDupBody = (await pushDup.json()) as { request?: { id: string }; already_pending?: boolean };
+	check("推送：重复提交 200 且同一 request_id", pushDup.status === 200
+		&& pushDupBody.already_pending === true && pushDupBody.request?.id === firstReqId);
+	const openCount = (db.prepare(
+		"SELECT COUNT(*) AS c FROM class_push_requests WHERE class_id = ? AND status IN ('pending','processing')").get(emptyClass.id) as { c: number }).c;
+	check("推送：D1 仅 1 条未完成请求", openCount === 1, `count=${openCount}`);
+
+	// 并发兜底：部分唯一索引拒绝第二条未完成请求
+	let secondOpenThrew = false;
+	try {
+		db.prepare(
+			"INSERT INTO class_push_requests (id, class_id, teacher_id, status, created_at) VALUES ('raced-1', ?, 't-x', 'pending', 1)").run(emptyClass.id);
+	} catch {
+		secondOpenThrew = true;
+	}
+	check("推送：唯一索引 uq_cpr_open 并发兜底", secondOpenThrew);
+
+	// GET 状态查询
+	const getList = await worker.fetch(makeRequest(`/v1/classes/${emptyClass.id}/push-requests`, { cookie: teacher1.cookie }), env);
+	const getListBody = (await getList.json()) as { requests?: { id: string; status: string; episode_title: string | null; failure_reason: string | null }[] };
+	check("推送查询：200 且含该请求与扩展字段", getList.status === 200
+		&& getListBody.requests?.some((r) => r.id === firstReqId && r.status === "pending"
+			&& r.episode_title === null && r.failure_reason === null) === true);
+
+	// done 不阻塞新一轮推送；processing 继续幂等
+	db.prepare("UPDATE class_push_requests SET status='done', updated_at=2 WHERE id = ?").run(firstReqId);
+	const pushAfterDone = await worker.fetch(
+		makeRequest(`/v1/classes/${emptyClass.id}/push-requests`, { method: "POST", cookie: teacher1.cookie }), env);
+	const pushAfterDoneBody = (await pushAfterDone.json()) as { request?: { id: string }; already_pending?: boolean };
+	check("推送：done 后可再次提交 201（新 request_id）", pushAfterDone.status === 201
+		&& pushAfterDoneBody.already_pending === false && pushAfterDoneBody.request?.id !== firstReqId);
+	db.prepare("UPDATE class_push_requests SET status='processing' WHERE id = ?").run(pushAfterDoneBody.request!.id);
+	const pushProcessing = await worker.fetch(
+		makeRequest(`/v1/classes/${emptyClass.id}/push-requests`, { method: "POST", cookie: teacher1.cookie }), env);
+	const pushProcessingBody = (await pushProcessing.json()) as { request?: { id: string }; already_pending?: boolean };
+	check("推送：processing 幂等返回同一请求", pushProcessing.status === 200
+		&& pushProcessingBody.already_pending === true && pushProcessingBody.request?.id === pushAfterDoneBody.request!.id);
+
+	// 零学习数据写入
+	const trAfter = (db.prepare("SELECT COUNT(*) AS c FROM test_results").get() as { c: number }).c;
+	check("推送：test_results 零变化", trAfter === trBefore, `${trBefore}→${trAfter}`);
+
+	// ———— 15. 回归：原有认证/孩子链路 ————
+	console.log("\n== [15] 回归 ==");
 	const childrenRes = await worker.fetch(makeRequest("/v1/children", { cookie: parent1.cookie }), env);
 	const childrenBody = (await childrenRes.json()) as { children?: { nickname: string }[] };
 	check("家长孩子列表正常", childrenRes.status === 200 && childrenBody.children?.some((c) => c.nickname === "Sean") === true);

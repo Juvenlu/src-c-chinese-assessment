@@ -430,3 +430,91 @@ export async function handleMasterStories(request: Request, env: Env): Promise<R
 
 	return jsonResponse({ stories: results });
 }
+
+// ==================== 8. POST /v1/classes/:id/push-requests — 一键提交绘本推送请求（P4-T7-1） ====================
+//
+// 边界：本接口只写管理数据 class_push_requests（pending）。
+// 不制作/推送绘本，不触碰 custom_books / reading_records / book_entitlements / 学生书架。
+// episode_id 恒为 NULL：教师不选故事，管理员处理阶段从已发布 Master 中指定。
+
+interface PushRequestRow {
+	id: string;
+	class_id: string;
+	episode_id: number | null;
+	status: string;
+	created_at: number;
+	updated_at: number | null;
+}
+
+/** 查询班级当前未完成请求（pending/processing），供幂等返回与并发兜底复用 */
+async function findOpenPushRequest(env: Env, classId: string): Promise<PushRequestRow | null> {
+	return await env.DB.prepare(
+		`SELECT id, class_id, episode_id, status, created_at, updated_at
+		 FROM class_push_requests
+		 WHERE class_id = ?1 AND status IN ('pending','processing')
+		 LIMIT 1`
+	).bind(classId).first<PushRequestRow>();
+}
+
+export async function handleCreatePushRequest(request: Request, env: Env, classId: string): Promise<Response> {
+	const auth = await requireTeacher(request, env);
+	if (auth instanceof Response) return auth;
+
+	const cls = await getOwnedClass(env, classId, auth.parent_id);
+	if (!cls) return jsonResponse({ error: "班级不存在" }, 404); // 他班同 404，不泄露存在性
+
+	// 幂等（第一层）：已有未完成请求 → 返回原请求，不新建（双击/刷新/重试安全）
+	const existing = await findOpenPushRequest(env, classId);
+	if (existing) return jsonResponse({ request: existing, already_pending: true }, 200);
+
+	// 空班级禁止提交（服务器端强制，前端同步禁用按钮）
+	const memberCount = await env.DB.prepare(
+		`SELECT COUNT(*) AS cnt FROM class_memberships WHERE class_id = ?1 AND status = 'active'`
+	).bind(classId).first<{ cnt: number }>();
+	if (!memberCount || memberCount.cnt < 1) {
+		return jsonResponse({ error: "班级还没有学生，请等待家长授权孩子加入后再推送" }, 400);
+	}
+
+	const id = crypto.randomUUID();
+	const now = nowSeconds();
+	try {
+		await env.DB.prepare(
+			`INSERT INTO class_push_requests (id, class_id, teacher_id, episode_id, status, created_at)
+			 VALUES (?1, ?2, ?3, NULL, 'pending', ?4)`
+		).bind(id, classId, auth.parent_id, now).run();
+	} catch (e) {
+		// 并发兜底（第二层）：唯一索引 uq_cpr_open 冲突 → 重查并返回既有未完成请求
+		const raced = await findOpenPushRequest(env, classId);
+		if (raced) return jsonResponse({ request: raced, already_pending: true }, 200);
+		throw e;
+	}
+
+	return jsonResponse({
+		request: { id, class_id: classId, episode_id: null, status: "pending", created_at: now, updated_at: null },
+		already_pending: false,
+	}, 201);
+}
+
+// ==================== 9. GET /v1/classes/:id/push-requests — 教师查看本班推送请求状态 ====================
+
+export async function handleListPushRequests(request: Request, env: Env, classId: string): Promise<Response> {
+	const auth = await requireTeacher(request, env);
+	if (auth instanceof Response) return auth;
+
+	const cls = await getOwnedClass(env, classId, auth.parent_id);
+	if (!cls) return jsonResponse({ error: "班级不存在" }, 404);
+
+	// 最小字段 + 故事标题预留（episode_id 第一阶段为 NULL，LEFT JOIN 不产生 N+1 之外的查询）
+	// 结构即未来管理员队列视图子集：id / episode / status / 时间戳 / failure_reason
+	const { results } = await env.DB.prepare(
+		`SELECT r.id, r.episode_id, r.status, r.failure_reason, r.created_at, r.updated_at,
+		        e.episode_title
+		 FROM class_push_requests r
+		 LEFT JOIN book_episodes e ON e.id = r.episode_id
+		 WHERE r.class_id = ?1
+		 ORDER BY r.created_at DESC
+		 LIMIT 10`
+	).bind(classId).all();
+
+	return jsonResponse({ requests: results });
+}
