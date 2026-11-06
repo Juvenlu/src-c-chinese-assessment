@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -64,10 +64,49 @@ export default function TeacherClassDetailPage({
   const [regenerating, setRegenerating] = useState(false);
   const [actionError, setActionError] = useState('');
 
-  // 课堂绘本推送（P4-T7-1）
+  // 课堂绘本推送（P4-T7-1 提交 / P4-T7-2B 状态加载异常处理）
   const [pushRequests, setPushRequests] = useState<PushRequestItem[]>([]);
   const [pushSubmitting, setPushSubmitting] = useState(false);
   const [pushError, setPushError] = useState('');
+  // pushLoaded=false 期间禁止提交（状态未知不得误显示可提交按钮）；
+  // pushSeqRef 防竞态：仅最后一次查询的结果允许落地，旧响应不得覆盖新状态
+  const [pushLoaded, setPushLoaded] = useState(false);
+  const [pushLoadError, setPushLoadError] = useState(false);
+  const pushSeqRef = useRef(0);
+
+  // 推送请求状态加载（P4-T7-2B）：独立加载 + 8s 超时中止 + 序号防竞态
+  // 非成功状态 / 网络异常 / 超时 / 响应格式错误 → pushLoadError（显示错误与重试，不显示提交按钮）
+  const loadPushRequests = useCallback(async () => {
+    const seq = ++pushSeqRef.current;
+    setPushLoadError(false);
+    setPushLoaded(false);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const pr = await authFetch(`/api/classes/${classId}/push-requests`, { signal: ctrl.signal });
+      if (seq !== pushSeqRef.current) return;
+      if (pr.status === 401) {
+        router.push('/teacher/login');
+        return;
+      }
+      if (!pr.ok) {
+        setPushLoadError(true);
+        return;
+      }
+      const prData = await pr.json().catch(() => null);
+      if (seq !== pushSeqRef.current) return;
+      if (!Array.isArray(prData?.requests)) {
+        setPushLoadError(true); // 格式错误视同加载失败，不得当作「无请求」
+        return;
+      }
+      setPushRequests(prData.requests);
+      setPushLoaded(true);
+    } catch {
+      if (seq === pushSeqRef.current) setPushLoadError(true);
+    } finally {
+      clearTimeout(timer);
+    }
+  }, [authFetch, classId, router]);
 
   // 未登录 → 教师登录页
   useEffect(() => {
@@ -109,16 +148,8 @@ export default function TeacherClassDetailPage({
         setClassDetail(data.class);
         setMembers(Array.isArray(data.members) ? data.members : []);
         setPageState('ok');
-        // 推送请求状态独立加载：失败不阻塞班级详情展示
-        try {
-          const pr = await authFetch(`/api/classes/${classId}/push-requests`);
-          if (!cancelled && pr.ok) {
-            const prData = await pr.json().catch(() => null);
-            setPushRequests(Array.isArray(prData?.requests) ? prData.requests : []);
-          }
-        } catch {
-          /* 状态加载失败不阻塞页面 */
-        }
+        // 推送请求状态独立加载：失败不阻塞班级详情，由卡片内错误分支承担展示与重试
+        loadPushRequests();
       } catch {
         if (!cancelled) setPageState('error');
       }
@@ -127,7 +158,7 @@ export default function TeacherClassDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [user, loading, router, authFetch, classId]);
+  }, [user, loading, router, authFetch, classId, loadPushRequests]);
 
   const handleCopy = async () => {
     if (!classDetail) return;
@@ -344,7 +375,26 @@ export default function TeacherClassDetailPage({
                 课堂绘本
               </h2>
 
-              {openRequest ? (
+              {pushLoadError ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-red-500 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    推送状态加载失败，请重试
+                  </p>
+                  <button
+                    onClick={loadPushRequests}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 border-[var(--color-src-primary)] text-[var(--color-src-primary)] font-bold transition-all duration-200 hover:bg-[var(--color-src-primary)]/5 active:scale-95"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    重试
+                  </button>
+                </div>
+              ) : !pushLoaded ? (
+                <div className="flex items-center gap-3 rounded-2xl bg-gray-50 p-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-400 shrink-0" />
+                  <p className="text-sm text-gray-400">正在加载推送状态...</p>
+                </div>
+              ) : openRequest ? (
                 <div className="flex items-center gap-3 rounded-2xl bg-[var(--color-src-secondary)]/10 p-4">
                   {openRequest.status === 'pending' ? (
                     <Check className="w-5 h-5 text-teal-600 shrink-0" />
