@@ -12,7 +12,6 @@ export interface PushQueueItem {
   created_at: number;
   updated_at: number | null;
   class_name: string;
-  teacher_email: string | null;
   series_name: string | null;
   member_count: number;
   ok_count: number;
@@ -58,7 +57,7 @@ export interface PushDetail {
     created_at: number;
     updated_at: number | null;
   };
-  class: { id: string; name: string; status: string; story_series_id: number | null; teacher_email?: string | null };
+  class: { id: string; name: string; status: string; story_series_id: number | null };
   students: PushStudent[];
   available_masters: MasterOption[];
   series_block_reason: string | null;
@@ -401,7 +400,8 @@ export function ClassPushWorkbench({ adminFetch, onStartCustomize, selectedReque
                 <div className="flex-1 min-w-[220px]">
                   <div className="font-bold text-gray-800">
                     {r.class_name}
-                    <span className="ml-2 text-xs font-normal text-gray-400">{r.teacher_email ?? '未知教师'}</span>
+                    {/* 隐私规则（S5B）：不展示教师/家长邮箱，队列以班级名+任务ID+时间识别 */}
+                    <span className="ml-2 text-xs font-normal text-gray-400">任务 #{r.id.slice(0, 8)}</span>
                   </div>
                   <div className="text-sm text-gray-500 mt-0.5">
                     系列：{r.series_name ?? (r.story_series_id === null ? '（无系列快照）' : `#${r.story_series_id}`)}

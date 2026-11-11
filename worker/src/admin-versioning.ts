@@ -15,7 +15,7 @@
  * 所有操作先校验归属/状态，再经 version-store 原子写。不修改绘本文字与图片。
  */
 
-import { verifyAdminPassword } from "./admin-auth";
+import { verifyAdminPassword, isClassPushAdminEnabled } from "./admin-auth";
 import { createD1DBAdapter } from "./d1-adapter";
 import type { Env } from "./types";
 import {
@@ -40,6 +40,22 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 function nowUnix(): number {
 	return Math.floor(Date.now() / 1000);
+}
+
+/**
+ * S5F 课堂渠道写入闸：目标 custom_book 属于课堂渠道（channel='class'）时，
+ * 仅 CLASS_PUSH_ADMIN_ENABLED==='true' 才放行归档/恢复/删除/推送等写操作。
+ * 家庭渠道（home）不受影响；书目不存在时返回 false，由后续业务逻辑按原样报 404。
+ */
+async function isClassChannelBook(env: Env, bookId: number): Promise<boolean> {
+	const row = await env.DB.prepare(
+		"SELECT channel FROM custom_books WHERE id = ?1"
+	).bind(bookId).first<{ channel: string }>();
+	return row?.channel === "class";
+}
+
+function classPushDisabledResponse(): Response {
+	return jsonResponse({ error: "课堂推送管理操作已关闭" }, 403);
 }
 
 async function readJson(request: Request): Promise<Record<string, unknown>> {
@@ -125,6 +141,11 @@ export async function handleAdminActivate(
 		channel = parsed;
 	}
 
+	// S5F 总开关：课堂渠道激活属于课堂推送实际处理操作，关闭时拒绝（家庭渠道不受影响）
+	if (channel === "class" && !isClassPushAdminEnabled(env)) {
+		return classPushDisabledResponse();
+	}
+
 	const adapter = createD1DBAdapter(env.DB);
 	const res = await activateVersion(adapter, nowUnix(), { childId, episodeId, rewriteId, channel });
 	if (!res.ok) return jsonResponse({ error: res.error, extra: res.extra }, res.status);
@@ -146,6 +167,11 @@ export async function handleAdminArchive(
 	const bookId = asPositiveInt(bookIdStr);
 	if (!bookId) return jsonResponse({ error: "Invalid book id" }, 400);
 
+	// S5F 总开关：课堂渠道书目归档属于课堂管理写操作，关闭时拒绝
+	if (await isClassChannelBook(env, bookId)) {
+		if (!isClassPushAdminEnabled(env)) return classPushDisabledResponse();
+	}
+
 	const adapter = createD1DBAdapter(env.DB);
 	const res = await archiveVersion(adapter, nowUnix(), bookId);
 	if (!res.ok) return jsonResponse({ error: res.error }, res.status);
@@ -166,6 +192,11 @@ export async function handleAdminRestore(
 	}
 	const bookId = asPositiveInt(bookIdStr);
 	if (!bookId) return jsonResponse({ error: "Invalid book id" }, 400);
+
+	// S5F 总开关：恢复课堂渠道书目会重新上架课堂绘本，关闭时拒绝
+	if (await isClassChannelBook(env, bookId)) {
+		if (!isClassPushAdminEnabled(env)) return classPushDisabledResponse();
+	}
 
 	const adapter = createD1DBAdapter(env.DB);
 	const res = await restoreVersion(adapter, nowUnix(), bookId);
@@ -190,6 +221,10 @@ export async function handleAdminDelete(
 
 	const body = await readJson(request);
 	const confirm = body.confirm === true;
+	// S5F 总开关：删除课堂渠道书目属于课堂管理写操作，关闭时拒绝（含预检查调用）
+	if (await isClassChannelBook(env, bookId)) {
+		if (!isClassPushAdminEnabled(env)) return classPushDisabledResponse();
+	}
 	const adapter = createD1DBAdapter(env.DB);
 	const res = await softDeleteVersion(adapter, nowUnix(), bookId, confirm);
 	if (!res.ok) {
@@ -231,6 +266,11 @@ export async function handleAdminPush(
 	}
 	const bookId = asPositiveInt(bookIdStr);
 	if (!bookId) return jsonResponse({ error: "Invalid book id" }, 400);
+
+	// S5F 总开关：推送课堂渠道书目即实际推送课堂绘本，关闭时拒绝
+	if (await isClassChannelBook(env, bookId)) {
+		if (!isClassPushAdminEnabled(env)) return classPushDisabledResponse();
+	}
 
 	const adapter = createD1DBAdapter(env.DB);
 	const res = await pushVersion(adapter, nowUnix(), bookId);

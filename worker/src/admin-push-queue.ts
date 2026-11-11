@@ -30,7 +30,7 @@
  *     与家庭额度（各 2 本未完成）互不影响。
  */
 
-import { verifyAdminPassword } from "./admin-auth";
+import { verifyAdminPassword, isClassPushAdminEnabled } from "./admin-auth";
 import { createD1DBAdapter } from "./d1-adapter";
 import { getConfirmedLevel } from "./level-service";
 import { activateVersion, pushVersion } from "./version-store";
@@ -116,7 +116,6 @@ export async function handleAdminListPushRequests(request: Request, env: Env): P
 	const { results } = await env.DB.prepare(
 		`SELECT r.id, r.class_id, r.status, r.story_series_id, r.created_at, r.updated_at,
 		        c.name AS class_name,
-		        (SELECT email FROM parents p WHERE p.id = r.teacher_id) AS teacher_email,
 		        (SELECT series_name FROM book_episodes e WHERE e.series_id = r.story_series_id LIMIT 1) AS series_name,
 		        (SELECT COUNT(*) FROM class_memberships m WHERE m.class_id = r.class_id AND m.status = 'active') AS member_count,
 		        (SELECT COUNT(*) FROM class_push_results pr WHERE pr.request_id = r.id AND pr.status = 'ok') AS ok_count,
@@ -137,6 +136,10 @@ export async function handleAdminListPushRequests(request: Request, env: Env): P
 export async function handleAdminClaimPushRequest(request: Request, env: Env, requestId: string): Promise<Response> {
 	if (!verifyAdminPassword(request, env)) {
 		return jsonResponse({ error: "Unauthorized" }, 401);
+	}
+	// S5F 总开关：关闭时零写入（不领取、不预建断点行）
+	if (!isClassPushAdminEnabled(env)) {
+		return jsonResponse({ error: "课堂推送管理操作已关闭" }, 403);
 	}
 
 	const req = await env.DB.prepare(
@@ -189,8 +192,7 @@ export async function handleAdminGetPushRequest(request: Request, env: Env, requ
 	if (!req) return jsonResponse({ error: "Push request not found" }, 404);
 
 	const cls = await env.DB.prepare(
-		`SELECT c.id, c.name, c.status, c.story_series_id,
-		        (SELECT email FROM parents p WHERE p.id = c.teacher_id) AS teacher_email
+		`SELECT c.id, c.name, c.status, c.story_series_id
 		 FROM classes c WHERE c.id = ?1`
 	).bind(req.class_id).first<Record<string, unknown>>();
 	if (!cls) return jsonResponse({ error: "Class not found" }, 404);
@@ -299,6 +301,10 @@ export async function handleAdminActivateForChild(
 ): Promise<Response> {
 	if (!verifyAdminPassword(request, env)) {
 		return jsonResponse({ error: "Unauthorized" }, 401);
+	}
+	// S5F 总开关：关闭时零写入（不激活课堂书、不推送、不写结果行）
+	if (!isClassPushAdminEnabled(env)) {
+		return jsonResponse({ error: "课堂推送管理操作已关闭" }, 403);
 	}
 
 	const body = await readJson(request);
@@ -467,6 +473,10 @@ export async function handleAdminActivateForChild(
 export async function handleAdminCompletePushRequest(request: Request, env: Env, requestId: string): Promise<Response> {
 	if (!verifyAdminPassword(request, env)) {
 		return jsonResponse({ error: "Unauthorized" }, 401);
+	}
+	// S5F 总开关：关闭时零写入（不关闭申请、不写跳过/汇总结果）
+	if (!isClassPushAdminEnabled(env)) {
+		return jsonResponse({ error: "课堂推送管理操作已关闭" }, 403);
 	}
 
 	const req = await env.DB.prepare(

@@ -105,6 +105,9 @@ function makeEnv(db: DatabaseSync): Env {
 		SESSION_SECRET: TEST_SECRET,
 		ADMIN_PASSWORD: "unused-in-this-suite",
 		JOIN_RATE_LIMITER: { limit: async () => ({ success: true }) },
+		// S5F 白名单：覆盖本套件全部教师注册邮箱；故意混入大小写与空格，
+		// 使既有注册用例同时隐式验证「忽略大小写 + 首尾空格」的解析规则。
+		TEACHER_ALLOWED_EMAILS: " Teacher1@School.com ,teacher2@school.com, t3@school.com ,shared@example.com ",
 	};
 }
 
@@ -443,6 +446,80 @@ const main = async () => {
 			makeEnv(db2),
 		);
 		check("I5 新注册家长 teacher/me 403", deny.status === 403);
+	}
+
+	// ===== J. S5F 教师注册白名单（TEACHER_ALLOWED_EMAILS，fail-closed）=====
+	console.log("\n[J] S5F 教师注册白名单");
+	{
+		const db3 = createFreshDb();
+		const envOff = makeEnv(db3);
+		delete envOff.TEACHER_ALLOWED_EMAILS; // 白名单缺失
+		const envEmpty: Env = { ...makeEnv(db3), TEACHER_ALLOWED_EMAILS: "" };
+		const envSpaces: Env = { ...makeEnv(db3), TEACHER_ALLOWED_EMAILS: " ,  , " };
+		const envCase: Env = { ...makeEnv(db3), TEACHER_ALLOWED_EMAILS: "CaseTest@X.com" };
+
+		// J1/J2 白名单缺失 → 403 fail-closed 且零写入
+		const r1 = await worker.fetch(
+			makeRequest("/v1/auth/teacher/signup", { method: "POST", body: { email: "new@school.com", password: "TeacherPass123!" } }),
+			envOff,
+		);
+		check("J1 白名单缺失：教师注册 403 fail-closed", r1.status === 403, `status=${r1.status}`);
+		const r1Row = db3.prepare("SELECT COUNT(*) AS n FROM parents").get() as { n: number };
+		check("J2 白名单缺失：parents 零写入", r1Row.n === 0, `n=${r1Row.n}`);
+
+		// J3 白名单空字符串 → 403
+		const r2 = await worker.fetch(
+			makeRequest("/v1/auth/teacher/signup", { method: "POST", body: { email: "new@school.com", password: "TeacherPass123!" } }),
+			envEmpty,
+		);
+		check("J3 白名单为空字符串：教师注册 403", r2.status === 403, `status=${r2.status}`);
+
+		// J4 白名单仅分隔符/空格 → 403
+		const r3 = await worker.fetch(
+			makeRequest("/v1/auth/teacher/signup", { method: "POST", body: { email: "new@school.com", password: "TeacherPass123!" } }),
+			envSpaces,
+		);
+		check("J4 白名单仅空格逗号：教师注册 403", r3.status === 403, `status=${r3.status}`);
+
+		// J5/J6 白名单存在但未命中 → 403 且零写入
+		const r4 = await worker.fetch(
+			makeRequest("/v1/auth/teacher/signup", { method: "POST", body: { email: "intruder@school.com", password: "TeacherPass123!" } }),
+			envCase,
+		);
+		check("J5 非白名单邮箱：教师注册 403", r4.status === 403, `status=${r4.status}`);
+		const r4Row = db3.prepare("SELECT COUNT(*) AS n FROM parents WHERE email='intruder@school.com'").get() as { n: number };
+		check("J6 非白名单邮箱：parents 零写入", r4Row.n === 0, `n=${r4Row.n}`);
+
+		// J7 白名单命中（注册邮箱大小写不同）→ 200
+		const r5 = await worker.fetch(
+			makeRequest("/v1/auth/teacher/signup", { method: "POST", body: { email: "casetest@x.com", password: "TeacherPass123!" } }),
+			envCase,
+		);
+		const r5Body = await r5.json() as SignupResponseBody;
+		check(
+			"J7 白名单命中且忽略大小写：200 + roles=['teacher']",
+			r5.status === 200 && JSON.stringify(r5Body.user?.roles) === '["teacher"]',
+			`status=${r5.status} body=${JSON.stringify(r5Body.user ?? {})}`,
+		);
+
+		// J8 已有合法教师登录不依赖白名单（env 无白名单）→ 200
+		const loginNoList = await worker.fetch(
+			makeRequest("/v1/auth/login", { method: "POST", body: { email: "casetest@x.com", password: "TeacherPass123!" } }),
+			envOff,
+		);
+		check("J8 已有合法教师登录（无白名单）200", loginNoList.status === 200, `status=${loginNoList.status}`);
+
+		// J9/J10 家长注册不经过白名单（env 无白名单）→ 200 + roles 不变
+		const parentNoList = await worker.fetch(
+			makeRequest("/v1/auth/signup", {
+				method: "POST",
+				body: { email: "parent2@example.com", password: "ParentPass123!", nickname: "孩子", age: 7, grade: "Grade 1", country: "USA" },
+			}),
+			envOff,
+		);
+		check("J9 家长注册（无白名单）200 不受影响", parentNoList.status === 200, `status=${parentNoList.status}`);
+		const parentRow = db3.prepare("SELECT roles FROM parents WHERE email='parent2@example.com'").get() as { roles: string } | undefined;
+		check("J10 家长 roles 仍为 'parent'", parentRow?.roles === "parent", JSON.stringify(parentRow));
 	}
 
 	// ===== 汇总 =====

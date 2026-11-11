@@ -175,6 +175,9 @@ function makeEnv(db: DatabaseSync): Env {
 		SESSION_SECRET: TEST_SECRET,
 		ADMIN_PASSWORD: ADMIN_PWD,
 		JOIN_RATE_LIMITER: { limit: async () => ({ success: true }) },
+		// S5F：本套件教师注册邮箱白名单 + 课堂推送管理开关开启（既有用例验证开启态正常逻辑）
+		TEACHER_ALLOWED_EMAILS: "t1@test.com,t2@test.com",
+		CLASS_PUSH_ADMIN_ENABLED: "true",
 	};
 }
 
@@ -438,6 +441,8 @@ async function main(): Promise<void> {
 	const r1InList = listBody.requests.find((r) => r.id === R1);
 	check("队列 200 且含 R1(pending,系列=1)", listOk.status === 200 && r1InList?.status === "pending" && r1InList?.story_series_id === 1, JSON.stringify(r1InList));
 	check("队列含系列名 西游记", r1InList?.series_name === "西游记");
+	// 隐私规则（S5B）：管理员课堂队列不得返回教师/家长完整邮箱
+	check("队列：所有条目不含 teacher_email 键（隐私）", listBody.requests.every((r) => !("teacher_email" in r)), JSON.stringify(listBody.requests[0]));
 
 	// claim：pending → processing，预建 results（K1/K2 processing）
 	const claimRes = await worker.fetch(makeRequest(`/v1/admin/push-requests/${R1}/claim`, { method: "POST", admin: true }), env);
@@ -456,6 +461,7 @@ async function main(): Promise<void> {
 	const detailRes = await worker.fetch(makeRequest(`/v1/admin/push-requests/${R1}`, { admin: true }), env);
 	const detail = (await detailRes.json()) as {
 		request: { id: string; status: string; story_series_id: number | null };
+		class: Record<string, unknown>;
 		students: Array<{ child_id: string; confirmed_level: string | null; class_unfinished_count: number; result?: { status: string } | null }>;
 		available_masters: Array<{ id: number; series_id: number }>;
 		series_block_reason?: string | null;
@@ -470,6 +476,8 @@ async function main(): Promise<void> {
 		detail.available_masters.length === 2 && detail.available_masters.every((m) => m.series_id === 1) && [2, 3].every((id) => detail.available_masters.some((m) => m.id === id)),
 		JSON.stringify(detail.available_masters));
 	check("详情：series_block_reason 为 null", detail.series_block_reason == null);
+	// 隐私规则（S5B）：任务详情不得返回教师/家长完整邮箱
+	check("详情：class 不含 teacher_email 键（隐私）", !("teacher_email" in detail.class), JSON.stringify(detail.class));
 
 	// complete：仍有 processing 成员且未提供 skips → 409
 	const completeEarly = await worker.fetch(makeRequest(`/v1/admin/push-requests/${R1}/complete`, { method: "POST", admin: true, body: {} }), env);
@@ -704,6 +712,114 @@ async function main(): Promise<void> {
 	check("书架列表：课堂书带 channel=class", listBooks.status === 200 && classBookInList?.channel === "class", JSON.stringify(classBookInList));
 	check("书架列表：含封面字段（cover_image_url/episodes.cover_image_url）", classBookInList != null && ("cover_image_url" in classBookInList || !!classBookInList.episodes), JSON.stringify(Object.keys(classBookInList ?? {})));
 	check("书架列表：阅读进度（pages_read=3/completed=0）", classBookInList?.pages_read === 3 && classBookInList?.completed === 0, JSON.stringify({ pages_read: classBookInList?.pages_read, completed: classBookInList?.completed }));
+
+	console.log("\n== [10] S5F 课堂推送管理开关（CLASS_PUSH_ADMIN_ENABLED）fail-closed ==");
+
+	// 独立库：开关关闭场景与主流程隔离
+	const db2 = createFreshDb();
+	const envOn2 = makeEnv(db2); // 开关开启（对照）
+	const envOff2 = makeEnv(db2);
+	delete envOff2.CLASS_PUSH_ADMIN_ENABLED; // 开关缺失
+	const envFalse2: Env = { ...makeEnv(db2), CLASS_PUSH_ADMIN_ENABLED: "false" }; // 非 'true' 值
+
+	const tt = await signupTeacher(db2, "t1@test.com");
+	const pp = await signupParent(db2, "p1@test.com", "K1");
+	const K1b = pp.childId as string;
+	seedFormalResult(db2, K1b, "SRC300", 1700000000);
+	const cRes2 = await worker.fetch(
+		makeRequest("/v1/classes", { method: "POST", body: { name: "开关班", story_series_id: 1 }, cookie: tt.cookie }),
+		envOn2,
+	);
+	const C2 = ((await cRes2.json()) as { class: { id: string; invite_code: string } }).class;
+	await worker.fetch(
+		makeRequest("/v1/classes/join", { method: "POST", body: { invite_code: C2.invite_code, child_id: K1b }, cookie: pp.cookie }),
+		envOn2,
+	);
+
+	// 10-1 教师创建/查看推送申请不受开关影响
+	const reqRes = await worker.fetch(
+		makeRequest(`/v1/classes/${C2.id}/push-requests`, { method: "POST", cookie: tt.cookie }),
+		envOff2,
+	);
+	const reqBody = (await reqRes.json()) as { request?: { id: string; story_series_id?: number | null } };
+	check(
+		"开关缺失：教师创建推送申请仍正常（201+快照=1）",
+		reqRes.status === 201 && reqBody.request?.story_series_id === 1,
+		`status=${reqRes.status} body=${JSON.stringify(reqBody)}`,
+	);
+	const RX = reqBody.request?.id as string;
+
+	const wX = seedRewrite(db2, 2, K1b, "SRC300");
+
+	// 10-2 claim：开关缺失 → 403 且零写入（仍 pending、无断点行）
+	const claimOff = await worker.fetch(makeRequest(`/v1/admin/push-requests/${RX}/claim`, { method: "POST", admin: true }), envOff2);
+	check("开关缺失：claim 403", claimOff.status === 403, `status=${claimOff.status}`);
+	const rxRow = getOne<{ status: string }>(db2, "SELECT status FROM class_push_requests WHERE id=?", [RX]);
+	const rxResults = getOne<{ n: number }>(db2, "SELECT COUNT(*) AS n FROM class_push_results WHERE request_id=?", [RX]);
+	check("开关缺失：claim 零写入（pending + 无断点行）", rxRow?.status === "pending" && rxResults?.n === 0, JSON.stringify({ rxRow, rxResults }));
+
+	// 10-3 开关为非 'true' 值 → 403
+	const claimFalse = await worker.fetch(makeRequest(`/v1/admin/push-requests/${RX}/claim`, { method: "POST", admin: true }), envFalse2);
+	check("开关='false'：claim 403", claimFalse.status === 403, `status=${claimFalse.status}`);
+
+	// 10-4 口令校验优先于开关（错口令仍 401，开关不替代身份认证）
+	const claimBad = await worker.fetch(makeRequest(`/v1/admin/push-requests/${RX}/claim`, { method: "POST", badAdmin: true }), envOff2);
+	check("开关缺失+错口令：claim 401（鉴权优先）", claimBad.status === 401, `status=${claimBad.status}`);
+
+	// 10-5 只读队列/详情在开关关闭时保留
+	const listOff = await worker.fetch(makeRequest("/v1/admin/push-requests", { admin: true }), envOff2);
+	const detailOff = await worker.fetch(makeRequest(`/v1/admin/push-requests/${RX}`, { admin: true }), envOff2);
+	check("开关缺失：只读队列 200 + 详情 200 保留", listOff.status === 200 && detailOff.status === 200, `list=${listOff.status} detail=${detailOff.status}`);
+
+	// 10-6 开启态 claim（对照，建立 processing 现场）
+	const claimOn = await worker.fetch(makeRequest(`/v1/admin/push-requests/${RX}/claim`, { method: "POST", admin: true }), envOn2);
+	check("开关开启：claim 200（对照）", claimOn.status === 200, `status=${claimOn.status}`);
+
+	// 10-7 关闭态 activate/complete → 403 且零写入
+	const actOff = await worker.fetch(
+		makeRequest(`/v1/admin/push-requests/${RX}/children/${K1b}/activate`, { method: "POST", admin: true, body: { rewrite_id: wX } }),
+		envOff2,
+	);
+	check("开关缺失：孩子 activate 403", actOff.status === 403, `status=${actOff.status}`);
+	const bookCount = getOne<{ n: number }>(db2, "SELECT COUNT(*) AS n FROM custom_books WHERE child_id=? AND channel='class'", [K1b]);
+	const resRow = getOne<{ status: string }>(db2, "SELECT status FROM class_push_results WHERE request_id=? AND child_id=?", [RX, K1b]);
+	check("开关缺失：activate 零写入（无课堂书、结果仍 processing）", bookCount?.n === 0 && resRow?.status === "processing", JSON.stringify({ bookCount, resRow }));
+	const completeOff = await worker.fetch(
+		makeRequest(`/v1/admin/push-requests/${RX}/complete`, { method: "POST", admin: true, body: { skips: [] } }),
+		envOff2,
+	);
+	check("开关缺失：complete 403", completeOff.status === 403, `status=${completeOff.status}`);
+	const rxAfter = getOne<{ status: string }>(db2, "SELECT status FROM class_push_requests WHERE id=?", [RX]);
+	check("开关缺失：complete 零写入（申请仍 processing）", rxAfter?.status === "processing", JSON.stringify(rxAfter));
+
+	// 10-8 通用 activate：课堂渠道被拒，家庭渠道不受影响
+	const actClassOff = await worker.fetch(
+		makeRequest(`/v1/admin/rewrite/${wX}/activate`, { method: "POST", admin: true, body: { child_id: K1b, episode_id: 2, channel: "class" } }),
+		envOff2,
+	);
+	check("开关缺失：通用 activate channel=class 403", actClassOff.status === 403, `status=${actClassOff.status}`);
+	const actHomeOff = await worker.fetch(
+		makeRequest(`/v1/admin/rewrite/${wX}/activate`, { method: "POST", admin: true, body: { child_id: K1b, episode_id: 2 } }),
+		envOff2,
+	);
+	const homeBookX = getOne<{ id: number; channel: string }>(db2, "SELECT id, channel FROM custom_books WHERE child_id=? AND rewrite_id=?", [K1b, wX]);
+	check("开关缺失：通用 activate 默认 home 200（家庭不受影响）", actHomeOff.status === 200 && homeBookX?.channel === "home", `status=${actHomeOff.status}`);
+
+	// 10-9 课堂书 push/restore/archive/delete 全部 403 且零变更；家庭书 push 200 对照
+	const wY = seedRewrite(db2, 3, K1b, "SRC300");
+	const classBookIdX = seedCustomBook(db2, K1b, wY, 3, { channel: "class", status: "archived" });
+	const pushClass = await worker.fetch(makeRequest(`/v1/admin/custom-books/${classBookIdX}/push`, { method: "POST", admin: true }), envOff2);
+	check("开关缺失：课堂书 push 403", pushClass.status === 403, `status=${pushClass.status}`);
+	const restoreClass = await worker.fetch(makeRequest(`/v1/admin/custom-books/${classBookIdX}/restore`, { method: "POST", admin: true }), envOff2);
+	check("开关缺失：课堂书 restore 403", restoreClass.status === 403, `status=${restoreClass.status}`);
+	const archiveClass = await worker.fetch(makeRequest(`/v1/admin/custom-books/${classBookIdX}/archive`, { method: "POST", admin: true }), envOff2);
+	check("开关缺失：课堂书 archive 403", archiveClass.status === 403, `status=${archiveClass.status}`);
+	const delClass = await worker.fetch(makeRequest(`/v1/admin/custom-books/${classBookIdX}/delete`, { method: "POST", admin: true, body: { confirm: true } }), envOff2);
+	check("开关缺失：课堂书 delete 403", delClass.status === 403, `status=${delClass.status}`);
+	const classBookAfter = getOne<{ status: string; pushed_at: number | null }>(db2, "SELECT status, pushed_at FROM custom_books WHERE id=?", [classBookIdX]);
+	check("开关缺失：课堂书状态零变更（仍 archived、未推送）", classBookAfter?.status === "archived" && classBookAfter?.pushed_at == null, JSON.stringify(classBookAfter));
+	const pushHome = await worker.fetch(makeRequest(`/v1/admin/custom-books/${homeBookX!.id}/push`, { method: "POST", admin: true }), envOff2);
+	check("开关缺失：家庭书 push 200（家庭流程不受影响）", pushHome.status === 200, `status=${pushHome.status}`);
 
 	console.log(`\n===== 结果: ${passCount} PASS / ${failCount} FAIL =====`);
 	if (failCount > 0) {
