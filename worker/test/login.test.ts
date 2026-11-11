@@ -59,7 +59,7 @@ interface MockDB {
 function createMockDB(scenario: "ok" | "no_parent" | "suspended" | "no_hash" | "no_children"): MockDB {
 	return {
 		prepare: (sql: string) => ({
-			bind: (...args: any[]) => ({
+			bind: (..._args: any[]) => ({
 				all: async <T>(): Promise<{ results: T[] }> => {
 					if (sql.includes("FROM parents")) {
 						if (scenario === "no_parent") return { results: [] as T[] };

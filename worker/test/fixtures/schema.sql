@@ -43,7 +43,7 @@ CREATE TABLE book_rewrite_versions (
   CHECK (target_level IN ('SRC100','SRC300','SRC500','SRC800'))
 );
 
--- custom_books：Production 基表（status 无 CHECK）+ 003 新增列 + 部分唯一索引
+-- custom_books：Production 基表（status 无 CHECK）+ 003 新增列 + 009 channel 列 + 部分唯一索引(v2)
 CREATE TABLE custom_books (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   child_id        TEXT NOT NULL,
@@ -52,6 +52,7 @@ CREATE TABLE custom_books (
   level_tier      TEXT NOT NULL,
   is_free         INTEGER NOT NULL DEFAULT 0,
   status          TEXT NOT NULL DEFAULT 'active',
+  channel         TEXT NOT NULL DEFAULT 'home' CHECK(channel IN ('home','class')),
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER,
   pushed_at       INTEGER,
@@ -62,8 +63,8 @@ CREATE TABLE custom_books (
   UNIQUE(child_id, rewrite_id)
 );
 
-CREATE UNIQUE INDEX ux_custom_books_active
-  ON custom_books(child_id, episode_id) WHERE status = 'active';
+CREATE UNIQUE INDEX ux_custom_books_active_v2
+  ON custom_books(child_id, episode_id, channel) WHERE status = 'active';
 CREATE INDEX idx_custom_books_child_episode ON custom_books(child_id, episode_id);
 CREATE INDEX idx_custom_books_status ON custom_books(status);
 

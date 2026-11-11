@@ -86,6 +86,7 @@ CREATE TABLE guest_test_sessions (
 const DDL_BOOK_EPISODES = `
 CREATE TABLE book_episodes (
   id              INTEGER PRIMARY KEY,
+  series_id       INTEGER,
   series_name     TEXT,
   episode_number  INTEGER,
   episode_title   TEXT,
@@ -95,6 +96,39 @@ CREATE TABLE book_episodes (
   cover_image_url TEXT,
   description     TEXT
 );`;
+
+// 009 迁移前置表（class_push_results 外键目标；ux_custom_books_active 为 009 删除对象）
+const DDL_REWRITE_VERSIONS = `
+CREATE TABLE book_rewrite_versions (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  episode_id    INTEGER NOT NULL,
+  child_id      TEXT,
+  target_level  TEXT NOT NULL,
+  pages_json    TEXT NOT NULL DEFAULT '[]',
+  status        TEXT NOT NULL DEFAULT 'review',
+  version       INTEGER NOT NULL DEFAULT 1,
+  created_at    INTEGER NOT NULL,
+  finalized_at  INTEGER,
+  finalized_by  TEXT
+);`;
+
+const DDL_CUSTOM_BOOKS = `
+CREATE TABLE custom_books (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  child_id        TEXT NOT NULL,
+  rewrite_id      INTEGER NOT NULL,
+  episode_id      INTEGER NOT NULL,
+  level_tier      TEXT NOT NULL,
+  is_free         INTEGER NOT NULL DEFAULT 0,
+  status          TEXT NOT NULL DEFAULT 'active',
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER,
+  pushed_at       INTEGER,
+  first_viewed_at INTEGER,
+  UNIQUE(child_id, rewrite_id)
+);
+CREATE UNIQUE INDEX ux_custom_books_active
+  ON custom_books(child_id, episode_id) WHERE status = 'active';`;
 
 // 权威等级数据源（P4-T6B-4）：最小列集，与线上 test_results 关键字段对齐
 const DDL_TEST_RESULTS = `
@@ -141,12 +175,15 @@ function createFreshDb(): DatabaseSync {
 	db.exec(DDL_GUEST_SESSIONS);
 	db.exec(DDL_BOOK_EPISODES);
 	db.exec(DDL_TEST_RESULTS);
+	db.exec(DDL_REWRITE_VERSIONS);
+	db.exec(DDL_CUSTOM_BOOKS);
 	applyMigration(db, "007_teacher_classes.sql");
 	applyMigration(db, "008_class_push_requests.sql");
-	db.exec(`INSERT INTO book_episodes (id, series_name, episode_number, episode_title, page_count, level_tier, status)
-	         VALUES (2,'西游记',1,'大家都叫他孙悟空',10,'SRC500','published'),
-	                (3,'西游记',2,'拜菩提祖师为师',8,'SRC500','published'),
-	                (99,'西游记',9,'草稿未发布',8,'SRC500','draft')`);
+	applyMigration(db, "009_teacher_class_series_channel.sql");
+	db.exec(`INSERT INTO book_episodes (id, series_id, series_name, episode_number, episode_title, page_count, level_tier, status)
+	         VALUES (2,1,'西游记',1,'大家都叫他孙悟空',10,'SRC500','published'),
+	                (3,1,'西游记',2,'拜菩提祖师为师',8,'SRC500','published'),
+	                (99,1,'西游记',9,'草稿未发布',8,'SRC500','draft')`);
 	return db;
 }
 
@@ -274,7 +311,7 @@ async function main(): Promise<void> {
 	const dupBody = (await dupJoin.json()) as { success?: boolean; already_member?: boolean };
 	check("重复加入幂等成功", dupRes200(dupJoin.status) && dupBody.already_member === true);
 	const activeCount1 = db.prepare("SELECT COUNT(*) c FROM class_memberships WHERE class_id=? AND child_id=? AND status='active'")
-		.get(classId, parent1.childId) as { c: number };
+		.get(classId, parent1.childId!) as { c: number };
 	check("重复加入后仍只有 1 条 active", activeCount1.c === 1);
 	// 并发：5 个并发 join（不同孩子会因归属失败；同孩子并发靠唯一索引）
 	const concurrent = await Promise.all(
@@ -284,7 +321,7 @@ async function main(): Promise<void> {
 				.catch(() => 0)),
 	);
 	const activeCount2 = db.prepare("SELECT COUNT(*) c FROM class_memberships WHERE class_id=? AND child_id=? AND status='active'")
-		.get(classId, parent1.childId) as { c: number };
+		.get(classId, parent1.childId!) as { c: number };
 	check("并发后仍只有 1 条 active", activeCount2.c === 1, `active=${activeCount2.c} statuses=${concurrent.join(",")}`);
 
 	function dupRes200(s: number): boolean { return s === 200 || s === 201; }
@@ -328,7 +365,7 @@ async function main(): Promise<void> {
 		makeRequest("/v1/classes/join", { method: "POST", cookie: parent1.cookie, body: { invite_code: class2.invite_code, child_id: parent1.childId } }), env);
 	check("Sean 加入第二个班 201", join2.status === 201, `status=${join2.status}`);
 	const seanClasses = db.prepare("SELECT COUNT(DISTINCT class_id) c FROM class_memberships WHERE child_id=? AND status='active'")
-		.get(parent1.childId) as { c: number };
+		.get(parent1.childId!) as { c: number };
 	check("Sean active 班级数=2", seanClasses.c === 2);
 
 	// ———— 5. 邀请码重新生成 + 旧码失效 ————
@@ -367,7 +404,7 @@ async function main(): Promise<void> {
 		makeRequest(`/v1/classes/${classId}/members/${parent1.childId}/revoke`, { method: "POST", cookie: parent1.cookie }), env);
 	check("重复撤销幂等 404（无 active 记录）", revoke2.status === 404);
 	const historyRows = db.prepare("SELECT status FROM class_memberships WHERE class_id=? AND child_id=? ORDER BY created_at")
-		.all(classId, parent1.childId) as { status: string }[];
+		.all(classId, parent1.childId!) as { status: string }[];
 	check("历史 revoked 行保留", historyRows.some((r) => r.status === "revoked"));
 	const rejoin = await worker.fetch(
 		makeRequest("/v1/classes/join", { method: "POST", cookie: parent1.cookie, body: { invite_code: regenBody.invite_code, child_id: parent1.childId } }), env);

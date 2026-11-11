@@ -21,6 +21,7 @@ import type { Env } from "./types";
 import {
 	activateVersion,
 	archiveVersion,
+	asChannel,
 	listVersions,
 	markFirstViewed,
 	previewDelete,
@@ -28,6 +29,7 @@ import {
 	restoreVersion,
 	softDeleteVersion,
 } from "./version-store";
+import type { BookChannel } from "./version-store";
 
 function jsonResponse(data: unknown, status = 200): Response {
 	return new Response(JSON.stringify(data), {
@@ -113,10 +115,20 @@ export async function handleAdminActivate(
 		return jsonResponse({ error: "child_id and episode_id required" }, 400);
 	}
 
+	// 渠道（P4-T9）：默认 home（既有家庭流程兼容）；课堂推送闭环显式传 class
+	let channel: BookChannel = "home";
+	if (body.channel !== undefined && body.channel !== null) {
+		const parsed = asChannel(body.channel);
+		if (!parsed) {
+			return jsonResponse({ error: "channel must be 'home' or 'class'" }, 400);
+		}
+		channel = parsed;
+	}
+
 	const adapter = createD1DBAdapter(env.DB);
-	const res = await activateVersion(adapter, nowUnix(), { childId, episodeId, rewriteId });
+	const res = await activateVersion(adapter, nowUnix(), { childId, episodeId, rewriteId, channel });
 	if (!res.ok) return jsonResponse({ error: res.error, extra: res.extra }, res.status);
-	return jsonResponse({ data: { ...res.data, rewrite_id: rewriteId, status: "active" } });
+	return jsonResponse({ data: { ...res.data, rewrite_id: rewriteId, status: "active", channel } });
 }
 
 // ============================================================

@@ -61,6 +61,8 @@ interface ClassRow {
 	status: string;
 	created_at: number;
 	updated_at: number;
+	/** 班级故事系列（009 迁移；引用 book_episodes.series_id，NULL=未设置） */
+	story_series_id: number | null;
 }
 
 // ==================== 工具 ====================
@@ -71,6 +73,14 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 function nowSeconds(): number {
 	return Math.floor(Date.now() / 1000);
+}
+
+/** 校验故事系列存在（book_episodes.series_id 至少一行） */
+async function seriesExists(env: Env, seriesId: number): Promise<boolean> {
+	const row = await env.DB.prepare(
+		"SELECT 1 AS ok FROM book_episodes WHERE series_id = ?1 LIMIT 1"
+	).bind(seriesId).first<{ ok: number }>();
+	return row !== null;
 }
 
 /** 生成邀请码（Crockford Base32 × 8，crypto 安全随机） */
@@ -148,16 +158,16 @@ async function getOwnedClass(env: Env, classId: string, teacherId: string): Prom
 	).bind(classId, teacherId).first<ClassRow>();
 }
 
-/** 插入班级（邀请码碰撞自动换码重试） */
+/** 插入班级（邀请码碰撞自动换码重试）；story_series_id 可空（009） */
 async function insertClassWithUniqueCode(
-	env: Env, id: string, teacherId: string, name: string, now: number
+	env: Env, id: string, teacherId: string, name: string, now: number, storySeriesId: number | null
 ): Promise<string> {
 	for (let attempt = 0; attempt < CODE_MAX_RETRIES; attempt++) {
 		const code = generateInviteCode();
 		try {
 			await env.DB.prepare(
-				"INSERT INTO classes (id, teacher_id, name, invite_code, status, created_at, updated_at) VALUES (?1,?2,?3,?4,'active',?5,?5)"
-			).bind(id, teacherId, name, code, now).run();
+				"INSERT INTO classes (id, teacher_id, name, invite_code, status, created_at, updated_at, story_series_id) VALUES (?1,?2,?3,?4,'active',?5,?5,?6)"
+			).bind(id, teacherId, name, code, now, storySeriesId).run();
 			return code;
 		} catch (e) {
 			if (isUniqueViolation(e)) continue; // 邀请码碰撞，换码重试
@@ -188,12 +198,25 @@ export async function handleCreateClass(request: Request, env: Env): Promise<Res
 		return jsonResponse({ error: "班级名称需为 1-50 个字符" }, 400);
 	}
 
+	// 可选：创建时直接指定故事系列（009）；提供时必须存在
+	let storySeriesId: number | null = null;
+	if (body.story_series_id !== undefined && body.story_series_id !== null) {
+		const n = Number(body.story_series_id);
+		if (!Number.isInteger(n) || n <= 0) {
+			return jsonResponse({ error: "story_series_id 必须为正整数" }, 400);
+		}
+		if (!(await seriesExists(env, n))) {
+			return jsonResponse({ error: "故事系列不存在" }, 400);
+		}
+		storySeriesId = n;
+	}
+
 	const id = crypto.randomUUID();
 	const now = nowSeconds();
-	const code = await insertClassWithUniqueCode(env, id, auth.parent_id, name, now);
+	const code = await insertClassWithUniqueCode(env, id, auth.parent_id, name, now, storySeriesId);
 
 	return jsonResponse({
-		class: { id, name, invite_code: code, status: "active", created_at: now },
+		class: { id, name, invite_code: code, status: "active", created_at: now, story_series_id: storySeriesId },
 	}, 201);
 }
 
@@ -204,7 +227,7 @@ export async function handleListClasses(request: Request, env: Env): Promise<Res
 	if (auth instanceof Response) return auth;
 
 	const { results } = await env.DB.prepare(
-		`SELECT c.id, c.name, c.invite_code, c.status, c.created_at,
+		`SELECT c.id, c.name, c.invite_code, c.status, c.created_at, c.story_series_id,
 		        (SELECT COUNT(*) FROM class_memberships m
 		          WHERE m.class_id = c.id AND m.status = 'active') AS member_count
 		 FROM classes c
@@ -263,6 +286,7 @@ export async function handleGetClass(request: Request, env: Env, classId: string
 		class: {
 			id: cls.id, name: cls.name, invite_code: cls.invite_code,
 			status: cls.status, created_at: cls.created_at,
+			story_series_id: cls.story_series_id ?? null,
 		},
 		members,
 	});
@@ -292,6 +316,50 @@ export async function handleRegenerateInviteCode(request: Request, env: Env, cla
 		}
 	}
 	return jsonResponse({ error: "邀请码生成失败，请重试" }, 500);
+}
+
+// ==================== 4b. PATCH /v1/classes/:id/series — 设置班级故事系列（P4-T9） ====================
+//
+// 仅班级所属教师可修改（他班一律 404，不泄露存在性）。
+// story_series_id 引用 book_episodes.series_id（逻辑系列标识，无独立 series 表）；
+// 传 null 表示清除系列设置。已归档班级拒绝修改。
+// 本接口只更新班级当前设置：不回写历史 class_push_requests.story_series_id 快照
+// （申请时刻的系列保持不可变，历史 NULL 申请由管理员队列侧阻止直接发布）。
+
+export async function handleUpdateClassSeries(request: Request, env: Env, classId: string): Promise<Response> {
+	const auth = await requireTeacher(request, env);
+	if (auth instanceof Response) return auth;
+
+	const cls = await getOwnedClass(env, classId, auth.parent_id);
+	if (!cls) return jsonResponse({ error: "班级不存在" }, 404);
+	if (cls.status !== "active") return jsonResponse({ error: "班级已归档" }, 403);
+
+	let body: Record<string, unknown>;
+	try {
+		body = (await request.json()) as Record<string, unknown>;
+	} catch {
+		return jsonResponse({ error: "请求格式错误" }, 400);
+	}
+
+	let storySeriesId: number | null;
+	if (body.story_series_id === null) {
+		storySeriesId = null; // 显式清除
+	} else {
+		const n = Number(body.story_series_id);
+		if (!Number.isInteger(n) || n <= 0) {
+			return jsonResponse({ error: "story_series_id 必须为正整数或 null" }, 400);
+		}
+		if (!(await seriesExists(env, n))) {
+			return jsonResponse({ error: "故事系列不存在" }, 400);
+		}
+		storySeriesId = n;
+	}
+
+	await env.DB.prepare(
+		"UPDATE classes SET story_series_id = ?1, updated_at = ?2 WHERE id = ?3"
+	).bind(storySeriesId, nowSeconds(), classId).run();
+
+	return jsonResponse({ class: { id: classId, story_series_id: storySeriesId } });
 }
 
 // ==================== 5. POST /v1/classes/join — 家长授权孩子入班 ====================
@@ -419,9 +487,28 @@ export async function handleMasterStories(request: Request, env: Env): Promise<R
 	const auth = await requireTeacher(request, env);
 	if (auth instanceof Response) return auth;
 
-	// D1 权威数据源；仅 published；最小字段
+	// 可选 ?series_id= 过滤（P4-T9：教师端按班级绑定系列浏览）
+	const url = new URL(request.url);
+	const seriesParam = url.searchParams.get("series_id");
+
+	// D1 权威数据源；仅 published；最小字段（含 series_id 供推送校验对齐）
+	if (seriesParam !== null) {
+		const seriesId = Number(seriesParam);
+		if (!Number.isInteger(seriesId) || seriesId <= 0) {
+			return jsonResponse({ error: "series_id 必须为正整数" }, 400);
+		}
+		const { results } = await env.DB.prepare(
+			`SELECT id, series_id, series_name, episode_number, episode_title,
+			        page_count, level_tier, cover_image_url, description
+			 FROM book_episodes
+			 WHERE status = 'published' AND series_id = ?1
+			 ORDER BY episode_number ASC`
+		).bind(seriesId).all();
+		return jsonResponse({ stories: results });
+	}
+
 	const { results } = await env.DB.prepare(
-		`SELECT id, series_name, episode_number, episode_title,
+		`SELECT id, series_id, series_name, episode_number, episode_title,
 		        page_count, level_tier, cover_image_url, description
 		 FROM book_episodes
 		 WHERE status = 'published'
@@ -444,12 +531,14 @@ interface PushRequestRow {
 	status: string;
 	created_at: number;
 	updated_at: number | null;
+	/** 申请时的班级系列快照（009；历史申请为 NULL，不可回填） */
+	story_series_id: number | null;
 }
 
 /** 查询班级当前未完成请求（pending/processing），供幂等返回与并发兜底复用 */
 async function findOpenPushRequest(env: Env, classId: string): Promise<PushRequestRow | null> {
 	return await env.DB.prepare(
-		`SELECT id, class_id, episode_id, status, created_at, updated_at
+		`SELECT id, class_id, episode_id, status, created_at, updated_at, story_series_id
 		 FROM class_push_requests
 		 WHERE class_id = ?1 AND status IN ('pending','processing')
 		 LIMIT 1`
@@ -477,11 +566,14 @@ export async function handleCreatePushRequest(request: Request, env: Env, classI
 
 	const id = crypto.randomUUID();
 	const now = nowSeconds();
+	// 系列快照（P4-T9）：申请时刻的班级 story_series_id 原样写入，此后不可变；
+	// 班级未设置系列时为 NULL —— 管理员队列侧对 NULL 快照申请阻止直接发布。
+	const snapshotSeriesId = cls.story_series_id ?? null;
 	try {
 		await env.DB.prepare(
-			`INSERT INTO class_push_requests (id, class_id, teacher_id, episode_id, status, created_at)
-			 VALUES (?1, ?2, ?3, NULL, 'pending', ?4)`
-		).bind(id, classId, auth.parent_id, now).run();
+			`INSERT INTO class_push_requests (id, class_id, teacher_id, episode_id, status, created_at, story_series_id)
+			 VALUES (?1, ?2, ?3, NULL, 'pending', ?4, ?5)`
+		).bind(id, classId, auth.parent_id, now, snapshotSeriesId).run();
 	} catch (e) {
 		// 并发兜底（第二层）：唯一索引 uq_cpr_open 冲突 → 重查并返回既有未完成请求
 		const raced = await findOpenPushRequest(env, classId);
@@ -490,7 +582,7 @@ export async function handleCreatePushRequest(request: Request, env: Env, classI
 	}
 
 	return jsonResponse({
-		request: { id, class_id: classId, episode_id: null, status: "pending", created_at: now, updated_at: null },
+		request: { id, class_id: classId, episode_id: null, status: "pending", created_at: now, updated_at: null, story_series_id: snapshotSeriesId },
 		already_pending: false,
 	}, 201);
 }
@@ -505,10 +597,10 @@ export async function handleListPushRequests(request: Request, env: Env, classId
 	if (!cls) return jsonResponse({ error: "班级不存在" }, 404);
 
 	// 最小字段 + 故事标题预留（episode_id 第一阶段为 NULL，LEFT JOIN 不产生 N+1 之外的查询）
-	// 结构即未来管理员队列视图子集：id / episode / status / 时间戳 / failure_reason
+	// 结构即未来管理员队列视图子集：id / episode / status / 时间戳 / failure_reason / 系列快照
 	const { results } = await env.DB.prepare(
 		`SELECT r.id, r.episode_id, r.status, r.failure_reason, r.created_at, r.updated_at,
-		        e.episode_title
+		        r.story_series_id, e.episode_title
 		 FROM class_push_requests r
 		 LEFT JOIN book_episodes e ON e.id = r.episode_id
 		 WHERE r.class_id = ?1

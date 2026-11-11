@@ -5,6 +5,7 @@
  */
 
 import { DatabaseSync } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -23,18 +24,18 @@ export class SqliteDBAdapter implements DBAdapter {
 	constructor(private readonly db: DatabaseSync) {}
 
 	async get<T = Row>(sql: string, params: unknown[]): Promise<T | undefined> {
-		return this.db.prepare(sql).get(...params) as T | undefined;
+		return this.db.prepare(sql).get(...(params as SQLInputValue[])) as T | undefined;
 	}
 
 	async all<T = Row>(sql: string, params: unknown[]): Promise<T[]> {
-		return this.db.prepare(sql).all(...params) as T[];
+		return this.db.prepare(sql).all(...(params as SQLInputValue[])) as T[];
 	}
 
 	async execBatch(statements: BatchStatement[]): Promise<void> {
 		this.db.exec("BEGIN");
 		try {
 			for (const s of statements) {
-				this.db.prepare(s.sql).run(...s.params);
+				this.db.prepare(s.sql).run(...(s.params as SQLInputValue[]));
 			}
 			this.db.exec("COMMIT");
 		} catch (err) {
@@ -46,13 +47,13 @@ export class SqliteDBAdapter implements DBAdapter {
 
 /** 直接同步执行 SQL（测试种子数据用，不走 adapter） */
 export function runSql(db: DatabaseSync, sql: string, params: unknown[] = []): unknown {
-	return db.prepare(sql).run(...params);
+	return db.prepare(sql).run(...(params as SQLInputValue[]));
 }
 
 export function getRow<T = Row>(db: DatabaseSync, sql: string, params: unknown[] = []): T | undefined {
-	return db.prepare(sql).get(...params) as T | undefined;
+	return db.prepare(sql).get(...(params as SQLInputValue[])) as T | undefined;
 }
 
 export function getRows<T = Row>(db: DatabaseSync, sql: string, params: unknown[] = []): T[] {
-	return db.prepare(sql).all(...params) as T[];
+	return db.prepare(sql).all(...(params as SQLInputValue[])) as T[];
 }
