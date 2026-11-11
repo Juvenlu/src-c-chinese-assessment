@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { BookWriter } from '@/components/admin/book-writer';
+import { ClassPushWorkbench } from '@/components/admin/class-push-workbench';
 import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
 
-type AdminTab = 'results' | 'charlib' | 'users' | 'questions' | 'books';
+type AdminTab = 'results' | 'charlib' | 'users' | 'questions' | 'books' | 'classpush';
 
 
 function AdminContent({ adminPassword }: { adminPassword: string }) {
@@ -40,6 +41,10 @@ function AdminContent({ adminPassword }: { adminPassword: string }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [bookView, setBookView] = useState<'writer' | 'workshop'>('writer');
+  // 课堂推送「开始定制」→ 绘本写手预选上下文（P4-T9-1C-S5）
+  const [writerPreset, setWriterPreset] = useState<{ childId: string; episodeId: number } | null>(null);
+  // 课堂推送工作台受控选中申请（跨 tab 保持现场，支持中断恢复）
+  const [selectedPushRequestId, setSelectedPushRequestId] = useState<string | null>(null);
   const [importJson, setImportJson] = useState('');
   const [importing, setImporting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -529,6 +534,7 @@ function AdminContent({ adminPassword }: { adminPassword: string }) {
             { key: 'users', label: '👥 用户数据' },
             { key: 'questions', label: '📚 题库管理' },
             { key: 'books', label: '📚 绘本工坊' },
+            { key: 'classpush', label: '🏫 课堂推送' },
           ] as { key: AdminTab; label: string }[]).map((t) => (
             <button
               key={t.key}
@@ -548,6 +554,20 @@ function AdminContent({ adminPassword }: { adminPassword: string }) {
           <div className="text-center py-20 text-gray-500">加载中...</div>
         ) : (
           <>
+            {/* Class Push Workbench Tab (P4-T9-1C-S5) */}
+            {tab === 'classpush' && (
+              <ClassPushWorkbench
+                adminFetch={adminFetch}
+                selectedRequestId={selectedPushRequestId}
+                onSelectRequest={setSelectedPushRequestId}
+                onStartCustomize={(ctx) => {
+                  setWriterPreset({ episodeId: ctx.episodeId, childId: ctx.childId });
+                  setBookView('writer');
+                  setTab('books');
+                }}
+              />
+            )}
+
             {/* Results Tab */}
             {tab === 'results' && (
               <div>
@@ -915,6 +935,8 @@ function AdminContent({ adminPassword }: { adminPassword: string }) {
                   <BookWriter
                     childList={d1Children}
                     adminFetch={adminFetch}
+                    initialChildId={writerPreset?.childId}
+                    initialEpisodeId={writerPreset?.episodeId}
                   />
                 )}
 

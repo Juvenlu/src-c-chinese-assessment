@@ -209,8 +209,11 @@ for (const f of workerCallerRoutes) {
 // 38 既有 caller（19 直连 + 11 proxyToWorker 消费路由 + 3 reading + 5 其他守卫内路由）
 // + 4 新增 classes Session 代理路由（P4-T4）= 42
 // 注：守卫本体 worker-proxy.ts / session-proxy.ts 为 lib 文件，非 route.ts
-check(`T12 worker-caller routes count expected (=42)`,
-  workerCallerRoutes.length === 42, `actual=${workerCallerRoutes.length}`);
+// 42 → 43：P4-T4 后既有新增 1 条未同步计数（HEAD 审计：git diff 确认 S5 之前 actual=43，既有债务）
+// 43 → 50：P4-T9-1C-S5 新增 7 条（5 条 admin/push-requests 经 proxyToWorker
+//           + classes/[id]/series、classes/master-stories 经 proxySessionToWorker，全部 T13 受守卫）
+check(`T12 worker-caller routes count expected (=50)`,
+  workerCallerRoutes.length === 50, `actual=${workerCallerRoutes.length}`);
 check('T13 all worker-caller routes guarded (unguarded=0)', unguarded.length === 0,
   unguarded.length ? 'UNGUARDED: ' + unguarded.join(', ') : '');
 console.log(`[coverage] worker caller routes = ${workerCallerRoutes.length}, guarded = ${guarded}`);
@@ -228,12 +231,14 @@ console.log(`[coverage] worker caller routes = ${workerCallerRoutes.length}, gua
 
 // Redirect 保护：所有直连/阅读路由的每个 fetch 必须显式 ...WORKER_FETCH_INIT；
 // proxyToWorker 消费路由由 worker-proxy.ts 统一保护。
+// 注：fetch 调用点按 (await|return) fetch( 计数（P4-T9-1C-S5 修复误报：
+// admin/rewrite/generate/route.ts 使用 return fetch(...) 且已带 INIT，旧正则 /await fetch\(/ 漏计）。
 {
   const unprotected: string[] = [];
   for (const f of workerCallerRoutes) {
     const c = fs.readFileSync(f, 'utf8');
     if (/proxyToWorker\s*\(/.test(c)) continue; // 代理统一保护
-    const fetchCount = (c.match(/await fetch\(/g) || []).length;
+    const fetchCount = (c.match(/(await|return)\s+fetch\(/g) || []).length;
     const initCount = (c.match(/\.\.\.WORKER_FETCH_INIT,/g) || []).length;
     if (fetchCount !== initCount) {
       unprotected.push(`${path.relative(apiDir, f)}(fetch=${fetchCount},init=${initCount})`);

@@ -10,6 +10,7 @@ import {
   BookOpen,
   Check,
   Copy,
+  Library,
   Loader2,
   RefreshCw,
   UserRound,
@@ -22,6 +23,8 @@ interface ClassDetail {
   invite_code: string;
   status: string;
   created_at: number;
+  /** 班级故事系列（P4-T9）：创建推送申请时由 Worker 原样快照 */
+  story_series_id: number | null;
 }
 
 interface MemberItem {
@@ -41,6 +44,14 @@ interface PushRequestItem {
   created_at: number;
   updated_at: number | null;
   episode_title: string | null;
+  /** 申请时刻的班级系列快照（P4-T9；历史申请为 NULL） */
+  story_series_id?: number | null;
+}
+
+/** 故事系列选项（P4-T9）：从已发布 Master 列表聚合去重 */
+interface SeriesOption {
+  id: number;
+  name: string;
 }
 
 type PageState = 'loading' | 'ok' | 'not-found' | 'forbidden' | 'error';
@@ -73,6 +84,16 @@ export default function TeacherClassDetailPage({
   const [pushLoaded, setPushLoaded] = useState(false);
   const [pushLoadError, setPushLoadError] = useState(false);
   const pushSeqRef = useRef(0);
+
+  // 故事系列设置（P4-T9）：选项列表 + 当前选择 + 保存状态
+  const [seriesOptions, setSeriesOptions] = useState<SeriesOption[]>([]);
+  const [seriesSelected, setSeriesSelected] = useState<string>(''); // '' 表示未选择/清除
+  const [seriesSaving, setSeriesSaving] = useState(false);
+  const [seriesError, setSeriesError] = useState('');
+  const [seriesSavedTick, setSeriesSavedTick] = useState(false);
+  const [seriesLoaded, setSeriesLoaded] = useState(false);
+  const [seriesLoadError, setSeriesLoadError] = useState(false);
+  const seriesSeqRef = useRef(0);
 
   // 推送请求状态加载（P4-T7-2B）：独立加载 + 8s 超时中止 + 序号防竞态
   // 非成功状态 / 网络异常 / 超时 / 响应格式错误 → pushLoadError（显示错误与重试，不显示提交按钮）
@@ -107,6 +128,50 @@ export default function TeacherClassDetailPage({
       clearTimeout(timer);
     }
   }, [authFetch, classId, router]);
+
+  // 故事系列选项加载（P4-T9）：独立加载，失败不阻塞页面，卡片内重试
+  const loadSeriesOptions = useCallback(async () => {
+    const seq = ++seriesSeqRef.current;
+    setSeriesLoadError(false);
+    setSeriesLoaded(false);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const res = await authFetch('/api/classes/master-stories', { signal: ctrl.signal });
+      if (seq !== seriesSeqRef.current) return;
+      if (res.status === 401) {
+        router.push('/teacher/login');
+        return;
+      }
+      if (!res.ok) {
+        setSeriesLoadError(true);
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (seq !== seriesSeqRef.current) return;
+      if (!Array.isArray(data?.stories)) {
+        setSeriesLoadError(true);
+        return;
+      }
+      // 按 series_id 聚合去重（同名系列以首次出现的 id 为准）
+      const seen = new Map<number, string>();
+      for (const s of data.stories as { series_id: number; series_name: string }[]) {
+        if (typeof s.series_id === 'number' && !seen.has(s.series_id)) {
+          seen.set(s.series_id, s.series_name);
+        }
+      }
+      setSeriesOptions(
+        Array.from(seen.entries())
+          .map(([id, name]) => ({ id, name }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')),
+      );
+      setSeriesLoaded(true);
+    } catch {
+      if (seq === seriesSeqRef.current) setSeriesLoadError(true);
+    } finally {
+      clearTimeout(timer);
+    }
+  }, [authFetch, router]);
 
   // 未登录 → 教师登录页
   useEffect(() => {
@@ -147,9 +212,15 @@ export default function TeacherClassDetailPage({
         }
         setClassDetail(data.class);
         setMembers(Array.isArray(data.members) ? data.members : []);
+        // 系列当前选择初始化为班级已保存值（null → '' 未设置）
+        setSeriesSelected(
+          typeof data.class.story_series_id === 'number' ? String(data.class.story_series_id) : '',
+        );
         setPageState('ok');
         // 推送请求状态独立加载：失败不阻塞班级详情，由卡片内错误分支承担展示与重试
         loadPushRequests();
+        // 系列选项独立加载：失败不阻塞页面，卡片内重试
+        loadSeriesOptions();
       } catch {
         if (!cancelled) setPageState('error');
       }
@@ -158,7 +229,7 @@ export default function TeacherClassDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [user, loading, router, authFetch, classId, loadPushRequests]);
+  }, [user, loading, router, authFetch, classId, loadPushRequests, loadSeriesOptions]);
 
   const handleCopy = async () => {
     if (!classDetail) return;
@@ -200,6 +271,45 @@ export default function TeacherClassDetailPage({
       setActionError('网络异常，请稍后重试');
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  // 保存班级故事系列（P4-T9）：PATCH /api/classes/:id/series
+  // '' 选择 → null（清除系列）；保存成功后同步本地 classDetail
+  const handleSaveSeries = async () => {
+    if (!classDetail || seriesSaving) return;
+    setSeriesError('');
+    setSeriesSavedTick(false);
+    setSeriesSaving(true);
+    try {
+      const payload = {
+        story_series_id: seriesSelected === '' ? null : Number(seriesSelected),
+      };
+      const res = await authFetch(`/api/classes/${classId}/series`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.status === 401) {
+        router.push('/teacher/login');
+        return;
+      }
+      if (!res.ok) {
+        setSeriesError((data && data.error) || '保存失败，请稍后重试');
+        return;
+      }
+      if (data?.class && typeof data.class.story_series_id !== 'undefined') {
+        setClassDetail({ ...classDetail, story_series_id: data.class.story_series_id });
+        setSeriesSavedTick(true);
+        setTimeout(() => setSeriesSavedTick(false), 2500);
+      } else {
+        setSeriesError('返回异常，请刷新确认');
+      }
+    } catch {
+      setSeriesError('网络异常，请稍后重试');
+    } finally {
+      setSeriesSaving(false);
     }
   };
 
@@ -361,6 +471,95 @@ export default function TeacherClassDetailPage({
           )}
         </div>
 
+        {/* 课堂故事系列（P4-T9）：决定推送申请的快照系列，管理员据此选书 */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
+          <h2 className="font-bold text-gray-800 flex items-center gap-2">
+            <Library className="w-5 h-5 text-[var(--color-src-primary)]" />
+            课堂故事系列
+          </h2>
+
+          {seriesLoadError ? (
+            <div className="space-y-3">
+              <p className="text-sm text-red-500 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                系列列表加载失败，请重试
+              </p>
+              <button
+                onClick={loadSeriesOptions}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 border-[var(--color-src-primary)] text-[var(--color-src-primary)] font-bold transition-all duration-200 hover:bg-[var(--color-src-primary)]/5 active:scale-95"
+              >
+                <RefreshCw className="w-4 h-4" />
+                重试
+              </button>
+            </div>
+          ) : !seriesLoaded ? (
+            <div className="flex items-center gap-3 rounded-2xl bg-gray-50 p-4">
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400 shrink-0" />
+              <p className="text-sm text-gray-400">正在加载故事系列...</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                选择班级当前阅读的故事系列。提交推送申请时会保存当时的系列快照，管理员将为学生制作该系列的下一本绘本。
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <select
+                  value={seriesSelected}
+                  onChange={(e) => {
+                    setSeriesSelected(e.target.value);
+                    setSeriesSavedTick(false);
+                    setSeriesError('');
+                  }}
+                  className="flex-1 px-4 py-3 rounded-2xl border-2 border-gray-200 bg-white text-gray-800 font-medium focus:border-[var(--color-src-primary)] focus:outline-none transition-colors"
+                  aria-label="选择故事系列"
+                >
+                  <option value="">未设置系列</option>
+                  {seriesOptions.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleSaveSeries}
+                  disabled={
+                    seriesSaving ||
+                    seriesSelected ===
+                      (classDetail.story_series_id === null ? '' : String(classDetail.story_series_id))
+                  }
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[var(--color-src-primary)] text-white font-bold shadow-md transition-all duration-200 hover:shadow-lg active:scale-95 disabled:opacity-50"
+                >
+                  {seriesSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {seriesSaving ? '保存中...' : '保存系列'}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-400">当前系列：</span>
+                {classDetail.story_series_id === null ? (
+                  <span className="text-amber-600 font-medium">未设置（提交申请前建议先设置）</span>
+                ) : (
+                  <span className="font-bold text-gray-800">
+                    {seriesOptions.find((s) => s.id === classDetail.story_series_id)?.name ||
+                      `系列 #${classDetail.story_series_id}`}
+                  </span>
+                )}
+                {seriesSavedTick && (
+                  <span className="inline-flex items-center gap-1 text-teal-600 font-medium">
+                    <Check className="w-4 h-4" />
+                    已保存
+                  </span>
+                )}
+              </div>
+              {seriesError && (
+                <p className="text-sm text-red-500 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {seriesError}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
         {/* 课堂绘本（P4-T7-1）：一键申请，管理员为每位学生准备专属版本 */}
         {(() => {
           const openRequest = pushRequests.find(
@@ -407,6 +606,13 @@ export default function TeacherClassDetailPage({
                     </p>
                     <p className="text-xs text-gray-400">
                       提交于 {new Date(openRequest.created_at * 1000).toLocaleString('zh-CN')}
+                      {openRequest.story_series_id != null && (
+                        <>
+                          {' · 系列：'}
+                          {seriesOptions.find((s) => s.id === openRequest.story_series_id)?.name ||
+                            `#${openRequest.story_series_id}`}
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -425,6 +631,12 @@ export default function TeacherClassDetailPage({
                     <p className="text-sm text-red-500 flex items-center gap-1.5">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       上一次推送未成功，可重新提交
+                    </p>
+                  )}
+                  {classDetail.story_series_id === null && (
+                    <p className="text-sm text-amber-600 flex items-center gap-1.5 rounded-2xl bg-amber-50 p-3">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      班级还未设置故事系列，管理员将无法确定要制作哪一系列。建议先在上方保存系列后再提交申请。
                     </p>
                   )}
                   <button
