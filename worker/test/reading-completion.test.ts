@@ -95,6 +95,7 @@ async function seed(): Promise<Seed> {
 		SRC_WORKER_SERVICE_KEY: "svc",
 		SESSION_SECRET: "session-secret",
 		ADMIN_PASSWORD: "admin-secret",
+		JOIN_RATE_LIMITER: { limit: async () => ({ success: true }) },
 	};
 	const token = await signSession({ parent_id: PARENT }, env.SESSION_SECRET);
 	const cookie = createSessionCookie(token);

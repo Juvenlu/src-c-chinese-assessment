@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { VersionManager } from './version-manager';
 
 interface Child {
@@ -54,6 +54,13 @@ interface RewritePage {
 interface BookWriterProps {
   childList: Child[];
   adminFetch: (url: string, options?: RequestInit) => Promise<Response>;
+  /**
+   * 课堂推送「开始定制」预选上下文（P4-T9-1C-S5，可选）：
+   * 提供后组件挂载时自动预选孩子与绘本集，省去手工两步选择。
+   * 仅影响初始选择，不改变任何既有手工流程。
+   */
+  initialChildId?: string;
+  initialEpisodeId?: number;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -233,7 +240,7 @@ export function filterVersionsForChild(versions: RewriteVersion[], childId: stri
   return versions.filter((v) => String(v.child_id ?? '') === String(childId));
 }
 
-export function BookWriter({ childList, adminFetch }: BookWriterProps) {
+export function BookWriter({ childList, adminFetch, initialChildId, initialEpisodeId }: BookWriterProps) {
   // Step 1: Child
   const [selectedChildId, setSelectedChildId] = useState<string>('');
   const [childLoading, setChildLoading] = useState(false);
@@ -298,6 +305,23 @@ export function BookWriter({ childList, adminFetch }: BookWriterProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChildId]);
+
+  // 课堂推送「开始定制」预选孩子（P4-T9-1C-S5）：仅应用一次，不改变手工流程
+  const presetChildAppliedRef = useRef(false);
+  useEffect(() => {
+    if (presetChildAppliedRef.current || !initialChildId) return;
+    presetChildAppliedRef.current = true;
+    handleSelectChild(String(initialChildId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialChildId]);
+
+  // 孩子选定且绘本集列表就绪后，预选指定绘本集（仅一次）
+  useEffect(() => {
+    if (!initialEpisodeId || !episodesLoaded || selectedEpisode) return;
+    const ep = episodes.find((e) => e.id === initialEpisodeId);
+    if (ep) handleSelectEpisode(ep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEpisodeId, episodesLoaded, episodes, selectedEpisode]);
 
   const loadChildProfile = async (childId: string) => {
     setChildLoading(true);

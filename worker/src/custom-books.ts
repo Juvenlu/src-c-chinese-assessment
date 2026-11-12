@@ -32,6 +32,7 @@ function rowToBookListItem(row: Record<string, unknown>): Record<string, unknown
 		series_name: row.series_name,
 		episode_number: row.episode_number,
 		episode_title: row.episode_title,
+		cover_image_url: row.cover_image_url ?? null,
 	};
 	return result;
 }
@@ -97,6 +98,7 @@ export async function handleV1CustomBooksList(request: Request, env: Env): Promi
 		       cb.level_tier,
 		       cb.is_free,
 		       cb.status,
+		       cb.channel,
 		       cb.created_at,
 		       cb.updated_at,
 		       cb.pushed_at,
@@ -105,7 +107,11 @@ export async function handleV1CustomBooksList(request: Request, env: Env): Promi
 		       brv.target_level,
 		       be.series_name,
 		       be.episode_number,
-		       be.episode_title
+		       be.episode_title,
+		       be.cover_image_url,
+		       be.page_count,
+		       (SELECT MAX(rr.pages_read) FROM reading_records rr WHERE rr.custom_book_id = cb.id) AS pages_read,
+		       (SELECT MAX(rr.completed) FROM reading_records rr WHERE rr.custom_book_id = cb.id) AS completed
 		  FROM custom_books cb
 		  JOIN book_rewrite_versions brv ON cb.rewrite_id = brv.id
 		  JOIN book_episodes be ON cb.episode_id = be.id

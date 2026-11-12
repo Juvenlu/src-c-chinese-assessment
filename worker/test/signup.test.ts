@@ -9,8 +9,6 @@ import "./setup-wasm-ext";
 import "./setup-webcrypto";
 import { hashPassword } from "../src/password";
 
-const TEST_SECRET = "test-session-secret-for-signup-unit-tests";
-
 const TEST_EMAIL = "signup-test@example.com";
 const TEST_PASSWORD = "SignupTest123!";
 const TEST_NICKNAME = "测试小朋友";
@@ -52,8 +50,6 @@ function resetMockData() {
 }
 
 function createMockDB(): MockDB {
-  const batchCalls: MockStatement[] = [];
-
   const makeStmt = (sql: string, bound: unknown[] = []): MockStatement => ({
     sql,
     bound,
@@ -153,15 +149,6 @@ function createMockDB(): MockDB {
       }
       return results;
     },
-  };
-}
-
-// ===== Mock Env =====
-function mockEnv(db: MockDB) {
-  return {
-    DB: db as unknown as D1Database,
-    SRC_WORKER_SERVICE_KEY: "test-service-key",
-    SESSION_SECRET: TEST_SECRET,
   };
 }
 

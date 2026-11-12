@@ -22,3 +22,13 @@ export function verifyAdminPassword(request: Request, env: Env): boolean {
 	}
 	return result === 0;
 }
+
+/**
+ * 课堂推送管理操作总开关（P4-T9-1C-S5F）。
+ * 仅 env.CLASS_PUSH_ADMIN_ENABLED === 'true' 放行实际课堂绘本处理操作；
+ * 缺失、为空或其他值一律 fail-closed。调用方须先通过 verifyAdminPassword，
+ * 本开关是身份认证之外的第二道闸，不得用于替代口令校验。
+ */
+export function isClassPushAdminEnabled(env: Env): boolean {
+	return env.CLASS_PUSH_ADMIN_ENABLED === "true";
+}

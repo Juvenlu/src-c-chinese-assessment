@@ -50,6 +50,7 @@ function makeEnv(db: DatabaseSync): Env {
 		SRC_WORKER_SERVICE_KEY: "svc",
 		SESSION_SECRET: "session-secret",
 		ADMIN_PASSWORD: ADMIN_PWD,
+		JOIN_RATE_LIMITER: { limit: async () => ({ success: true }) },
 	};
 }
 

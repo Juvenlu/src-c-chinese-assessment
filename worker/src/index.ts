@@ -54,12 +54,20 @@ import {
 	handleListClasses,
 	handleGetClass,
 	handleRegenerateInviteCode,
+	handleUpdateClassSeries,
 	handleJoinClass,
 	handleRevokeMember,
 	handleMasterStories,
 	handleCreatePushRequest,
 	handleListPushRequests,
 } from "./classes";
+import {
+	handleAdminListPushRequests,
+	handleAdminClaimPushRequest,
+	handleAdminGetPushRequest,
+	handleAdminActivateForChild,
+	handleAdminCompletePushRequest,
+} from "./admin-push-queue";
 import type { Env } from "./types";
 import { parseRoles, hasRole } from "./roles";
 
@@ -858,6 +866,10 @@ async function handlePostAuthTeacherSignup(request: Request, env: Env): Promise<
 		return jsonResponse({ error: "密码至少需要8位" }, 400);
 	}
 
+	// ===== 教师自主注册（P4-T9-1C-S5G-6B）=====
+	// 管理员已确认首期不启用注册白名单：教师通过本入口自主注册。
+	// 仅依赖既有邮箱校验、409 查重与角色权限体系；学生数据访问仍需家长主动入班授权。
+
 	if (!env.SESSION_SECRET) {
 		return jsonResponse({ error: "服务配置错误" }, 500);
 	}
@@ -1095,6 +1107,11 @@ export default {
 			if (classGetMatch && request.method === "GET") {
 				return handleGetClass(request, env, classGetMatch[1]);
 			}
+			// PATCH /v1/classes/:id/series — 设置班级故事系列（P4-T9；仅所属教师）
+			const classSeriesMatch = path.match(/^\/v1\/classes\/([^/]+)\/series$/);
+			if (classSeriesMatch && request.method === "PATCH") {
+				return handleUpdateClassSeries(request, env, classSeriesMatch[1]);
+			}
 			// POST /v1/classes/:id/invite-code — 重新生成邀请码（旧码即失效）
 			const inviteRegenMatch = path.match(/^\/v1\/classes\/([^/]+)\/invite-code$/);
 			if (inviteRegenMatch && request.method === "POST") {
@@ -1292,6 +1309,41 @@ export default {
 			const adminPushMatch = path.match(/^\/v1\/admin\/custom-books\/([^/]+)\/push$/);
 			if (adminPushMatch && request.method === "POST") {
 				return handleAdminPush(request, env, adminPushMatch[1]);
+			}
+
+			// ===== P4-T9 课堂推送队列（x-admin-password）=====
+			// 注意：children/:childId/activate 正则必须先于 /:id 通用匹配
+
+			// POST /v1/admin/push-requests/:id/children/:childId/activate
+			// 孩子级课堂上架 + 推送 + 结果记录（全服务端校验，幂等，可中断恢复）
+			const adminChildActivateMatch = path.match(
+				/^\/v1\/admin\/push-requests\/([^/]+)\/children\/([^/]+)\/activate$/,
+			);
+			if (adminChildActivateMatch && request.method === "POST") {
+				return handleAdminActivateForChild(request, env, adminChildActivateMatch[1], adminChildActivateMatch[2]);
+			}
+
+			// POST /v1/admin/push-requests/:id/claim — 领取申请（幂等重入）
+			const adminClaimMatch = path.match(/^\/v1\/admin\/push-requests\/([^/]+)\/claim$/);
+			if (adminClaimMatch && request.method === "POST") {
+				return handleAdminClaimPushRequest(request, env, adminClaimMatch[1]);
+			}
+
+			// POST /v1/admin/push-requests/:id/complete — 汇总关闭申请
+			const adminCompleteMatch = path.match(/^\/v1\/admin\/push-requests\/([^/]+)\/complete$/);
+			if (adminCompleteMatch && request.method === "POST") {
+				return handleAdminCompletePushRequest(request, env, adminCompleteMatch[1]);
+			}
+
+			// GET /v1/admin/push-requests — 待办队列
+			if (path === "/v1/admin/push-requests" && request.method === "GET") {
+				return handleAdminListPushRequests(request, env);
+			}
+
+			// GET /v1/admin/push-requests/:id — 申请详情（学生/等级/额度/结果/可选 Master）
+			const adminPushReqGetMatch = path.match(/^\/v1\/admin\/push-requests\/([^/]+)$/);
+			if (adminPushReqGetMatch && request.method === "GET") {
+				return handleAdminGetPushRequest(request, env, adminPushReqGetMatch[1]);
 			}
 
 			// GET /v1/admin/episodes/:id/rewrites — Admin 列出某 episode 的所有 rewrite

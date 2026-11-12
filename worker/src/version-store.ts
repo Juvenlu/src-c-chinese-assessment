@@ -67,15 +67,32 @@ export const BOOK_STATUS = {
 } as const;
 export type BookStatus = (typeof BOOK_STATUS)[keyof typeof BOOK_STATUS];
 
-/** 每个孩子同时允许的未完成绘本上限（产品规则；超出时上架入口返回 409） */
+/**
+ * 绘本渠道（P4-T9 009 迁移）：
+ *   home  — 家庭绘本（默认；全部存量记录）
+ *   class — 课堂绘本（教师推送闭环产生）
+ * 家庭与课堂各自独立持有 UNFINISHED_BOOK_LIMIT 本未完成额度；
+ * 同孩子同集允许 home / class 各一本 active（ux_custom_books_active_v2）。
+ */
+export const BOOK_CHANNELS = ["home", "class"] as const;
+export type BookChannel = (typeof BOOK_CHANNELS)[number];
+
+/** 解析并校验 channel 输入；非法值返回 null（调用方 400） */
+export function asChannel(value: unknown): BookChannel | null {
+	return value === "home" || value === "class" ? value : null;
+}
+
+/** 每个孩子每个渠道同时允许的未完成绘本上限（产品规则；超出时上架入口返回 409） */
 export const UNFINISHED_BOOK_LIMIT = 2;
 
 /**
- * 未完成绘本计数（统一含历史，不按生成方式/上架时间区分）：
- * active 且不存在 completed=1 的阅读记录。占位符：child_id。
+ * 未完成绘本计数（按渠道独立，统一含历史，不按生成方式/上架时间区分）：
+ * active 且不存在 completed=1 的阅读记录。占位符：child_id, channel。
+ * COALESCE 兜底：009 前存量行逻辑上恒为 'home'（列 DEFAULT），防御未来绕过写入的 NULL。
  */
 const UNFINISHED_COUNT_SQL = `SELECT COUNT(*) FROM custom_books cb
        WHERE cb.child_id = ? AND cb.status = 'active'
+         AND COALESCE(cb.channel, 'home') = ?
          AND NOT EXISTS (
            SELECT 1 FROM reading_records rr
             WHERE rr.custom_book_id = cb.id AND rr.completed = 1
@@ -103,30 +120,35 @@ const INCOMING_DELTA_SQL = `CASE WHEN EXISTS (
  * 归档语句的守卫在「归档前」状态求值，需显式减去将被归档的未完成数；
  * 激活语句在同批归档之后求值，计数已是归档后状态，语义一致。
  * 版本替换按操作前后实际未完成数量计算，不假设净变化恒为零。
+ *
+ * 渠道隔离（P4-T9）：计数与归档都限定同一 channel —— 课堂激活只归档课堂旧版，
+ * 不动家庭书；家庭同理。渠道间额度互不影响（各 2 本）。
  */
-function buildGuardedActivation(now: number, childId: string, episodeId: number, rewriteId: number): BatchStatement[] {
+function buildGuardedActivation(now: number, childId: string, episodeId: number, rewriteId: number, channel: BookChannel): BatchStatement[] {
 	return [
 		{
 			sql: `UPDATE custom_books SET status = 'archived', updated_at = ?
 			      WHERE child_id = ? AND episode_id = ? AND rewrite_id <> ? AND status = 'active'
+			        AND COALESCE(channel, 'home') = ?
 			        AND ( (${UNFINISHED_COUNT_SQL})
 			            - (SELECT COUNT(*) FROM custom_books cb
 			                WHERE cb.child_id = ? AND cb.episode_id = ? AND cb.rewrite_id <> ? AND cb.status = 'active'
+			                  AND COALESCE(cb.channel, 'home') = ?
 			                  AND NOT EXISTS (SELECT 1 FROM reading_records rr WHERE rr.custom_book_id = cb.id AND rr.completed = 1))
 			            + (${INCOMING_DELTA_SQL}) ) <= ?`,
-			params: [now, childId, episodeId, rewriteId, childId, childId, episodeId, rewriteId, childId, rewriteId, UNFINISHED_BOOK_LIMIT],
+			params: [now, childId, episodeId, rewriteId, channel, childId, channel, childId, episodeId, rewriteId, channel, childId, rewriteId, UNFINISHED_BOOK_LIMIT],
 		},
 		{
 			sql: `INSERT INTO custom_books
-			        (child_id, rewrite_id, episode_id, level_tier, is_free, status, created_at, updated_at)
-			      SELECT r.child_id, r.id, r.episode_id, r.target_level, 0, 'active', ?, ?
+			        (child_id, rewrite_id, episode_id, level_tier, is_free, status, channel, created_at, updated_at)
+			      SELECT r.child_id, r.id, r.episode_id, r.target_level, 0, 'active', ?, ?, ?
 			        FROM book_rewrite_versions r
 			       WHERE r.id = ? AND r.child_id = ? AND r.episode_id = ? AND r.status = 'final'
 			         AND ( (${UNFINISHED_COUNT_SQL}) + (${INCOMING_DELTA_SQL}) ) <= ?
 			      ON CONFLICT(child_id, rewrite_id) DO UPDATE SET
 			        status = 'active', episode_id = excluded.episode_id,
 			        level_tier = excluded.level_tier, updated_at = ?`,
-			params: [now, now, rewriteId, childId, episodeId, childId, childId, rewriteId, UNFINISHED_BOOK_LIMIT, now],
+			params: [channel, now, now, rewriteId, childId, episodeId, childId, channel, childId, rewriteId, UNFINISHED_BOOK_LIMIT, now],
 		},
 	];
 }
@@ -201,17 +223,21 @@ export async function markRewriteFinal(
 // ============================================================
 
 /**
- * 显式选择某个 rewrite 作为孩子该集的唯一正式版。
+ * 显式选择某个 rewrite 作为孩子该集该渠道的唯一正式版。
  * - 校验 rewrite 存在、status=final、child_id/episode_id 与请求一致。
- * - 原子：先归档该 child+episode 下其它 active，再 upsert 目标为 active。
+ * - 渠道（P4-T9）：channel 默认 'home'（既有家庭流程零变化）；
+ *   同一 (child, rewrite) 已存在于另一渠道时拒绝（409），
+ *   防止 ON CONFLICT(child_id, rewrite_id) 静默改写他渠道行。
+ * - 原子：先归档该 child+episode+channel 下其它 active，再 upsert 目标为 active。
  * - 若目标 custom_books 不存在则按 rewrite 字段创建（INSERT…SELECT…ON CONFLICT）。
  */
 export async function activateVersion(
 	db: DBAdapter,
 	now: number,
-	opts: { childId: string; episodeId: number; rewriteId: number },
+	opts: { childId: string; episodeId: number; rewriteId: number; channel?: BookChannel },
 ): Promise<ServiceResult<{ customBookId: number }>> {
 	const { childId, episodeId, rewriteId } = opts;
+	const channel: BookChannel = opts.channel ?? "home";
 
 	const ref = await db.get<RewriteRef>(
 		`SELECT id, episode_id, child_id, target_level, status
@@ -229,9 +255,21 @@ export async function activateVersion(
 		return fail(409, "Rewrite episode mismatch");
 	}
 
-	// 原子写：先归档其它 active，再 upsert 目标；两条语句均携带名额守卫。
+	// 渠道冲突前置校验：(child_id, rewrite_id) 全库唯一（ON CONFLICT 依赖此约束），
+	// 若既有行在另一渠道，继续执行会把该行静默拉回 active 且 channel 不变 —— 必须显式拒绝。
+	const existing = await db.get<{ id: number; channel: string | null }>(
+		`SELECT id, channel FROM custom_books WHERE child_id = ? AND rewrite_id = ?`,
+		[childId, rewriteId],
+	);
+	if (existing && (existing.channel ?? "home") !== channel) {
+		return fail(409, "Rewrite already activated in another channel", {
+			existing_channel: existing.channel ?? "home",
+		});
+	}
+
+	// 原子写：先归档同渠道其它 active，再 upsert 目标；两条语句均携带同渠道名额守卫。
 	// 名额不足时整体无副作用（旧 active 不归档、目标不上架），execBatch 单事务提交。
-	await db.execBatch(buildGuardedActivation(now, childId, episodeId, rewriteId));
+	await db.execBatch(buildGuardedActivation(now, childId, episodeId, rewriteId, channel));
 
 	// 守卫拒绝时目标行不存在或仍为非 active → 明确 409（区别于「行丢失」的 500）
 	const book = await db.get<{ id: number; status: string }>(
@@ -282,8 +320,8 @@ export async function restoreVersion(
 	now: number,
 	customBookId: number,
 ): Promise<ServiceResult<{ id: number; status: BookStatus }>> {
-	const row = await db.get<{ id: number; child_id: string; episode_id: number; rewrite_id: number; status: string }>(
-		`SELECT id, child_id, episode_id, rewrite_id, status FROM custom_books WHERE id = ?`,
+	const row = await db.get<{ id: number; child_id: string; episode_id: number; rewrite_id: number; status: string; channel: string | null }>(
+		`SELECT id, child_id, episode_id, rewrite_id, status, channel FROM custom_books WHERE id = ?`,
 		[customBookId],
 	);
 	if (!row) return fail(404, "Custom book not found");
@@ -293,15 +331,17 @@ export async function restoreVersion(
 
 	// 恢复即重新选为正式版：与 activateVersion 同守卫（恢复同样可能新增未完成名额）。
 	// 名额不足时整体无副作用（旧 active 不归档、本版本不恢复），返回 409。
+	// 渠道按该绘本既有归属（P4-T9）：课堂书恢复只占用课堂额度、只归档课堂同集。
 	const childId = row.child_id;
 	const episodeId = asInt(row.episode_id) as number;
 	const rewriteId = asInt(row.rewrite_id) as number;
+	const channel: BookChannel = row.channel === "class" ? "class" : "home";
 	await db.execBatch([
-		buildGuardedActivation(now, childId, episodeId, rewriteId)[0],
+		buildGuardedActivation(now, childId, episodeId, rewriteId, channel)[0],
 		{
 			sql: `UPDATE custom_books SET status = 'active', updated_at = ? WHERE id = ?
 			      AND ( (${UNFINISHED_COUNT_SQL}) + (${INCOMING_DELTA_SQL}) ) <= ?`,
-			params: [now, customBookId, childId, childId, rewriteId, UNFINISHED_BOOK_LIMIT],
+			params: [now, customBookId, childId, channel, childId, rewriteId, UNFINISHED_BOOK_LIMIT],
 		},
 	]);
 
@@ -464,6 +504,7 @@ export interface VersionListItem {
 	max_page_chars: number;
 	custom_book_id: number | null;
 	book_status: BookStatus | null;
+	channel: BookChannel | null;
 	pushed_at: number | null;
 	first_viewed_at: number | null;
 	is_new: boolean;
@@ -483,7 +524,7 @@ export async function listVersions(
 		        r.status AS rewrite_status, r.total_chars, r.unique_chars, r.max_page_chars,
 		        r.created_at, r.finalized_at,
 		        json_array_length(r.pages_json) AS page_count,
-		        cb.id AS custom_book_id, cb.status AS book_status,
+		        cb.id AS custom_book_id, cb.status AS book_status, cb.channel AS channel,
 		        cb.pushed_at AS pushed_at, cb.first_viewed_at AS first_viewed_at,
 		        (SELECT count(*) FROM reading_records rr WHERE rr.custom_book_id = cb.id) AS record_count,
 		        (SELECT count(*) FROM reading_feedback rf WHERE rf.custom_book_id = cb.id) AS feedback_count
@@ -509,6 +550,7 @@ export async function listVersions(
 			max_page_chars: asInt(r.max_page_chars) ?? 0,
 			custom_book_id: asInt(r.custom_book_id),
 			book_status: (r.book_status as BookStatus | null) ?? null,
+			channel: r.channel === "class" ? "class" : r.channel === "home" ? "home" : null,
 			pushed_at,
 			first_viewed_at,
 			is_new: pushed_at !== null && first_viewed_at === null,

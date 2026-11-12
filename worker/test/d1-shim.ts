@@ -10,6 +10,7 @@
  */
 
 import { DatabaseSync } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 import type { Row } from "../src/version-store.js";
 
 interface D1ResultMeta {
@@ -36,12 +37,12 @@ class Bound implements BoundStmt {
 	) {}
 
 	first<T = Row>(): Promise<T | null> {
-		const row = this.db.prepare(this.sql).get(...this.params) as T | undefined;
+		const row = this.db.prepare(this.sql).get(...(this.params as SQLInputValue[])) as T | undefined;
 		return Promise.resolve(row ?? null);
 	}
 
 	all<T = Row>(): Promise<{ results: T[]; success: boolean; meta: D1ResultMeta }> {
-		const rows = this.db.prepare(this.sql).all(...this.params) as T[];
+		const rows = this.db.prepare(this.sql).all(...(this.params as SQLInputValue[])) as T[];
 		return Promise.resolve({
 			results: rows,
 			success: true,
@@ -50,7 +51,7 @@ class Bound implements BoundStmt {
 	}
 
 	run(): Promise<{ success: boolean; meta: D1ResultMeta }> {
-		const r = this.db.prepare(this.sql).run(...this.params);
+		const r = this.db.prepare(this.sql).run(...(this.params as SQLInputValue[]));
 		return Promise.resolve({
 			success: true,
 			meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) },
@@ -59,7 +60,7 @@ class Bound implements BoundStmt {
 
 	/** batch 内部使用：在已开启事务中同步执行 */
 	execInTx(): void {
-		this.db.prepare(this.sql).run(...this.params);
+		this.db.prepare(this.sql).run(...(this.params as SQLInputValue[]));
 	}
 }
 

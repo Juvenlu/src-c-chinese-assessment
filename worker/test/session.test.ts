@@ -51,9 +51,9 @@ async function test1_normalSignVerify() {
 	assert(payload?.parent_id === "parent-123", "parent_id 正确");
 	assert(typeof payload?.iat === "number", "iat 存在");
 	assert(typeof payload?.exp === "number", "exp 存在");
-	assert(payload && payload.exp > payload.iat, "exp > iat");
+	assert(!!payload && payload.exp > payload.iat, "exp > iat");
 	assert(
-		payload && payload.exp - payload.iat === SESSION_DURATION_SECONDS,
+		!!payload && payload.exp - payload.iat === SESSION_DURATION_SECONDS,
 		"过期时长 = 30天"
 	);
 }

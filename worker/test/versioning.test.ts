@@ -28,6 +28,7 @@ import {
 	getRows,
 } from "./sqlite-adapter.js";
 import { createD1Like } from "./d1-shim.js";
+// @ts-expect-error run_local.mjs 为 JS 迁移脚本（无 .d.ts），运行时可用
 import { applyVersioningMigration } from "../migrations/run_local.mjs";
 import {
 	activateVersion,
@@ -156,6 +157,7 @@ function makeEnv(db: DatabaseSync): Env {
 		SRC_WORKER_SERVICE_KEY: "svc",
 		SESSION_SECRET: "session-secret",
 		ADMIN_PASSWORD: ADMIN_PWD,
+		JOIN_RATE_LIMITER: { limit: async () => ({ success: true }) },
 	};
 }
 function req(body: unknown, admin = true, method = "POST"): Request {
