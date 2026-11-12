@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { BookWriter } from '@/components/admin/book-writer';
 import { ClassPushWorkbench } from '@/components/admin/class-push-workbench';
+import { PushNotificationBell } from '@/components/admin/push-notification-bell';
 import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
 
 type AdminTab = 'results' | 'charlib' | 'users' | 'questions' | 'books' | 'classpush';
@@ -518,9 +519,19 @@ function AdminContent({ adminPassword }: { adminPassword: string }) {
               <h1 className="font-display text-2xl text-gray-800">SRC-C 管理后台</h1>
               <p className="text-sm text-gray-500">题库管理 · 用户数据 · 测试结果 · 识字字库 · 绘本工坊</p>
             </div>
-            <Link href="/" className="text-sm text-[var(--color-src-primary)] hover:underline">
-              ← 返回前台
-            </Link>
+            <div className="flex items-center gap-3">
+              {/* S5G-8B 小铃铛：课堂推送申请待办通知（只读，点击定位工作台） */}
+              <PushNotificationBell
+                adminFetch={adminFetch}
+                onOpenRequest={(requestId) => {
+                  setSelectedPushRequestId(requestId);
+                  setTab('classpush');
+                }}
+              />
+              <Link href="/" className="text-sm text-[var(--color-src-primary)] hover:underline">
+                ← 返回前台
+              </Link>
+            </div>
           </div>
         </div>
       </div>
