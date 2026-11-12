@@ -175,8 +175,7 @@ function makeEnv(db: DatabaseSync): Env {
 		SESSION_SECRET: TEST_SECRET,
 		ADMIN_PASSWORD: ADMIN_PWD,
 		JOIN_RATE_LIMITER: { limit: async () => ({ success: true }) },
-		// S5F：本套件教师注册邮箱白名单 + 课堂推送管理开关开启（既有用例验证开启态正常逻辑）
-		TEACHER_ALLOWED_EMAILS: "t1@test.com,t2@test.com",
+		// S5G-6B：已取消教师注册白名单；课堂推送管理开关保留开启态（既有用例验证开启态正常逻辑）
 		CLASS_PUSH_ADMIN_ENABLED: "true",
 	};
 }

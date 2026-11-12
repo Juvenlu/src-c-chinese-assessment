@@ -154,8 +154,7 @@ function makeEnv(db: DatabaseSync): Env {
 		ADMIN_PASSWORD: "unused",
 		// 平台频控默认 mock：全部允许（既有测试行为不变）
 		JOIN_RATE_LIMITER: { limit: async () => ({ success: true }) },
-		// S5F 白名单：本套件教师注册邮箱（t1/t2@test.com）
-		TEACHER_ALLOWED_EMAILS: "t1@test.com,t2@test.com",
+		// S5G-6B：已取消教师注册白名单，不再配置 TEACHER_ALLOWED_EMAILS
 	};
 }
 

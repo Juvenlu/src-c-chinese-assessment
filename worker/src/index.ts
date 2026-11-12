@@ -866,17 +866,9 @@ async function handlePostAuthTeacherSignup(request: Request, env: Env): Promise<
 		return jsonResponse({ error: "密码至少需要8位" }, 400);
 	}
 
-	// ===== 教师注册白名单（P4-T9-1C-S5F）=====
-	// 唯一教师身份开通入口：白名单缺失/为空/未命中一律 fail-closed 拒绝。
-	// 仅拦截教师注册；家长注册登录与已有教师登录均不经过此检查。
-	// 注意：不得在日志中输出白名单内容。
-	const allowedEmails = (env.TEACHER_ALLOWED_EMAILS ?? "")
-		.split(",")
-		.map((e) => e.trim().toLowerCase())
-		.filter((e) => e.length > 0);
-	if (allowedEmails.length === 0 || !allowedEmails.includes(email)) {
-		return jsonResponse({ error: "教师注册暂未开放，请联系管理员" }, 403);
-	}
+	// ===== 教师自主注册（P4-T9-1C-S5G-6B）=====
+	// 管理员已确认首期不启用注册白名单：教师通过本入口自主注册。
+	// 仅依赖既有邮箱校验、409 查重与角色权限体系；学生数据访问仍需家长主动入班授权。
 
 	if (!env.SESSION_SECRET) {
 		return jsonResponse({ error: "服务配置错误" }, 500);
