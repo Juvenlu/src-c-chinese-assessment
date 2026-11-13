@@ -109,7 +109,25 @@ CREATE TABLE book_rewrite_versions (
   version       INTEGER NOT NULL DEFAULT 1,
   created_at    INTEGER NOT NULL,
   finalized_at  INTEGER,
-  finalized_by  TEXT
+  finalized_by  TEXT,
+  total_chars   INTEGER NOT NULL DEFAULT 0,
+  unique_chars  INTEGER NOT NULL DEFAULT 0,
+  max_page_chars INTEGER NOT NULL DEFAULT 0
+);`;
+
+// S5H-3B-1：阅读记录（对齐 class-push.test.ts 内联 DDL；生产表同名同关键列）
+const DDL_READING_RECORDS = `
+CREATE TABLE reading_records (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  child_id         TEXT NOT NULL,
+  custom_book_id   INTEGER NOT NULL,
+  start_time       INTEGER NOT NULL,
+  end_time         INTEGER,
+  duration_seconds INTEGER NOT NULL DEFAULT 0,
+  pages_read       INTEGER NOT NULL DEFAULT 0,
+  total_pages      INTEGER NOT NULL DEFAULT 0,
+  completed        INTEGER NOT NULL DEFAULT 0,
+  created_at       INTEGER NOT NULL
 );`;
 
 const DDL_CUSTOM_BOOKS = `
@@ -178,6 +196,7 @@ function createFreshDb(): DatabaseSync {
 	db.exec(DDL_TEST_RESULTS);
 	db.exec(DDL_REWRITE_VERSIONS);
 	db.exec(DDL_CUSTOM_BOOKS);
+	db.exec(DDL_READING_RECORDS);
 	applyMigration(db, "007_teacher_classes.sql");
 	applyMigration(db, "008_class_push_requests.sql");
 	applyMigration(db, "009_teacher_class_series_channel.sql");
@@ -243,6 +262,32 @@ function seedFormalResult(db: DatabaseSync, childId: string, level: string, stab
 		`INSERT INTO test_results (id, child_id, level, test_type, status, stable_char_count, completed_at, created_at)
 		 VALUES (?,?,?,'formal','completed',?,?,?)`
 	).run(`tr-${completedAt}-${childId.slice(0, 8)}`, childId, level, stableChar, completedAt, completedAt);
+}
+
+/** 种子（S5H-3B-1）：final 版本 rewrite，返回 id */
+function seedRewrite(db: DatabaseSync, episodeId: number, childId: string, totalChars: number): number {
+	const r = db.prepare(
+		`INSERT INTO book_rewrite_versions (episode_id, child_id, target_level, status, version, total_chars, created_at, finalized_at)
+		 VALUES (?,?,'SRC800','final',1,?,?,?)`
+	).run(episodeId, childId, totalChars, 1_700_000_000, 1_700_000_100);
+	return Number(r.lastInsertRowid);
+}
+
+/** 种子（S5H-3B-1）：custom_book（channel 由 009 迁移提供），返回 id */
+function seedBook(db: DatabaseSync, childId: string, rewriteId: number, episodeId: number, channel: "home" | "class", status = "active"): number {
+	const r = db.prepare(
+		`INSERT INTO custom_books (child_id, rewrite_id, episode_id, level_tier, status, channel, created_at)
+		 VALUES (?,?,?,?,?,?,?)`
+	).run(childId, rewriteId, episodeId, "SRC800", status, channel, 1_700_000_200);
+	return Number(r.lastInsertRowid);
+}
+
+/** 种子（S5H-3B-1）：一条阅读记录 */
+function seedReading(db: DatabaseSync, childId: string, bookId: number, pagesRead: number, totalPages: number, completed: 0 | 1, endTime: number | null): void {
+	db.prepare(
+		`INSERT INTO reading_records (child_id, custom_book_id, start_time, end_time, duration_seconds, pages_read, total_pages, completed, created_at)
+		 VALUES (?,?,?,?,60,?,?,?,?)`
+	).run(childId, bookId, 1_700_000_300, endTime, pagesRead, totalPages, completed, 1_700_000_300);
 }
 
 // ————————————————————————————————————
@@ -567,6 +612,76 @@ async function main(): Promise<void> {
 	const noKey = new Request("http://local/v1/classes", { headers: { Cookie: teacher1.cookie } });
 	const noKeyRes = await worker.fetch(noKey, env);
 	check("无 Service Key 全拒 401", noKeyRes.status === 401);
+
+	// ———— 16. 累计阅读成果（S5H-3B-1：口径 + 权限 + 隐私） ————
+	console.log("\n== [16] 累计阅读成果 ==");
+	// 种子：Sean 在 classId 班（尾部为 active）；Amy 同班无阅读记录。
+	// 书A(home, archived, 500字, 完成×2次) / 书B(home, active, 500字, 完成) /
+	// 书C(class, 300字, 完成) / 书D(class, 200字, 阅读中) / 书E(class, 100字, 未开始)
+	db.exec(`INSERT INTO book_episodes (id, series_id, series_name, episode_number, episode_title, page_count, level_tier, status)
+	         VALUES (4,1,'西游记',3,'大闹天宫',10,'SRC500','published'),
+	                (5,1,'西游记',4,'被困五行山',10,'SRC500','published')`);
+	const rwA = seedRewrite(db, 2, parent1.childId!, 500);
+	const rwB = seedRewrite(db, 3, parent1.childId!, 500); // 与 A 同字符数：验证分别累计
+	const rwC = seedRewrite(db, 2, parent1.childId!, 300);
+	const rwD = seedRewrite(db, 4, parent1.childId!, 200);
+	const rwE = seedRewrite(db, 5, parent1.childId!, 100);
+	const bookA = seedBook(db, parent1.childId!, rwA, 2, "home", "archived");
+	const bookB = seedBook(db, parent1.childId!, rwB, 3, "home");
+	const bookC = seedBook(db, parent1.childId!, rwC, 2, "class");
+	const bookD = seedBook(db, parent1.childId!, rwD, 4, "class");
+	const bookE = seedBook(db, parent1.childId!, rwE, 5, "class");
+	seedReading(db, parent1.childId!, bookA, 10, 10, 1, 1_700_001_000); // 第一次读完
+	seedReading(db, parent1.childId!, bookA, 10, 10, 1, 1_700_001_100); // 重复阅读：不得重复累计
+	seedReading(db, parent1.childId!, bookB, 8, 8, 1, 1_700_001_200);
+	seedReading(db, parent1.childId!, bookC, 10, 10, 1, 1_700_001_300); // 最近完成
+	seedReading(db, parent1.childId!, bookD, 3, 10, 0, null);           // 阅读中：不计入完成
+
+	const rsRes = await worker.fetch(makeRequest(`/v1/classes/${classId}`, { cookie: teacher1.cookie }), env);
+	const rsBody = (await rsRes.json()) as {
+		members?: {
+			nickname: string;
+			reading?: {
+				completed_books: number;
+				total_read_chars: number;
+				last_completed_at: number | null;
+				class_books: { custom_book_id: number; episode_title: string | null; read_state: string; completed_at: number | null }[];
+			};
+		}[];
+	};
+	check("阅读统计：详情 200", rsRes.status === 200, `status=${rsRes.status}`);
+	const seanR = rsBody.members?.find((m) => m.nickname === "Sean")?.reading;
+	check("重复阅读不重复累计（完成 3 本）", seanR?.completed_books === 3, JSON.stringify(seanR));
+	check("同字符数绘本分别累计且归档书计入（1300 字符）", seanR?.total_read_chars === 1300,
+		`total=${seanR?.total_read_chars}`);
+	check("未完成绘本不计入最近完成（=书C完成时间）", seanR?.last_completed_at === 1_700_001_300,
+		`last=${seanR?.last_completed_at}`);
+	const classBookIds = seanR?.class_books.map((b) => b.custom_book_id) ?? [];
+	const stateOf = (id: number) => seanR?.class_books.find((b) => b.custom_book_id === id)?.read_state;
+	check("课堂书：已完成/阅读中/未开始三态正确",
+		stateOf(bookC) === "completed" && stateOf(bookD) === "reading" && stateOf(bookE) === "not_started",
+		JSON.stringify(seanR?.class_books));
+	check("课堂书标题返回（ep4 大闹天宫）",
+		seanR?.class_books.find((b) => b.custom_book_id === bookD)?.episode_title === "大闹天宫");
+	const amyR = rsBody.members?.find((m) => m.nickname === "Amy")?.reading;
+	check("无阅读记录显示 0（Amy）",
+		!!amyR && amyR.completed_books === 0 && amyR.total_read_chars === 0
+		&& amyR.last_completed_at === null && amyR.class_books.length === 0,
+		JSON.stringify(amyR));
+	check("家庭绘本明细不泄露（class_books 仅课堂书）",
+		classBookIds.length === 3 && classBookIds.includes(bookC) && classBookIds.includes(bookD)
+		&& classBookIds.includes(bookE) && !classBookIds.includes(bookA) && !classBookIds.includes(bookB),
+		JSON.stringify(classBookIds));
+	// 权限复用断言（[3] 他班 404 已覆盖；此处验证带阅读字段后仍成立）
+	const rsT2 = await worker.fetch(makeRequest(`/v1/classes/${classId}`, { cookie: teacher2.cookie }), env);
+	check("跨班访问仍被拒 404", rsT2.status === 404, `status=${rsT2.status}`);
+	// revoked 成员不可见：撤销 Amy 后，成员及其阅读数据同时消失
+	await worker.fetch(
+		makeRequest(`/v1/classes/${classId}/members/${parent2.childId}/revoke`, { method: "POST", cookie: teacher1.cookie }), env);
+	const rsRevoke = await worker.fetch(makeRequest(`/v1/classes/${classId}`, { cookie: teacher1.cookie }), env);
+	const rsRevokeBody = (await rsRevoke.json()) as { members?: { nickname: string }[] };
+	check("revoked 成员阅读数据不可见",
+		rsRevokeBody.members?.some((m) => m.nickname === "Amy") === false);
 
 	// ———— 汇总 ————
 	console.log(`\n===== 结果: ${passCount} PASS / ${failCount} FAIL =====`);

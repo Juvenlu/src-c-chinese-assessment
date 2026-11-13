@@ -240,6 +240,16 @@ export async function handleListClasses(request: Request, env: Env): Promise<Res
 
 // ==================== 3. GET /v1/classes/:id — 教师查看本班及学生 ====================
 
+/** 课堂绘本逐本阅读状态（S5H-3B-1；book_status 供前端区分已归档课堂书） */
+interface ClassBookReadingState {
+	custom_book_id: number;
+	episode_id: number;
+	episode_title: string | null;
+	book_status: string;
+	read_state: "not_started" | "reading" | "completed";
+	completed_at: number | null;
+}
+
 export async function handleGetClass(request: Request, env: Env, classId: string): Promise<Response> {
 	const auth = await requireTeacher(request, env);
 	if (auth instanceof Response) return auth;
@@ -276,10 +286,81 @@ export async function handleGetClass(request: Request, env: Env, classId: string
 			levelByChild.set(r.child_id, getConfirmedLevel({ stable_char_count: r.stable_char_count, level: r.level }));
 		}
 	}
+	// 累计阅读成果（S5H-3B-1）：固定 2 条批量 SQL，无 N+1，只读。
+	// 口径（管理员最终确认）：
+	//   - 完成绘本数：completed=1 按 custom_book_id 去重（同一本重复阅读只计 1 次）；
+	//   - 累计阅读量：先按 custom_book_id 去重，再逐本 SUM(total_chars)
+	//     —— 严禁 SUM(DISTINCT total_chars)，不同绘本字符数相同也分别累计；
+	//   - total_chars 含标点等字符，前端显示「字符」，不称纯汉字数；
+	//   - 已完成的归档绘本计入累计；未完成不计入；home+class 均计入聚合；
+	//   - 课堂绘本（channel='class'）返回逐本状态；家庭绘本仅聚合数字，不输出明细。
+	const readingByChild = new Map<string, { completed_books: number; total_read_chars: number; last_completed_at: number | null }>();
+	const classBooksByChild = new Map<string, ClassBookReadingState[]>();
+	if (memberRows.length > 0) {
+		const memberIds = memberRows.map((m) => m.child_id);
+		const ph = memberIds.map((_, i) => `?${i + 1}`).join(",");
+		const { results: aggRows } = await env.DB.prepare(
+			`SELECT child_id, COUNT(*) AS completed_books,
+			        SUM(book_chars) AS total_read_chars,
+			        MAX(last_end) AS last_completed_at
+			 FROM (
+			   SELECT rr.child_id, rr.custom_book_id,
+			          brv.total_chars AS book_chars,
+			          MAX(rr.end_time) AS last_end
+			   FROM reading_records rr
+			   JOIN custom_books cb ON cb.id = rr.custom_book_id
+			   JOIN book_rewrite_versions brv ON brv.id = cb.rewrite_id
+			   WHERE rr.completed = 1 AND rr.child_id IN (${ph})
+			   GROUP BY rr.child_id, rr.custom_book_id
+			 ) per_book
+			 GROUP BY child_id`
+		).bind(...memberIds).all<{ child_id: string; completed_books: number; total_read_chars: number | null; last_completed_at: number | null }>();
+		for (const r of aggRows) {
+			readingByChild.set(r.child_id, {
+				completed_books: r.completed_books,
+				total_read_chars: r.total_read_chars ?? 0,
+				last_completed_at: r.last_completed_at,
+			});
+		}
+		const { results: classBookRows } = await env.DB.prepare(
+			`SELECT cb.child_id, cb.id AS custom_book_id, cb.episode_id, cb.status AS book_status,
+			        be.episode_title,
+			        CASE WHEN MAX(COALESCE(rr.completed, 0)) = 1 THEN 'completed'
+			             WHEN COALESCE(MAX(rr.pages_read), 0) > 0 THEN 'reading'
+			             ELSE 'not_started' END AS read_state,
+			        MAX(CASE WHEN rr.completed = 1 THEN rr.end_time END) AS completed_at
+			 FROM custom_books cb
+			 LEFT JOIN reading_records rr ON rr.custom_book_id = cb.id
+			 LEFT JOIN book_episodes be ON be.id = cb.episode_id
+			 WHERE cb.channel = 'class' AND cb.child_id IN (${ph})
+			 GROUP BY cb.id
+			 ORDER BY cb.id`
+		).bind(...memberIds).all<{ child_id: string; custom_book_id: number; episode_id: number; book_status: string; episode_title: string | null; read_state: ClassBookReadingState["read_state"]; completed_at: number | null }>();
+		for (const r of classBookRows) {
+			const arr = classBooksByChild.get(r.child_id) ?? [];
+			arr.push({
+				custom_book_id: r.custom_book_id,
+				episode_id: r.episode_id,
+				episode_title: r.episode_title,
+				book_status: r.book_status,
+				read_state: r.read_state,
+				completed_at: r.completed_at,
+			});
+			classBooksByChild.set(r.child_id, arr);
+		}
+	}
+
 	const members = memberRows.map((m) => ({
 		...m,
 		// 未测评（无正式测评记录）→ null → 前端显示「未测评」
 		confirmed_level: levelByChild.get(m.child_id) ?? null,
+		// 累计阅读成果：无阅读记录 → 0 / null / 空列表
+		reading: {
+			completed_books: readingByChild.get(m.child_id)?.completed_books ?? 0,
+			total_read_chars: readingByChild.get(m.child_id)?.total_read_chars ?? 0,
+			last_completed_at: readingByChild.get(m.child_id)?.last_completed_at ?? null,
+			class_books: classBooksByChild.get(m.child_id) ?? [],
+		},
 	}));
 
 	return jsonResponse({
