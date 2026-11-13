@@ -27,13 +27,54 @@ interface ClassDetail {
   story_series_id: number | null;
 }
 
+/** 课堂绘本逐本阅读状态（S5H-3B-1） */
+interface ClassBookItem {
+  custom_book_id: number;
+  episode_id: number;
+  episode_title: string | null;
+  book_status: string;
+  read_state: 'not_started' | 'reading' | 'completed';
+  completed_at: number | null;
+}
+
+/** 学生累计阅读成果（S5H-3B-1）：家庭绘本仅聚合数字，不返回标题/明细 */
+interface MemberReading {
+  completed_books: number;
+  total_read_chars: number;
+  last_completed_at: number | null;
+  class_books: ClassBookItem[];
+}
+
 interface MemberItem {
   child_id: string;
   authorized_at: number;
   nickname: string;
   grade: string;
   confirmed_level: string | null;
+  /** 累计阅读成果；旧版 Worker 可能未返回，渲染时兜底 */
+  reading?: MemberReading;
 }
+
+/** epoch 秒 → 本地日期（成员数据在客户端 fetch 后才渲染，无 SSR 时区不一致问题） */
+function formatEpochDate(epochSec: number): string {
+  return new Date(epochSec * 1000).toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+}
+
+const READ_STATE_LABEL: Record<ClassBookItem['read_state'], string> = {
+  not_started: '未开始',
+  reading: '阅读中',
+  completed: '已完成',
+};
+
+const READ_STATE_CLASS: Record<ClassBookItem['read_state'], string> = {
+  not_started: 'bg-gray-100 text-gray-400',
+  reading: 'bg-[var(--color-src-accent)]/25 text-amber-700',
+  completed: 'bg-[var(--color-src-secondary)]/15 text-teal-700',
+};
 
 /** 推送请求（P4-T7-1）：episode_id 第一阶段为 NULL，故事由管理员处理时指定 */
 interface PushRequestItem {
@@ -682,26 +723,74 @@ export default function TeacherClassDetailPage({
               {members.map((m) => (
                 <div
                   key={m.child_id}
-                  className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 p-4"
+                  className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4 space-y-3"
                 >
-                  <div className="w-10 h-10 rounded-full bg-[var(--color-src-secondary)]/15 flex items-center justify-center text-lg shrink-0">
-                    🧒
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[var(--color-src-secondary)]/15 flex items-center justify-center text-lg shrink-0">
+                      🧒
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-800 truncate">{m.nickname}</p>
+                      <p className="text-xs text-gray-400">
+                        {m.grade || '未填写年级'}
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold shrink-0 ${
+                        m.confirmed_level
+                          ? 'bg-[var(--color-src-secondary)]/15 text-teal-700'
+                          : 'bg-gray-100 text-gray-400'
+                      }`}
+                    >
+                      {m.confirmed_level || '未测评'}
+                    </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-800 truncate">{m.nickname}</p>
-                    <p className="text-xs text-gray-400">
-                      {m.grade || '未填写年级'}
-                    </p>
+
+                  {/* 累计阅读成果（S5H-3B-1）：home+class 聚合，家庭绘本仅数字 */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                    <span>
+                      已读完{' '}
+                      <span className="font-bold text-gray-700">
+                        {m.reading?.completed_books ?? 0}
+                      </span>{' '}
+                      本
+                    </span>
+                    <span>
+                      累计阅读量{' '}
+                      <span className="font-bold text-gray-700">
+                        {m.reading?.total_read_chars ?? 0}
+                      </span>{' '}
+                      字符
+                    </span>
+                    <span>
+                      最近完成{' '}
+                      <span className="font-bold text-gray-700">
+                        {m.reading?.last_completed_at
+                          ? formatEpochDate(m.reading.last_completed_at)
+                          : '—'}
+                      </span>
+                    </span>
                   </div>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold shrink-0 ${
-                      m.confirmed_level
-                        ? 'bg-[var(--color-src-secondary)]/15 text-teal-700'
-                        : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    {m.confirmed_level || '未测评'}
-                  </span>
+
+                  {/* 课堂绘本逐本状态（仅本班课堂书；不含家庭绘本明细） */}
+                  {(m.reading?.class_books?.length ?? 0) > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {m.reading!.class_books.map((b) => (
+                        <span
+                          key={b.custom_book_id}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${READ_STATE_CLASS[b.read_state]}`}
+                        >
+                          <BookOpen className="w-3 h-3" />
+                          {b.episode_title || `课堂绘本 #${b.custom_book_id}`}
+                          {' · '}
+                          {READ_STATE_LABEL[b.read_state]}
+                          {b.read_state === 'completed' && b.completed_at
+                            ? `（${formatEpochDate(b.completed_at)}）`
+                            : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
