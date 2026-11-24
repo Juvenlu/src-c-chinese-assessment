@@ -9,6 +9,22 @@ import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
 
 type AdminTab = 'results' | 'charlib' | 'users' | 'questions' | 'books' | 'classpush';
 
+/**
+ * BUG-12/BUG-14 已知历史脏数据：旧版计时逻辑（session 创建时间差值）产生的
+ * 异常测评用时记录。仅用于后台展示层提示"历史用时不可靠"，不改动原始数据。
+ * 必须以精确 test_result_id 判断，禁止用 `<=8 秒` 等宽泛条件。
+ */
+const LEGACY_UNRELIABLE_DURATION_IDS = new Set<string>([
+  '60561a35-a7b8-4573-8913-ac639e856edd',
+  '3f1b39cd-13ec-4025-a124-fc70ba89ac14',
+  '13ab73ad-fbfb-4cad-823b-945322d14717',
+  '40812a2f-f81d-485c-a7b2-f2530707517e',
+  '26ddc90f-1002-4ce1-a2f6-9e6c9bbe2624',
+  'cb6cff0c-25bd-4ede-b550-54185154672e',
+  'c3dca8bc-87c0-4893-be87-4e8a0fcbc904',
+  'd33bfe26-5d30-409f-9a50-b061bba6c42c',
+]);
+
 
 function AdminContent({ adminPassword }: { adminPassword: string }) {
   const [tab, setTab] = useState<AdminTab>('results');
@@ -639,7 +655,13 @@ function AdminContent({ adminPassword }: { adminPassword: string }) {
                               </td>
                               <td className="px-4 py-3 text-right font-bold">{r.total_score}</td>
                               <td className="px-4 py-3 text-right text-gray-500">
-                                {minutes}:{seconds.toString().padStart(2, '0')}
+                                {LEGACY_UNRELIABLE_DURATION_IDS.has(r.id) ? (
+                                  <span className="text-orange-600" title="该历史测评用时由旧版计时逻辑记录，不可靠">
+                                    历史用时不可靠
+                                  </span>
+                                ) : (
+                                  <>{minutes}:{seconds.toString().padStart(2, '0')}</>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 {hasLib ? (
