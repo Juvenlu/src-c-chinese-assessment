@@ -27,6 +27,7 @@ import { handleReadingRecords } from "./reading-records";
 import { handleReadingFeedback } from "./reading-feedback";
 import { handleV1AdminRewriteFinalize } from "./admin-rewrites";
 import { handleV1AdminChildren } from "./admin-children";
+import { handleV1AdminResults, handleV1AdminUsers } from "./admin-data";
 import {
 	handleV1AdminManualDraft,
 	handleV1AdminGeneratedDraft,
@@ -1226,6 +1227,16 @@ export default {
 			// GET /v1/admin/children — Admin 全量孩子列表（D1）
 			if (path === "/v1/admin/children" && request.method === "GET") {
 				return handleV1AdminChildren(request, env);
+			}
+
+			// GET /v1/admin/results — Admin 测试结果（D1，SRC-ADMIN-BUG-02）
+			if (path === "/v1/admin/results" && request.method === "GET") {
+				return handleV1AdminResults(request, env);
+			}
+
+			// GET /v1/admin/users — Admin 用户数据：家长+孩子（D1，SRC-ADMIN-BUG-02）
+			if (path === "/v1/admin/users" && request.method === "GET") {
+				return handleV1AdminUsers(request, env);
 			}
 
 			// POST /v1/admin/rewrite/manual — 绘本写手：人工创建初稿（从 Master Pages）

@@ -1,83 +1,63 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { NextRequest, NextResponse } from "next/server";
+import { resolveWorkerUrl, WORKER_FETCH_INIT } from '../../lib/worker-target';
+
+/**
+ * Admin Users — Worker Proxy（SRC-ADMIN-BUG-02）
+ *
+ * GET /api/admin/users  →  GET /v1/admin/users（D1 权威家长+孩子数据）
+ *
+ * 鉴权：
+ *   1. x-admin-password（Vercel 层不验证，直接转发给 Worker）
+ *   2. X-SRC-Service-Key（Vercel → Worker 服务间鉴权）
+ *
+ * 背景：原实现直连已弃用的 Supabase 旧库，导致 A04 用户数据停更。
+ * 统一走 Worker → D1，绝不 fallback 到 Supabase / Legacy PG。
+ */
+
+const WORKER_BASE_URL = resolveWorkerUrl(process.env.WORKER_BASE_URL, process.env);
+const SERVICE_KEY = process.env.SRC_WORKER_SERVICE_KEY;
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const WORKER_ENABLED =
+  process.env.WORKER_GUEST_API_ENABLED === 'true' ||
+  process.env.WORKER_CHILDREN_ENABLED === 'true' ||
+  IS_PRODUCTION;
+
+if (IS_PRODUCTION && (!WORKER_BASE_URL || !SERVICE_KEY)) {
+  console.error('[admin/users] Production 缺少 WORKER_BASE_URL 或 SRC_WORKER_SERVICE_KEY 配置');
+}
+
+export const runtime = 'nodejs';
 
 /**
  * GET /api/admin/users
- * 管理后台：获取所有用户（家长+孩子）列表
- *
- * 安全说明：
- * 使用 x-admin-password header 验证，预期口令仅来自服务端环境变量 ADMIN_PASSWORD。
- * 环境变量缺失时 fail-closed（503），无硬编码兜底。
  */
-
 export async function GET(req: NextRequest) {
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) {
-    return NextResponse.json(
-      { error: '服务配置错误' },
-      { status: 503 }
-    );
-  }
-  const adminPwd = req.headers.get('x-admin-password');
-  if (!adminPwd || adminPwd !== expected) {
-    return NextResponse.json(
-      { error: '管理员密码错误' },
-      { status: 401 }
-    );
+  if (!WORKER_ENABLED || !WORKER_BASE_URL || !SERVICE_KEY) {
+    if (IS_PRODUCTION) {
+      return NextResponse.json({ users: [], all_children: [], error: '服务配置错误' }, { status: 500 });
+    }
+    return NextResponse.json({ users: [], all_children: [], error: 'Worker 未启用' }, { status: 503 });
   }
 
-  const supabase = getSupabaseClient();
+  try {
+    const adminPwd = req.headers.get('x-admin-password') || '';
 
-  // 查询所有家长及其孩子
-  const { data: parents, error: parentsError } = await supabase
-    .from('parents_profiles')
-    .select(`
-      id,
-      email,
-      email_verified,
-      created_at,
-      subscription_status,
-      plan_type,
-      children (
-        id,
-        nickname,
-        age,
-        grade,
-        country,
-        home_language,
-        status,
-        created_at,
-        updated_at
-      )
-    `)
-    .order('created_at', { ascending: false });
+    const res = await fetch(`${WORKER_BASE_URL}/v1/admin/users`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': adminPwd,
+        'X-SRC-Service-Key': SERVICE_KEY,
+      },
+      cache: 'no-store',
+      ...WORKER_FETCH_INIT,
+    });
 
-  if (parentsError) {
-    return NextResponse.json(
-      { error: parentsError.message },
-      { status: 500 }
-    );
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
+  } catch (e: any) {
+    console.error('[admin/users] proxy error:', e);
+    return NextResponse.json({ users: [], all_children: [], error: '网络错误' }, { status: 502 });
   }
-
-  // 同时查出所有无主孩子（没有 parent_id 的）
-  const { data: orphanChildren, error: orphanError } = await supabase
-    .from('children')
-    .select('*')
-    .is('parent_id', null)
-    .order('created_at', { ascending: false });
-
-  if (orphanError) {
-    return NextResponse.json(
-      { error: orphanError.message },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({
-    users: parents || [],
-    all_children: [
-      ...(parents?.flatMap((p: any) => (p.children || []).map((c: any) => ({ ...c, parent_email: p.email }))) || []),
-      ...(orphanChildren?.map((c: any) => ({ ...c, parent_email: null })) || []),
-    ],
-  });
 }
