@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 
 export default function HomePage() {
-  const [hoverFull, setHoverFull] = useState(false);
-  const [hoverSampling, setHoverSampling] = useState(false);
   const [showShareToast, setShowShareToast] = useState(false);
   const { user, loading } = useAuth();
 
@@ -128,71 +126,53 @@ export default function HomePage() {
         {/* Mode selection - Two cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           {/* 逐字测试 */}
-          <Link href="/profile?mode=formal" className="block">
-            <div
-              className="relative bg-white rounded-3xl p-6 shadow-md border-2 border-transparent transition-all duration-300 hover:shadow-xl hover:border-[var(--color-src-primary)] hover:-translate-y-1 cursor-pointer"
-              onMouseEnter={() => setHoverFull(true)}
-              onMouseLeave={() => setHoverFull(false)}
-            >
-              <div className="text-4xl mb-3">📝</div>
-              <h3 className="font-display text-xl text-[var(--color-src-text)] mb-2">
-                测字
-              </h3>
-              <p className="text-sm text-[var(--color-src-text-light)] mb-3">
-                检测汉字与词组掌握情况，了解当前中文阅读基础
-              </p>
-              <div className="flex items-center gap-2 text-xs text-[var(--color-src-text-light)]">
-                <span className="inline-flex items-center gap-1 bg-[var(--color-src-accent)]/20 px-2 py-1 rounded-full">
-                  汉字
-                </span>
-                <span className="inline-flex items-center gap-1 bg-[var(--color-src-secondary)]/20 px-2 py-1 rounded-full">
-                  词组
-                </span>
-                <span className="inline-flex items-center gap-1 bg-[var(--color-src-primary)]/20 px-2 py-1 rounded-full">
-                  智能抽测
-                </span>
-              </div>
-              {hoverFull && (
-                <div className="absolute -top-2 -right-2 text-2xl animate-bounce">✨</div>
-              )}
+          <div className="relative bg-white rounded-3xl p-6 shadow-md border-2 border-transparent flex flex-col">
+            <div className="text-4xl mb-3">📝</div>
+            <h3 className="font-display text-xl text-[var(--color-src-text)] mb-2">
+              测字
+            </h3>
+            <p className="text-sm text-[var(--color-src-text-light)] mb-4">
+              检测汉字与词组掌握情况，了解当前中文阅读基础
+            </p>
+            <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-src-text-light)]">
+              <span className="inline-flex items-center gap-1 bg-[var(--color-src-accent)]/20 px-2 py-1 rounded-full">
+                汉字
+              </span>
+              <span className="inline-flex items-center gap-1 bg-[var(--color-src-secondary)]/20 px-2 py-1 rounded-full">
+                词组
+              </span>
+              <span className="inline-flex items-center gap-1 bg-[var(--color-src-primary)]/20 px-2 py-1 rounded-full">
+                智能抽测
+              </span>
             </div>
-          </Link>
+          </div>
 
           {/* 抽测闯关 */}
-          <Link href="/profile?mode=sampling" className="block">
-            <div
-              className="relative bg-white rounded-3xl p-6 shadow-md border-2 border-transparent transition-all duration-300 hover:shadow-xl hover:border-[var(--color-src-secondary)] hover:-translate-y-1 cursor-pointer"
-              onMouseEnter={() => setHoverSampling(true)}
-              onMouseLeave={() => setHoverSampling(false)}
-            >
-              <div className="text-4xl mb-3">🎮</div>
-              <h3 className="font-display text-xl text-[var(--color-src-text)] mb-2">
-                抽测闯关
-              </h3>
-              <p className="text-sm text-[var(--color-src-text-light)] mb-3">
-                限时闯关模式，抽样评估识字量，快速出结果
-              </p>
-              <div className="flex items-center gap-2 text-xs text-[var(--color-src-text-light)]">
-                <span className="inline-flex items-center gap-1 bg-[var(--color-src-accent)]/20 px-2 py-1 rounded-full">
-                  抽样
-                </span>
-                <span className="inline-flex items-center gap-1 bg-[var(--color-src-primary)]/20 px-2 py-1 rounded-full">
-                  限时5-10分钟
-                </span>
-                <span className="inline-flex items-center gap-1 bg-[var(--color-src-secondary)]/20 px-2 py-1 rounded-full">
-                  趣味闯关
-                </span>
-              </div>
-              {hoverSampling && (
-                <div className="absolute -top-2 -right-2 text-2xl animate-bounce">🎯</div>
-              )}
+          <div className="relative bg-white rounded-3xl p-6 shadow-md border-2 border-transparent flex flex-col">
+            <div className="text-4xl mb-3">🎮</div>
+            <h3 className="font-display text-xl text-[var(--color-src-text)] mb-2">
+              抽测闯关
+            </h3>
+            <p className="text-sm text-[var(--color-src-text-light)] mb-4">
+              限时闯关模式，抽样评估识字量，快速出结果
+            </p>
+            <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-[var(--color-src-text-light)]">
+              <span className="inline-flex items-center gap-1 bg-[var(--color-src-accent)]/20 px-2 py-1 rounded-full">
+                抽样
+              </span>
+              <span className="inline-flex items-center gap-1 bg-[var(--color-src-primary)]/20 px-2 py-1 rounded-full">
+                限时5-10分钟
+              </span>
+              <span className="inline-flex items-center gap-1 bg-[var(--color-src-secondary)]/20 px-2 py-1 rounded-full">
+                趣味闯关
+              </span>
             </div>
-          </Link>
+          </div>
         </div>
 
         {/* Book entry */}
-        <Link href="/book-select" className="block mb-8">
-          <div className="relative bg-gradient-to-r from-orange-400 to-yellow-400 rounded-3xl p-5 shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer">
+        <div className="block mb-8">
+          <div className="relative bg-gradient-to-r from-orange-400 to-yellow-400 rounded-3xl p-5 shadow-md">
             <div className="flex items-center gap-4">
               <div className="text-4xl">📚</div>
               <div className="text-left">
@@ -205,7 +185,7 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-        </Link>
+        </div>
 
         {/* Auth buttons */}
         <div className="flex gap-3 mb-6">
