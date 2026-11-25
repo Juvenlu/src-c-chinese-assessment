@@ -73,6 +73,18 @@ interface Seed {
 
 async function seed(): Promise<Seed> {
 	const db = createMemoryDb();
+	// P5-R1B 010 迁移后：parents 表含 session_version（getAuthedSession 依赖）
+	db.exec(`CREATE TABLE parents (
+	  id TEXT PRIMARY KEY,
+	  email TEXT UNIQUE NOT NULL,
+	  password_hash TEXT,
+	  email_verified INTEGER NOT NULL DEFAULT 0,
+	  status TEXT NOT NULL DEFAULT 'active',
+	  created_at INTEGER NOT NULL,
+	  session_version INTEGER NOT NULL DEFAULT 0
+	);`);
+	db.prepare(`INSERT INTO parents(id,email,status,created_at) VALUES (?,?,?,?)`)
+		.run(PARENT, "parent-ted@example.com", "active", T0);
 	db.prepare(`INSERT INTO children(id,parent_id,nickname,status) VALUES (?,?,?,?)`)
 		.run(TED, PARENT, "Ted", "active");
 	db.prepare(`INSERT INTO book_episodes(id,series_name,episode_number,episode_title,status) VALUES (?,?,?,?,?)`)

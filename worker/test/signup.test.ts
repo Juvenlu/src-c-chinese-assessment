@@ -166,8 +166,8 @@ import { test } from "node:test";
 // 测试 password hash
 test("signup: hashPassword 可用且格式正确", async () => {
   const hash = await hashPassword(TEST_PASSWORD);
-  assert.ok(hash.startsWith("pbkdf2_sha256$200000$"), "hash 必须以正确格式开头");
-  assert.equal(hash.split("$").length, 4, "hash 必须有 4 个字段（算法$轮数$salt$hash）");
+  assert.ok(hash.startsWith("$argon2id$v=19$"), "hash 必须以当前 Argon2id 格式开头");
+  assert.equal(hash.split("$").length, 6, "hash 必须有 6 个 PHC 字段（$argon2id$v=..$params$salt$hash）");
 });
 
 // 测试 isValidEmail 工具函数等价逻辑

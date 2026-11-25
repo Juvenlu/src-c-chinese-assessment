@@ -13,10 +13,18 @@ import { runArgon2EdgeBatchDiagnostic } from "./argon2-edge-diag";
 import {
 	signSession,
 	createSessionCookie,
-	getSessionFromRequest,
+	getAuthedSession,
 	SESSION_COOKIE_NAME,
 } from "./session";
 import { handleGetGrowthMap } from "./growth-map";
+import {
+	handlePasswordResetRequest,
+	handlePasswordResetsList,
+	handlePasswordResetApprove,
+	handlePasswordResetReject,
+	handlePasswordResetCommit,
+	handleChangePassword,
+} from "./password-reset";
 import { handleV1ChildrenGet, handleV1ChildrenPost, handleV1ChildPatch } from "./children";
 import { handleGetQuestions } from "./questions";
 import { handleV1SessionsGet, handleV1SessionsPost, handleV1SessionPatch } from "./sessions";
@@ -275,6 +283,8 @@ interface ParentRow {
 	created_at: number;
 	/** 006 迁移后存在；'parent' / 'teacher' / 'parent,teacher'，经 parseRoles 规范化 */
 	roles?: string | null;
+	/** P5-R1B：010 迁移后存在；全局 Session 失效版本号 */
+	session_version?: number | null;
 }
 
 interface ChildRow {
@@ -311,7 +321,7 @@ async function handlePostAuthLogin(request: Request, env: Env): Promise<Response
 
 	try {
 		const parentResult = await env.DB.prepare(
-			"SELECT id, email, password_hash, email_verified, status, created_at, roles FROM parents WHERE email = ?"
+			"SELECT id, email, password_hash, email_verified, status, created_at, roles, session_version FROM parents WHERE email = ?"
 		).bind(email).all<ParentRow>();
 
 		const parent = parentResult.results?.[0];
@@ -344,7 +354,7 @@ async function handlePostAuthLogin(request: Request, env: Env): Promise<Response
 		const children = childrenResult.results || [];
 
 		const sessionToken = await signSession(
-			{ parent_id: parent.id },
+			{ parent_id: parent.id, sv: parent.session_version ?? 0 },
 			env.SESSION_SECRET
 		);
 
@@ -669,7 +679,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 		// ===== 生成 Session =====
 		signupStep = "session_sign";
 		const sessionToken = await signSession(
-			{ parent_id: parentId },
+			{ parent_id: parentId, sv: 0 },
 			env.SESSION_SECRET
 		);
 
@@ -761,7 +771,7 @@ async function handlePostAuthSignup(request: Request, env: Env): Promise<Respons
 // 使用 Worker HMAC Session，不依赖 Supabase
 async function handleGetAuthMe(request: Request, env: Env): Promise<Response> {
 	try {
-		const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+		const session = await getAuthedSession(request, env);
 		if (!session || !session.parent_id) {
 			return jsonResponse({ user: null, children: [] }, 401);
 		}
@@ -902,7 +912,7 @@ async function handlePostAuthTeacherSignup(request: Request, env: Env): Promise<
 
 		// ===== 生成 Session（payload 结构与家长一致）=====
 		const sessionToken = await signSession(
-			{ parent_id: parentId },
+			{ parent_id: parentId, sv: 0 },
 			env.SESSION_SECRET
 		);
 
@@ -948,7 +958,7 @@ async function handlePostAuthTeacherSignup(request: Request, env: Env): Promise<
 // 非教师账号（仅 parent）返回 403，杜绝仅靠 URL 访问教师数据
 async function handleGetTeacherMe(request: Request, env: Env): Promise<Response> {
 	try {
-		const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+		const session = await getAuthedSession(request, env);
 		if (!session || !session.parent_id) {
 			return jsonResponse({ user: null, error: "未登录" }, 401);
 		}
@@ -997,7 +1007,7 @@ async function handleGetTeacherMe(request: Request, env: Env): Promise<Response>
  * 3. child_id 归属校验（在 growth-map module 内）
  */
 async function handleV1GrowthMap(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) {
 		return jsonResponse({ error: "未登录" }, 401);
 	}
@@ -1073,6 +1083,21 @@ export default {
 			// POST /v1/auth/logout — 清除 Session Cookie
 			if (path === "/v1/auth/logout" && request.method === "POST") {
 				return handlePostAuthLogout(request, env);
+			}
+
+			// POST /v1/auth/password-reset/request — 家长提交重置申请（P5-R1B，防枚举+双维限流）
+			if (path === "/v1/auth/password-reset/request" && request.method === "POST") {
+				return handlePasswordResetRequest(request, env);
+			}
+
+			// POST /v1/auth/password-reset/commit — 家长凭一次性 Token 设置新密码（原子消费）
+			if (path === "/v1/auth/password-reset/commit" && request.method === "POST") {
+				return handlePasswordResetCommit(request, env);
+			}
+
+			// POST /v1/auth/change-password — 正常修改密码（Argon2id + D1 + 旧 Session 失效）
+			if (path === "/v1/auth/change-password" && request.method === "POST") {
+				return handleChangePassword(request, env);
 			}
 
 			// POST /v1/auth/teacher/signup — 教师注册（teacher 角色，不创建孩子）
@@ -1378,6 +1403,25 @@ export default {
 				const adminEpPagesMatch = path.match(/^\/v1\/admin\/episodes\/([^/]+)\/pages$/);
 				if (adminEpPagesMatch && request.method === "GET") {
 					return handleV1AdminEpisodePages(request, env, adminEpPagesMatch[1]);
+				}
+
+				// ===== P5-R1B 密码重置管理（x-admin-password）=====
+
+				// GET /v1/admin/password-resets — 全部申请列表（含 token_hash 摘要，不含明文 Token）
+				if (path === "/v1/admin/password-resets" && request.method === "GET") {
+					return handlePasswordResetsList(request, env);
+				}
+
+				// POST /v1/admin/password-resets/:id/approve — 核实身份后批准，签发一次性链接
+				const pwApproveMatch = path.match(/^\/v1\/admin\/password-resets\/([^/]+)\/approve$/);
+				if (pwApproveMatch && request.method === "POST") {
+					return handlePasswordResetApprove(request, env, pwApproveMatch[1]);
+				}
+
+				// POST /v1/admin/password-resets/:id/reject — 拒绝并记录原因
+				const pwRejectMatch = path.match(/^\/v1\/admin\/password-resets\/([^/]+)\/reject$/);
+				if (pwRejectMatch && request.method === "POST") {
+					return handlePasswordResetReject(request, env, pwRejectMatch[1]);
 				}
 
 			// v1 404

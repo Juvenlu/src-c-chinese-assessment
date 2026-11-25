@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { BookWriter } from '@/components/admin/book-writer';
 import { ClassPushWorkbench } from '@/components/admin/class-push-workbench';
 import { PushNotificationBell } from '@/components/admin/push-notification-bell';
+import { PasswordResetReviews } from '@/components/admin/password-reset-reviews';
 import { QuestionItem, Child, TestResult, Level } from '@/lib/types';
 
 type AdminTab = 'results' | 'charlib' | 'users' | 'questions' | 'books' | 'classpush';
@@ -776,6 +777,8 @@ function AdminContent({ adminPassword }: { adminPassword: string }) {
             {/* Users Tab */}
             {tab === 'users' && (
               <div>
+                {/* 密码重置申请审核（P5-R1B） */}
+                <PasswordResetReviews adminFetch={adminFetch} />
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-sm text-gray-500">共 {adminUsers.length} 位家长 · {children.length} 个孩子</span>
                 </div>

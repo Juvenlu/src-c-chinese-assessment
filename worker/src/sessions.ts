@@ -11,7 +11,7 @@
 
 import type { Env, Level } from './types';
 import { LEVEL_CONFIG } from './types';
-import { getSessionFromRequest } from './session';
+import { getAuthedSession } from './session';
 
 const VALID_LEVELS: Level[] = ['SRC100', 'SRC300', 'SRC500', 'SRC800'];
 const VALID_STATUSES = ['in_progress', 'completed', 'abandoned'];
@@ -265,19 +265,19 @@ export async function handlePatchSession(
 // ===== V1 Wrappers（Session 鉴权 + 调用业务函数）=====
 
 export async function handleV1SessionsGet(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handleGetSessions(request, env, session.parent_id);
 }
 
 export async function handleV1SessionsPost(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handlePostSessions(request, env, session.parent_id);
 }
 
 export async function handleV1SessionPatch(request: Request, env: Env, sessionId: string): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handlePatchSession(request, env, session.parent_id, sessionId);
 }

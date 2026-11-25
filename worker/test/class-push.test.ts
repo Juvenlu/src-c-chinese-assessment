@@ -63,7 +63,8 @@ CREATE TABLE parents (
   status         TEXT NOT NULL DEFAULT 'active',
   created_at     INTEGER NOT NULL,
   updated_at     INTEGER,
-  roles          TEXT NOT NULL DEFAULT 'parent'
+  roles          TEXT NOT NULL DEFAULT 'parent',
+  session_version INTEGER NOT NULL DEFAULT 0
 );`;
 
 const DDL_CHILDREN = `

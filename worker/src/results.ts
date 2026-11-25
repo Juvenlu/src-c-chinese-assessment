@@ -14,7 +14,7 @@
  */
 
 import type { Env, Level } from './types';
-import { getSessionFromRequest } from './session';
+import { getAuthedSession } from './session';
 import {
 	calculatePartScores,
 	calculateFormalTotalScore,
@@ -416,13 +416,13 @@ export async function handlePostResults(
 // ===== V1 Wrappers =====
 
 export async function handleV1ResultsGet(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handleGetResults(request, env, session.parent_id);
 }
 
 export async function handleV1ResultsPost(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handlePostResults(request, env, session.parent_id);
 }

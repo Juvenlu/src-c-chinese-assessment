@@ -1,7 +1,7 @@
 // Children CRUD — D1 实现
 // GET / POST / PATCH，使用现有 HMAC Session + D1
 
-import { getSessionFromRequest } from './session';
+import { getAuthedSession } from './session';
 
 interface Env {
 	DB: D1Database;
@@ -273,19 +273,19 @@ async function bindGuestTestToChild(
 // session wrapper helpers — index.ts 中注册路由时调用
 
 export async function handleV1ChildrenGet(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handleGetChildren(request, env, session.parent_id);
 }
 
 export async function handleV1ChildrenPost(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handlePostChildren(request, env, session.parent_id);
 }
 
 export async function handleV1ChildPatch(request: Request, env: Env, childId: string): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handlePatchChild(request, env, session.parent_id, childId);
 }

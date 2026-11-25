@@ -24,7 +24,7 @@
  *     40bit 熵 + 频控 + 统一错误文案构成实际防线。
  */
 
-import { getSessionFromRequest } from "./session";
+import { getAuthedSession } from "./session";
 import { parseRoles, hasRole } from "./roles";
 import { getConfirmedLevel } from "./level-service";
 import type { Level } from "./types";
@@ -128,7 +128,7 @@ export function __resetJoinRateForTest(): void {
 
 /** Session + 账号 active 校验。返回 session 或 null（调用方返回 401） */
 async function requireSession(request: Request, env: Env): Promise<SessionPayload | null> {
-	const session = (await getSessionFromRequest(request, env.SESSION_SECRET)) as SessionPayload | null;
+	const session = (await getAuthedSession(request, env)) as SessionPayload | null;
 	if (!session || !session.parent_id) return null;
 	const account = await env.DB.prepare(
 		"SELECT status FROM parents WHERE id = ?1"

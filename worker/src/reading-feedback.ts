@@ -1,5 +1,5 @@
 import { Env } from './types';
-import { getSessionFromRequest } from './session';
+import { getAuthedSession } from './session';
 
 // ============================================================
 // Reading Feedback — 绘本阅读反馈（兴趣 + 难度）
@@ -201,7 +201,7 @@ async function handlePost(request: Request, env: Env, sessionParentId: string): 
  * 此处只负责 HMAC Session + 归属校验与分发。
  */
 export async function handleReadingFeedback(request: Request, env: Env): Promise<Response> {
-  const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+  const session = await getAuthedSession(request, env);
   if (!session) {
     return json({ success: false, error: 'Unauthorized' }, 401);
   }

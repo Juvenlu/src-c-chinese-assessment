@@ -4,11 +4,11 @@
  * GET  /v1/books/custom?child_id=xxx   孩子的定制绘本列表（需登录 + 归属校验）
  * GET  /v1/books/custom/:id            单本定制绘本详情（含 pages_json，需登录 + 归属校验）
  *
- * Auth: HMAC Session Cookie → getSessionFromRequest
+ * Auth: HMAC Session Cookie → getAuthedSession
  * Ownership: custom_books → child → parent_id 校验
  */
 
-import { getSessionFromRequest } from './session';
+import { getAuthedSession } from './session';
 import { markCustomBookFirstViewed } from './admin-versioning';
 import type { Env } from './types';
 
@@ -71,7 +71,7 @@ async function verifyChildOwnership(
  * JOIN book_rewrite_versions + book_episodes 补全前端需要的字段。
  */
 export async function handleV1CustomBooksList(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) {
 		return Response.json({ error: 'Unauthorized' }, { status: 401 });
 	}
@@ -133,7 +133,7 @@ export async function handleV1CustomBooksList(request: Request, env: Env): Promi
  * 通过 custom_books.id 查找，先取 child_id 做归属校验。
  */
 export async function handleV1CustomBookDetail(request: Request, env: Env, bookId: string): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) {
 		return Response.json({ error: 'Unauthorized' }, { status: 401 });
 	}

@@ -18,6 +18,12 @@ interface D1ResultMeta {
 	last_row_id: number;
 }
 
+interface D1Result {
+	results: unknown[];
+	success: boolean;
+	meta: D1ResultMeta;
+}
+
 interface BoundStmt {
 	first<T = Row>(): Promise<T | null>;
 	all<T = Row>(): Promise<{ results: T[]; success: boolean; meta: D1ResultMeta }>;
@@ -26,7 +32,7 @@ interface BoundStmt {
 
 export interface D1Like {
 	prepare(sql: string): { bind(...params: unknown[]): BoundStmt };
-	batch(statements: BoundStmt[]): Promise<D1ResultMeta[]>;
+	batch(statements: BoundStmt[]): Promise<D1Result[]>;
 }
 
 class Bound implements BoundStmt {
@@ -58,9 +64,10 @@ class Bound implements BoundStmt {
 		});
 	}
 
-	/** batch 内部使用：在已开启事务中同步执行 */
-	execInTx(): void {
-		this.db.prepare(this.sql).run(...(this.params as SQLInputValue[]));
+	/** batch 内部使用：在已开启事务中同步执行，返回受影响行数（D1 语义） */
+	execInTx(): number {
+		const r = this.db.prepare(this.sql).run(...(this.params as SQLInputValue[]));
+		return Number(r.changes);
 	}
 }
 
@@ -74,12 +81,16 @@ export function createD1Like(db: DatabaseSync): D1Like {
 				},
 			};
 		},
-		async batch(statements: BoundStmt[]): Promise<D1ResultMeta[]> {
+		async batch(statements: BoundStmt[]): Promise<D1Result[]> {
 			db.exec("BEGIN");
 			try {
-				for (const s of statements) (s as Bound).execInTx();
+				const metas: D1Result[] = [];
+				for (const s of statements) {
+					const changes = (s as Bound).execInTx();
+					metas.push({ results: [], success: true, meta: { changes, last_row_id: 0 } });
+				}
 				db.exec("COMMIT");
-				return statements.map(() => ({ changes: 0, last_row_id: 0 }));
+				return metas;
 			} catch (err) {
 				db.exec("ROLLBACK");
 				throw err;

@@ -9,7 +9,7 @@
  */
 
 import type { Env } from './types';
-import { getSessionFromRequest } from './session';
+import { getAuthedSession } from './session';
 
 /** D1 test_answers 行 → 前端 TestAnswer（类型转换） */
 function rowToAnswer(row: Record<string, unknown>): Record<string, unknown> {
@@ -244,13 +244,13 @@ export async function handlePostAnswers(
 // ===== V1 Wrappers =====
 
 export async function handleV1AnswersGet(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handleGetAnswers(request, env, session.parent_id);
 }
 
 export async function handleV1AnswersPost(request: Request, env: Env): Promise<Response> {
-	const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+	const session = await getAuthedSession(request, env);
 	if (!session) return Response.json({ error: '未登录' }, { status: 401 });
 	return handlePostAnswers(request, env, session.parent_id);
 }

@@ -19,6 +19,11 @@ export interface Env {
 	 * 不影响：教师申请创建与查看、只读队列/详情、家庭绘本（channel=home）全部流程。
 	 */
 	CLASS_PUSH_ADMIN_ENABLED?: string;
+	/** 密码重置链接前缀（P5-R1B）：Admin 批准后拼装一次性重置链接。
+	 * 生产=vars，如 https://src-c-chinese-assessment.vercel.app
+	 * 缺失时 fallback ''（仅本地/测试可接受，生产必须配置）。
+	 */
+	RESET_LINK_BASE?: string;
 }
 
 export type Level = 'SRC100' | 'SRC300' | 'SRC500' | 'SRC800';

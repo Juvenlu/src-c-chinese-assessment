@@ -23,6 +23,10 @@ simple = { limit = 10, period = 60 }
 [env.production]
 name = "src-primary-api"
 
+[env.production.vars]
+# P5-R1B：密码重置链接前缀（正式 Production 域名；非 Secret，明文 vars 即可）
+RESET_LINK_BASE = "https://src-c-chinese-assessment.vercel.app"
+
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "src-primary-database"

@@ -1,5 +1,5 @@
 import { Env } from './types';
-import { getSessionFromRequest } from './session';
+import { getAuthedSession } from './session';
 
 // ============================================================
 // Reading Records — 绘本阅读进度
@@ -113,7 +113,7 @@ async function getRecord(
  * 获取已有记录；不存在则创建（服务端页数为准，pages_read=1）。
  */
 async function handleCreate(request: Request, env: Env): Promise<Response> {
-  const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+  const session = await getAuthedSession(request, env);
   if (!session) {
     return json({ success: false, error: 'Unauthorized' }, 401);
   }
@@ -173,7 +173,7 @@ async function handleUpdate(
   env: Env,
   customBookIdRaw: string,
 ): Promise<Response> {
-  const session = await getSessionFromRequest(request, env.SESSION_SECRET);
+  const session = await getAuthedSession(request, env);
   if (!session) {
     return json({ success: false, error: 'Unauthorized' }, 401);
   }

@@ -266,7 +266,7 @@ async function test7_sessionCookie() {
 }
 
 async function test8_pbkdf2PerformanceBaseline() {
-	console.log("\nTest 8: PBKDF2 性能基线（Node 环境）");
+	console.log("\nTest 8: 密码哈希性能基线（Node 环境，Argon2id）");
 
 	const start = Date.now();
 	const hash = await hashPassword("benchmark-password");
@@ -277,10 +277,10 @@ async function test8_pbkdf2PerformanceBaseline() {
 	await verifyPassword("benchmark-password", hash);
 	const compareTime = Date.now() - start2;
 
-	console.log(`  (hash 200K iterations: ${hashTime}ms, verify: ${compareTime}ms)`);
+	console.log(`  (hash Argon2id m=19456,t=2,p=1: ${hashTime}ms, verify: ${compareTime}ms)`);
 	assert(hashTime > 0, "hash 执行成功");
 	assert(compareTime > 0, "verify 执行成功");
-	assert(hash.startsWith("pbkdf2_sha256$"), "hash 使用 PBKDF2 格式");
+	assert(hash.startsWith("$argon2id$"), "hash 使用当前 Argon2id 格式");
 	// 注意：Worker 环境性能可能不同，部署前需要实际验证
 	console.log(`  ⚠  Worker 环境实际性能需部署后验证（Node 结果仅供参考）`);
 }

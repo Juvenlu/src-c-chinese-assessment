@@ -65,7 +65,8 @@ CREATE TABLE parents (
   password_hash  TEXT,
   email_verified INTEGER NOT NULL DEFAULT 0,
   status         TEXT NOT NULL DEFAULT 'active',
-  created_at     INTEGER NOT NULL
+  created_at     INTEGER NOT NULL,
+  session_version INTEGER NOT NULL DEFAULT 0
 );`;
 
 /** 家长 signup INSERT 所需的最小 children 表（列与生产一致） */

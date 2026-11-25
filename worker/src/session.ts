@@ -4,7 +4,10 @@
  * 设计原则：
  * - 纯 Web Crypto API，零外部依赖，可在 Cloudflare Worker 中直接运行
  * - 签名格式：base64url(payload).base64url(signature)
- * - payload: { parent_id, iat, exp }
+ * - payload: { parent_id, iat, exp, sv? }
+ *   sv = session_version（parents 表，P5-R1B 新增）
+ *   密码重置/修改成功后 session_version+1，携带旧 sv 的 Session 全部失效
+ *   兼容性：旧 token 无 sv 字段 → 仅当 DB session_version=0 时放行，否则拒绝
  * - 过期时间：30 天
  * - Cookie: src_auth_session / HttpOnly / Secure / SameSite=Lax / Path=/
  */
@@ -16,6 +19,7 @@ export interface SessionPayload {
 	parent_id: string;
 	iat: number; // issued at, unix seconds
 	exp: number; // expires at, unix seconds
+	sv?: number; // session version (P5-R1B)，缺省表示历史 token
 }
 
 // ===== 内部工具：Web Crypto =====
@@ -85,6 +89,10 @@ export async function signSession(
 		iat: payload.iat ?? now,
 		exp: payload.exp ?? now + SESSION_DURATION_SECONDS,
 	};
+	// P5-R1B：session_version 显式带出；未提供（如教师/旧调用方）不写入
+	if (typeof payload.sv === "number") {
+		fullPayload.sv = payload.sv;
+	}
 
 	const payloadJson = JSON.stringify(fullPayload);
 	const payloadBytes = stringToBytes(payloadJson);
@@ -202,7 +210,7 @@ export function extractSessionToken(request: Request): string | null {
 }
 
 /**
- * 从 Request 中读取并验证 session
+ * 从 Request 中读取并验证 session（仅密码学校验，不查库）
  * 失败返回 null
  */
 export async function getSessionFromRequest(
@@ -212,4 +220,61 @@ export async function getSessionFromRequest(
 	const token = extractSessionToken(request);
 	if (!token) return null;
 	return verifySession(token, secret);
+}
+
+// ===== 落地型鉴权（P5-R1B 全局 Session 失效）=====
+
+/**
+ * 最小 D1 查询接口（兼容 Cloudflare D1Database 与测试 d1-shim）
+ * 只依赖 prepare().bind().first()
+ */
+export interface SessionVersionLookup {
+	prepare(sql: string): {
+		bind(...params: unknown[]): {
+			first<T>(): Promise<T | null>;
+		};
+	};
+}
+
+export interface AuthedSessionEnv {
+	DB: SessionVersionLookup;
+	SESSION_SECRET: string;
+}
+
+/**
+ * 落地型鉴权：密码学校验 + DB session_version 对比
+ *
+ * 规则（P5-R1A-FIX）：
+ * - token 无效/过期 → null
+ * - 家长不存在 → null
+ * - 带 sv 的 token：sv === DB session_version 才放行
+ * - 无 sv 的历史 token：仅当 DB session_version=0 时放行（存量未改密用户零影响）
+ * - DB 查询异常 → null（fail-closed，不做部分放行）
+ */
+export async function getAuthedSession(
+	request: Request,
+	env: AuthedSessionEnv
+): Promise<SessionPayload | null> {
+	const payload = await getSessionFromRequest(request, env.SESSION_SECRET);
+	if (!payload) return null;
+
+	let row: { session_version?: number } | null;
+	try {
+		row = await env.DB.prepare("SELECT session_version FROM parents WHERE id = ?")
+			.bind(payload.parent_id)
+			.first<{ session_version: number }>();
+	} catch {
+		return null; // DB 异常视为鉴权失败
+	}
+
+	const dbVersion = row?.session_version ?? 0;
+	// 家长不存在（行已级联删除）→ 直接拒绝
+	if (!row) return null;
+
+	const hasSv = typeof payload.sv === "number";
+	if (!hasSv) {
+		// 历史 token：session_version 仍为 0 才放行
+		return dbVersion === 0 ? payload : null;
+	}
+	return payload.sv === dbVersion ? payload : null;
 }
