@@ -19,6 +19,12 @@ name = "JOIN_RATE_LIMITER"
 namespace_id = "1001"
 simple = { limit = 10, period = 60 }
 
+# 顶层 Vars（R1J-C2）：Cloudflare Git 集成自动构建以顶层配置部署，
+# 必须在此声明才能保证自动部署与手动 --env production 一致地携带 RESET_LINK_BASE。
+# 非 Secret，明文 vars 即可。正式 Production 重置链接域名。
+[vars]
+RESET_LINK_BASE = "https://src-c-chinese-assessment.vercel.app"
+
 # 部署配置
 [env.production]
 name = "src-primary-api"
@@ -38,6 +44,12 @@ namespace_id = "1001"
 simple = { limit = 10, period = 60 }
 
 [env.preview]
+
+# R1J-C2：Preview 显式覆盖，阻止继承顶层 Production 重置链接地址（wrangler vars 继承规则：
+# 环境未声明同名 vars 时会继承顶层 [vars]）。Preview 无固定前端域名，置空与
+# password-reset.ts 的 fallback（env.RESET_LINK_BASE || ""）语义一致。
+[env.preview.vars]
+RESET_LINK_BASE = ""
 
 [[env.preview.d1_databases]]
 binding = "DB"
