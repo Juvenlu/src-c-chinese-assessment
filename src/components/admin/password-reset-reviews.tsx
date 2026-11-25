@@ -209,7 +209,7 @@ export function PasswordResetReviews({ adminFetch }: { adminFetch: (url: string,
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {new Date(r.created_at).toLocaleString('zh-CN')}
+                      {new Date(r.created_at * 1000).toLocaleString('zh-CN')}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {r.status === 'approved' && r.verified_by ? `已记录 ${r.verified_by}` : ''}
