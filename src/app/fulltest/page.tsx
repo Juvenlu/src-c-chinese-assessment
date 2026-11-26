@@ -23,6 +23,17 @@ function shuffleArray<T>(array: T[], seed: number): T[] {
 // Generate a random seed
 const randomSeed = Math.floor(Math.random() * 1000000);
 
+// 按被测内容汉字数返回自适应字号类（与直接测试快速测评视觉统一，无卡片展示）
+function getItemSizeClass(item: string | undefined): string {
+  const len = item ? Array.from(item).length : 0;
+  if (len <= 1) return 'text-[120px] md:text-[160px]';
+  if (len === 2) return 'text-[72px] md:text-[120px]';
+  if (len === 3) return 'text-[64px] md:text-[96px]';
+  if (len === 4) return 'text-[56px] md:text-[80px]';
+  // 超过四字：安全兜底，防止窄屏溢出
+  return 'text-[40px] md:text-[56px]';
+}
+
 function FullTestContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -555,31 +566,22 @@ function FullTestContent() {
           </div>
         </div>
 
-        {/* Character/Word display */}
+        {/* Character/Word display - 无卡片，直接展示在页面背景 */}
         <div className="flex items-center justify-center mb-6">
-          <div
-            className={`bg-white rounded-3xl shadow-lg flex items-center justify-center transition-all duration-300 ${
-              showFeedback === 'known'
-                ? 'scale-110 border-4 border-[var(--color-src-success)]'
-                : showFeedback === 'unknown'
-                  ? 'scale-95 border-4 border-[var(--color-src-error)]'
-                  : ''
-            }`}
+          <span
+            className={`font-medium leading-none tracking-wider transition-all duration-300 ${getItemSizeClass(currentItem)} ${
+              showFeedback === 'known' ? 'scale-105 text-[var(--color-src-success)]' : ''
+            } ${showFeedback === 'unknown' ? 'opacity-80' : ''}`}
             style={{
-              width: phase === 'chars' ? '200px' : '260px',
-              height: phase === 'chars' ? '200px' : '160px',
+              color: 'var(--color-src-text)',
+              fontFamily: "'KaiTi', 'STKaiti', '楷体', 'Kaiti SC', 'DFKai-SB', serif",
+              textShadow: '0 4px 16px rgba(0,0,0,0.08)',
+              wordBreak: 'keep-all',
+              overflowWrap: 'break-word',
             }}
           >
-            <span
-              className="text-[var(--color-src-text)] font-bold"
-              style={{
-                fontSize: phase === 'chars' ? '96px' : '56px',
-                fontFamily: "'KaiTi', 'STKaiti', '楷体', 'Microsoft YaHei', '微软雅黑', 'SimHei', '黑体', sans-serif",
-              }}
-            >
-              {currentItem}
-            </span>
-          </div>
+            {currentItem}
+          </span>
         </div>
 
         {/* 智能抽测原因提示（词组测试阶段） */}
