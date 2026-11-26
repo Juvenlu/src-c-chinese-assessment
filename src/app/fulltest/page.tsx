@@ -584,23 +584,6 @@ function FullTestContent() {
           </span>
         </div>
 
-        {/* 智能抽测原因提示（词组测试阶段） */}
-        {phase === 'words' && sampledWords[currentIndex] && (
-          <div className="text-center mb-8">
-            <span className="inline-block px-3 py-1 rounded-full text-xs font-medium"
-              style={{
-                backgroundColor: 'var(--color-src-accent)',
-                color: 'var(--color-src-text)',
-                opacity: 0.8,
-              }}
-            >
-              🎯 {sampledWords[currentIndex].poolType === 'review' ? '重点复习' :
-                  sampledWords[currentIndex].poolType === 'new' ? '新字挑战' :
-                  '巩固检测'}
-            </span>
-          </div>
-        )}
-
         {/* Answer buttons */}
         <div className="flex gap-4 max-w-sm mx-auto">
           <button
